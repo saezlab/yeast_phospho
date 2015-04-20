@@ -1,3 +1,6 @@
 .DS_Store
 reports/*
 files/*
+gurobi.log
+.idea
+*.pyc
