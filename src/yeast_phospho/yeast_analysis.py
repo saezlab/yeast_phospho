@@ -1,6 +1,7 @@
 import re
 import copy
 import random
+import scipy
 import numpy as np
 import seaborn as sns
 import igraph as igraph
@@ -25,6 +26,12 @@ from pymist.enrichment.gsea import gsea
 from pymist.reader.sbml_reader import read_sbml_model
 
 
+def pearson(x, y):
+    mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
+    cor, pvalue = scipy.stats.pearsonr(x[mask], y[mask]) if np.sum(mask) > 1 else (np.NaN, np.NaN)
+    return cor, pvalue, x[mask], y[mask], np.sum(mask)
+
+
 def remove_nan(values):
     return values[~np.isnan(values)]
 
@@ -34,6 +41,7 @@ def get_site(protein, peptide):
     pep_site_strat = peptide.find('[')
     site_pos = pep_start + pep_site_strat
     return protein[site_pos - 1] + str(site_pos)
+
 
 def metric(func, x, y):
     mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
@@ -143,7 +151,8 @@ kinases_targets = {k: t.intersection(phospho_df.index) for k, t in kinases_targe
 
 # Import matrix
 kinase_df = read_csv(wd + 'tables/kinase_enrichment.tab', sep='\t', index_col=0)
-kinase_df = kinase_df[kinase_df.count(1) > 110]  # Threshold: number of measurements for kinases enrichments
+# kinase_df = kinase_df[kinase_df.count(1) > 110]  # Threshold: number of measurements for kinases enrichments
+
 
 # Kinase enrichment with z-test
 def ztest(dataset, targets):
@@ -166,6 +175,30 @@ kinases_ztest_df = DataFrame(kinases_ztest_df, columns=['kinase', 'strain', 'sco
 kinases_ztest_df = pivot_table(kinases_ztest_df, values='score', index='kinase', columns='strain')
 kinases_ztest_df.to_csv(wd + 'tables/kinase_enrichment_df_ztest.tab', sep='\t')
 print '[INFO] Kinase enrichment matrix exported to: ', wd + 'kinase_enrichment_df_ztest.tab'
+
+# Regulatory-sites
+reg_motif, kinases, strains = ['Activates The Protein Function', 'Inhibits The Protein Function'], list(kinases_ztest_df.index), list(kinases_ztest_df.columns)
+regulatory_sites = read_csv(wd + 'files/phosphosites.txt', sep='\t').loc[:, ['ORF_NAME', 'PHOSPHO_SITE', 'SITE_FUNCTIONS']]
+regulatory_sites = regulatory_sites[regulatory_sites['SITE_FUNCTIONS'] != '-']
+regulatory_sites = regulatory_sites[[k in kinases for k in regulatory_sites['ORF_NAME']]]
+regulatory_sites['SITE'] = regulatory_sites['ORF_NAME'] + '_' + regulatory_sites['PHOSPHO_SITE']
+regulatory_sites = regulatory_sites[[k in phospho_df.index for k in regulatory_sites['SITE']]]
+regulatory_sites = regulatory_sites.set_index('SITE')
+
+gsea_reg_sites_cor = [(k, pearson(phospho_df.ix[k, strains].values, kinase_df.ix[k.split('_')[0], strains].values)) for k in regulatory_sites.index]
+gsea_reg_sites_cor = [(k, c, p, x_values[i], y_values[i], count) for (k, (c, p, x_values, y_values, count)) in gsea_reg_sites_cor if np.isfinite(c) for i in range(len(x_values))]
+gsea_reg_sites_cor = DataFrame(gsea_reg_sites_cor, columns=['kinase', 'correlation', 'pvalue', 'phospho', 'enrichment', 'count'])
+gsea_reg_sites_cor['method'] = 'GSEA'
+gsea_reg_sites_cor['function'] = [regulatory_sites.ix[k, 'SITE_FUNCTIONS'] for k in gsea_reg_sites_cor['kinase']]
+
+ztest_reg_sites_cor = [(k, pearson(phospho_df.ix[k, strains].values, kinases_ztest_df.ix[k.split('_')[0], strains].values)) for k in regulatory_sites.index]
+ztest_reg_sites_cor = [(k, c, p, x_values[i], y_values[i], count) for (k, (c, p, x_values, y_values, count)) in ztest_reg_sites_cor if np.isfinite(c) for i in range(len(x_values))]
+ztest_reg_sites_cor = DataFrame(ztest_reg_sites_cor, columns=['kinase', 'correlation', 'pvalue', 'phospho', 'enrichment', 'count'])
+ztest_reg_sites_cor['method'] = 'z_test'
+ztest_reg_sites_cor['function'] = [regulatory_sites.ix[k, 'SITE_FUNCTIONS'] for k in ztest_reg_sites_cor['kinase']]
+
+regulatory_sites_cor = gsea_reg_sites_cor.append(ztest_reg_sites_cor)
+regulatory_sites_cor.to_csv(wd + 'tables/regulatory_sites_cor.tab', sep='\t', index=False)
 
 # Metabolic model distance
 model = read_sbml_model('/Users/emanuel/Projects/resources/metabolic_models/1752-0509-4-145-s1/yeast_4.04.xml')

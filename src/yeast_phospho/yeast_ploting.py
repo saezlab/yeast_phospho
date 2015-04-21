@@ -14,7 +14,7 @@ from pandas import DataFrame, Series, read_csv, melt
 
 def pearson(x, y):
     mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
-    cor, pvalue = pearsonr(x[mask], y[mask]) if np.sum(mask) > 5 else (np.NaN, np.NaN)
+    cor, pvalue = pearsonr(x[mask], y[mask]) if np.sum(mask) > 1 else (np.NaN, np.NaN)
     return cor, pvalue, x[mask], y[mask], np.sum(mask)
 
 wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
@@ -33,7 +33,12 @@ metabolites_map = read_csv(wd + 'tables/metabolites_map.tab', sep='\t', index_co
 # Import tables
 metabol_df = read_csv(wd + 'tables/metabolomics.tab', sep='\t', index_col=0)
 kinase_df = read_csv(wd + 'tables/kinase_enrichment.tab', sep='\t', index_col=0)
+
 kinase_ztest_df = read_csv(wd + 'tables/kinase_enrichment_df_ztest.tab', sep='\t', index_col=0)
+kinase_ztest_df[kinase_ztest_df > 8] = 8
+kinase_ztest_df[kinase_ztest_df < -8] = -8
+
+regulatory_sites_cor = read_csv(wd + 'tables/regulatory_sites_cor.tab', sep='\t')
 
 cor_df = read_csv(wd + 'tables/met_kin_correlation.tab', sep='\t', index_col=0)
 s_distance = read_csv(wd + 'tables/metabolites_distances.tab', sep='\t', index_col=0)
@@ -76,8 +81,6 @@ plt.close('all')
 
 plot_df_order = set(kinase_ztest_df.index).intersection(kinase_ztest_df.columns)
 plot_df = kinase_ztest_df.copy().replace(np.NaN, 0).loc[plot_df_order, plot_df_order]
-plot_df[plot_df > 8] = 8
-plot_df[plot_df < -8] = -8
 plot_df.index = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.index]
 plot_df.columns = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.columns]
 plot_df.columns.name, plot_df.index.name = 'perturbations', 'kinases'
@@ -88,6 +91,7 @@ plt.close('all')
 
 # ---- Plot correlation between GSEA and Z-test kinase enrichment
 cond = set(kinase_df.columns).intersection(kinase_ztest_df.columns)
+
 data_sets_cor = [(k, pearson(kinase_df.ix[k, cond].values, kinase_ztest_df.ix[k, cond].values)) for k in kinase_ztest_df.index]
 data_sets_cor = [(k, c, p, x_values[i], y_values[i], count) for (k, (c, p, x_values, y_values, count)) in data_sets_cor if np.isfinite(c) for i in range(len(x_values))]
 data_sets_cor = DataFrame(data_sets_cor, columns=['kinase', 'correlation', 'pvalue', 'gsea', 'ztest', 'count'])
@@ -101,6 +105,18 @@ for ax, title in zip(g.axes.flat, titles):
     ax.set_title(title)
 
 plt.savefig(wd + 'reports/%s_kinase_df_ztest_vs_gsea.pdf' % version, bbox_inches='tight')
+plt.close('all')
+
+# ---- Plot regulatory sites correlation
+col_order = {k: '%s\n(%s)' % (k, c) for k, c in regulatory_sites_cor.groupby('kinase').first()['function'].to_dict().items()}
+
+g = sns.lmplot('phospho', 'enrichment', data=regulatory_sites_cor, hue='method', palette='muted', ci=None, scatter_kws={'s': 50, 'alpha': 1}, col='kinase', size=3, col_wrap=3, sharex=False, sharey=False, col_order=col_order.keys())
+sns.despine(left=True, bottom=True)
+
+for ax, title in zip(g.axes.flat, col_order.values()):
+    ax.set_title(title)
+
+plt.savefig(wd + 'reports/%s_regulatory_sites_correlation.pdf' % version, bbox_inches='tight')
 plt.close('all')
 
 # ---- Plot correlation cluster map
