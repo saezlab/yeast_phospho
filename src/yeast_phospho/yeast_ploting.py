@@ -9,14 +9,15 @@ from scipy.stats import pearsonr, spearmanr, ttest_ind
 from statsmodels.stats.multitest import multipletests
 from sklearn.feature_selection import SelectKBest, chi2
 from sklearn.metrics.metrics import roc_curve, auc, jaccard_similarity_score
-from pandas import DataFrame, Series, read_csv
+from pandas import DataFrame, Series, read_csv, melt
 
 
 def pearson(x, y):
-    mask = np.bitwise_and(x.notnull(), y.notnull())
-    return pearsonr(x.loc[mask], y.loc[mask]) if np.sum(mask) > 5 else (np.NaN, np.NaN)
+    mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
+    cor, pvalue = pearsonr(x[mask], y[mask]) if np.sum(mask) > 5 else (np.NaN, np.NaN)
+    return cor, pvalue, x[mask], y[mask], np.sum(mask)
 
-wd = '/Users/emanuel/Projects/projects/pymist/resources/yeast_phospho/'
+wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
 
 # Seaborn configurations
 sns.set_style('white')
@@ -32,6 +33,7 @@ metabolites_map = read_csv(wd + 'tables/metabolites_map.tab', sep='\t', index_co
 # Import tables
 metabol_df = read_csv(wd + 'tables/metabolomics.tab', sep='\t', index_col=0)
 kinase_df = read_csv(wd + 'tables/kinase_enrichment.tab', sep='\t', index_col=0)
+kinase_ztest_df = read_csv(wd + 'tables/kinase_enrichment_df_ztest.tab', sep='\t', index_col=0)
 
 cor_df = read_csv(wd + 'tables/met_kin_correlation.tab', sep='\t', index_col=0)
 s_distance = read_csv(wd + 'tables/metabolites_distances.tab', sep='\t', index_col=0)
@@ -50,7 +52,7 @@ plot_df = metabol_df.copy().replace(np.NaN, 0)
 plot_df.columns = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.columns]
 plot_df.index = [metabolites_map.ix[metabolites_map['id'] == i, 'name'].values[0] for i in plot_df.index]
 sns.clustermap(plot_df, figsize=(25, 20))
-plt.savefig(wd + 'plots/%s_metabolites_clustermap.pdf' % version, bbox_inches='tight')
+plt.savefig(wd + 'reports/%s_metabolites_clustermap.pdf' % version, bbox_inches='tight')
 plt.close('all')
 
 # ---- Plot kinase cluster map
@@ -59,7 +61,7 @@ plot_df.index = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.index]
 plot_df.columns = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.columns]
 plot_df.columns.name, plot_df.index.name = 'perturbations', 'kinases'
 sns.clustermap(plot_df, figsize=(30, 17), col_cluster=False, row_cluster=False)
-plt.savefig(wd + 'plots/%s_kinase_df_clustermap.pdf' % version, bbox_inches='tight')
+plt.savefig(wd + 'reports/%s_kinase_df_clustermap.pdf' % version, bbox_inches='tight')
 plt.close('all')
 
 plot_df_order = set(kinase_df.index).intersection(kinase_df.columns)
@@ -68,7 +70,37 @@ plot_df.index = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.index]
 plot_df.columns = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.columns]
 plot_df.columns.name, plot_df.index.name = 'perturbations', 'kinases'
 sns.clustermap(plot_df, figsize=(8, 8), col_cluster=False, row_cluster=False)
-plt.savefig(wd + 'plots/%s_kinase_df_diagonal_clustermap.pdf' % version, bbox_inches='tight')
+plt.title('GSEA')
+plt.savefig(wd + 'reports/%s_kinase_df_diagonal_clustermap.pdf' % version, bbox_inches='tight')
+plt.close('all')
+
+plot_df_order = set(kinase_ztest_df.index).intersection(kinase_ztest_df.columns)
+plot_df = kinase_ztest_df.copy().replace(np.NaN, 0).loc[plot_df_order, plot_df_order]
+plot_df[plot_df > 8] = 8
+plot_df[plot_df < -8] = -8
+plot_df.index = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.index]
+plot_df.columns = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.columns]
+plot_df.columns.name, plot_df.index.name = 'perturbations', 'kinases'
+g = sns.clustermap(plot_df, figsize=(8, 8), col_cluster=False, row_cluster=False)
+plt.title('Z-test')
+plt.savefig(wd + 'reports/%s_kinase_df_diagonal_clustermap_ztest.pdf' % version, bbox_inches='tight')
+plt.close('all')
+
+# ---- Plot correlation between GSEA and Z-test kinase enrichment
+cond = set(kinase_df.columns).intersection(kinase_ztest_df.columns)
+data_sets_cor = [(k, pearson(kinase_df.ix[k, cond].values, kinase_ztest_df.ix[k, cond].values)) for k in kinase_ztest_df.index]
+data_sets_cor = [(k, c, p, x_values[i], y_values[i], count) for (k, (c, p, x_values, y_values, count)) in data_sets_cor if np.isfinite(c) for i in range(len(x_values))]
+data_sets_cor = DataFrame(data_sets_cor, columns=['kinase', 'correlation', 'pvalue', 'gsea', 'ztest', 'count'])
+
+titles = ['%s (r=%.2f)' % (k, c) for k, c in data_sets_cor.groupby('kinase').first()['correlation'].to_dict().items()]
+
+g = sns.lmplot('gsea', 'ztest', data_sets_cor, col='kinase', col_wrap=10, size=3, scatter_kws={'s': 50, 'alpha': 1}, ci=None, palette='muted', sharex=False, sharey=False, col_order=set(data_sets_cor['kinase']))
+sns.despine(left=True, bottom=True)
+
+for ax, title in zip(g.axes.flat, titles):
+    ax.set_title(title)
+
+plt.savefig(wd + 'reports/%s_kinase_df_ztest_vs_gsea.pdf' % version, bbox_inches='tight')
 plt.close('all')
 
 # ---- Plot correlation cluster map
@@ -76,7 +108,7 @@ plot_df = cor_df.copy().replace(np.NaN, 0)
 plot_df.columns = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.columns]
 plot_df.index = [metabolites_map.ix[metabolites_map['id'] == i, 'name'].values[0] for i in plot_df.index]
 sns.clustermap(plot_df, figsize=(25, 20))
-plt.savefig(wd + 'plots/%s_cordf_clustermap.pdf' % version, bbox_inches='tight')
+plt.savefig(wd + 'reports/%s_cordf_clustermap.pdf' % version, bbox_inches='tight')
 plt.close('all')
 
 # ---- Distance boxplots
@@ -106,7 +138,7 @@ for k, df in [('Metabolites', metabol_df), ('Kinases', cor_df)]:
 
     pos += 1
 
-plt.savefig(wd + 'plots/%s_distance_associations_mm.pdf' % version, bbox_inches='tight')
+plt.savefig(wd + 'reports/%s_distance_associations_mm.pdf' % version, bbox_inches='tight')
 plt.close('all')
 
 # ---- Feature importance analysis
@@ -145,7 +177,7 @@ for bkg_type in set(int_enrichment['db']):
 
     pos += 1
 
-plt.savefig(wd + 'plots/%s_feature_importance.pdf' % version, bbox_inches='tight')
+plt.savefig(wd + 'reports/%s_feature_importance.pdf' % version, bbox_inches='tight')
 plt.close('all')
 
 # ---- Kinase - enzymes interactions enrichment
@@ -191,7 +223,7 @@ for bkg_type in dbs:
 
     pos += 1
 
-plt.savefig(wd + 'plots/%s_kinase_enzyme.pdf' % version, bbox_inches='tight')
+plt.savefig(wd + 'reports/%s_kinase_enzyme.pdf' % version, bbox_inches='tight')
 plt.close('all')
 print '[INFO] Plotting done: ', wd + 'plots/%s_kinase_enzyme.pdf' % version
 
@@ -211,7 +243,7 @@ plot_df.index = [metabolites_map.ix[metabolites_map['id'] == i, 'name'].values[0
 plot_df.columns = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.columns]
 sns.clustermap(plot_df, figsize=(25, 30))
 plt.title('fold-change error |predicted - measured|')
-plt.savefig(wd + 'plots/%s_lm_error_clustermap.pdf' % version, bbox_inches='tight')
+plt.savefig(wd + 'reports/%s_lm_error_clustermap.pdf' % version, bbox_inches='tight')
 plt.close('all')
 
 # ---- Plot samples errors
@@ -239,7 +271,7 @@ ax.set_xlabel('fold-change error (|predicted - measured|)')
 ax.set_yticks([])
 ax.set_ylabel('')
 
-plt.savefig(wd + 'plots/%s_lm_samples_error_boxplot.pdf' % version, bbox_inches='tight')
+plt.savefig(wd + 'reports/%s_lm_samples_error_boxplot.pdf' % version, bbox_inches='tight')
 plt.close('all')
 
 # ---- Plot metabolites errors
@@ -267,7 +299,7 @@ ax.set_xlabel('fold-change error (|predicted - measured|)')
 ax.set_yticks([])
 ax.set_ylabel('')
 
-plt.savefig(wd + 'plots/%s_lm_metabolites_error_boxplot.pdf' % version, bbox_inches='tight')
+plt.savefig(wd + 'reports/%s_lm_metabolites_error_boxplot.pdf' % version, bbox_inches='tight')
 plt.close('all')
 
 # Feature importance
@@ -275,7 +307,7 @@ plot_df = lm_features.copy().T
 plot_df.index = [metabolites_map.ix[metabolites_map['id'] == i, 'name'].values[0] for i in plot_df.index]
 plot_df.columns = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.columns]
 sns.clustermap(plot_df, figsize=(25, 30), cmap='Blues')
-plt.savefig(wd + 'plots/%s_lm_features_clustermap.pdf' % version, bbox_inches='tight')
+plt.savefig(wd + 'reports/%s_lm_features_clustermap.pdf' % version, bbox_inches='tight')
 plt.close('all')
 
 print '[INFO] Plotting done: ', wd

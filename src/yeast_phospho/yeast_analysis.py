@@ -6,6 +6,7 @@ import seaborn as sns
 import igraph as igraph
 import itertools as it
 import matplotlib.pyplot as plt
+from statsmodels.stats.weightstats import CompareMeans, DescrStatsW
 from numpy.ma import masked_invalid as mask
 from sklearn.cross_validation import KFold, LeaveOneOut
 from sklearn.feature_selection.univariate_selection import f_classif, SelectKBest, chi2, f_regression
@@ -13,15 +14,15 @@ from sklearn.linear_model import Lasso, LinearRegression
 from sklearn.metrics.pairwise import euclidean_distances, linear_kernel, manhattan_distances, rbf_kernel, polynomial_kernel, pairwise_distances
 from sklearn.metrics.metrics import roc_curve, auc, jaccard_similarity_score, r2_score
 from pandas.tools.pivot import pivot_table
-from enrichment.enzyme_activity import metabolite_distance
-from pymist.reader import sbml_reader
 from bioservices.kegg import KEGGParser, KEGG
 from pandas import DataFrame, Series, read_csv
 from pandas.core.index import Index
 from scipy.stats import spearmanr, ttest_ind, linregress
 from scipy.stats.mstats import pearsonr
 from scipy.stats.distributions import hypergeom
-from enrichment.gsea import gsea
+from pymist.enrichment.enzyme_activity import metabolite_distance
+from pymist.enrichment.gsea import gsea
+from pymist.reader.sbml_reader import read_sbml_model
 
 
 def remove_nan(values):
@@ -44,7 +45,7 @@ def my_pairwise(x, y, metric):
     return pairwise_distances(x[mask], y[mask], metric=metric) if np.sum(mask) > 5 else np.NaN
 
 
-wd = '/Users/emanuel/Projects/projects/pymist/resources/yeast_phospho/'
+wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
 
 # Seaborn configurations
 sns.set_style('white')
@@ -63,12 +64,12 @@ network = read_csv(wd + 'files/phosphosites.txt', sep='\t').loc[:, ['ORF_NAME', 
 print '[INFO] [PHOSPHOGRID] ', network.shape
 
 # Import phosphoproteomics
-phospho_df = read_csv(wd + 'phosphoproteomics/allEvents.tsv', sep='\t')
+phospho_df = read_csv(wd + 'files/phosphoproteomics/allEvents.tsv', sep='\t')
 phospho_df = phospho_df.pivot_table(values='logFC', index=['peptide', 'target'], columns='regulator', aggfunc=np.median)
 print '[INFO] [PHOSPHOPROTEOMICS] merge repeated phosphopeptides, i.e. median : ', phospho_df.shape
 
 # Import metabolites mass charge to metabolic model
-metabolites_map = read_csv(wd + 'metabolomics/metabolite_mz_map_kegg.txt', sep='\t')  # _adducts
+metabolites_map = read_csv(wd + 'files/metabolomics/metabolite_mz_map_kegg.txt', sep='\t')  # _adducts
 metabolites_map['mz'] = [str(i) for i in metabolites_map['mz']]
 metabolites_map = metabolites_map.drop_duplicates('mz').drop_duplicates('formula')
 metabolites_map = metabolites_map[metabolites_map['mod'] == '-H(+)']
@@ -79,7 +80,7 @@ metabolites_map.to_csv(wd + 'tables/metabolites_map.tab', sep='\t')
 print '[INFO] Metabolites map filtered'
 
 # Import metabolomics
-metabol_df = read_csv(wd + 'metabolomics/Table_S3.txt', sep='\t')
+metabol_df = read_csv(wd + 'files/metabolomics/Table_S3.txt', sep='\t')
 metabol_df.index = [str(i) for i in metabol_df['m/z']]
 metabol_df = metabol_df.drop('m/z', 1).dropna()
 metabol_df = metabol_df[(metabol_df.abs() > 1.0).sum(1) > 1]
@@ -144,8 +145,30 @@ kinases_targets = {k: t.intersection(phospho_df.index) for k, t in kinases_targe
 kinase_df = read_csv(wd + 'tables/kinase_enrichment.tab', sep='\t', index_col=0)
 kinase_df = kinase_df[kinase_df.count(1) > 110]  # Threshold: number of measurements for kinases enrichments
 
+# Kinase enrichment with z-test
+def ztest(dataset, targets):
+    targets_values = DescrStatsW(dataset[targets].dropna().values)
+    non_targets_values = DescrStatsW(dataset.drop(set(dataset.index).intersection(targets)).dropna().values)
+
+    if len(targets_values.data) > 1:
+        t_stat, p_value = CompareMeans(targets_values, non_targets_values).ztest_ind(usevar='unequal')
+        mean_diff = targets_values.data.mean() - non_targets_values.data.mean()
+
+        return np.log10(p_value) if mean_diff < 0 else -np.log10(p_value)
+
+    else:
+        return np.NaN
+
+kinases_ztest_df = [(k, ko, ztest(phospho_df[ko], targets)) for k, targets in kinases_targets.items() for ko in strains]
+print '[INFO] GSEA for kinase enrichment done z-test. ', len(kinases_ztest_df)
+
+kinases_ztest_df = DataFrame(kinases_ztest_df, columns=['kinase', 'strain', 'score']).dropna()
+kinases_ztest_df = pivot_table(kinases_ztest_df, values='score', index='kinase', columns='strain')
+kinases_ztest_df.to_csv(wd + 'tables/kinase_enrichment_df_ztest.tab', sep='\t')
+print '[INFO] Kinase enrichment matrix exported to: ', wd + 'kinase_enrichment_df_ztest.tab'
+
 # Metabolic model distance
-model = sbml_reader.read_sbml_model('/Users/emanuel/Projects/resources/metabolic_models/1752-0509-4-145-s1/yeast_4.04.xml')
+model = read_sbml_model('/Users/emanuel/Projects/resources/metabolic_models/1752-0509-4-145-s1/yeast_4.04.xml')
 model.remove_b_metabolites()
 model.remove_metabolites({k for k, v in model.metabolites.items() if re.match('.* \[extracellular\]', v)})
 model.remove_reactions(model.get_exchanges(True))
