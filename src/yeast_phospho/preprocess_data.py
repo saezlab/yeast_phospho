@@ -93,3 +93,6 @@ for condition in conditions:
 dyn_phospho_df_file = wd + 'tables/dynamic_phosphoproteomics.tab'
 dyn_phospho_df.to_csv(dyn_phospho_df_file, sep='\t')
 print '[INFO] [PHOSPHOPROTEOMICS] Exported to: %s' % dyn_phospho_df_file
+
+
+####  Process dynamic metabolomics
