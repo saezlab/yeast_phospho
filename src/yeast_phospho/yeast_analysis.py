@@ -1,28 +1,19 @@
 import re
 import copy
-import random
 import scipy
 import numpy as np
-import seaborn as sns
 import igraph as igraph
 import itertools as it
-import matplotlib.pyplot as plt
-from statsmodels.stats.weightstats import CompareMeans, DescrStatsW
 from numpy.ma import masked_invalid as mask
-from sklearn.cross_validation import KFold, LeaveOneOut
-from sklearn.feature_selection.univariate_selection import f_classif, SelectKBest, chi2, f_regression
-from sklearn.linear_model import Lasso, LinearRegression
 from sklearn.metrics.pairwise import euclidean_distances, linear_kernel, manhattan_distances, rbf_kernel, polynomial_kernel, pairwise_distances
 from sklearn.metrics.metrics import roc_curve, auc, jaccard_similarity_score, r2_score
 from pandas.tools.pivot import pivot_table
 from bioservices.kegg import KEGGParser, KEGG
 from pandas import DataFrame, Series, read_csv
 from pandas.core.index import Index
-from scipy.stats import spearmanr, ttest_ind, linregress
 from scipy.stats.mstats import pearsonr
 from scipy.stats.distributions import hypergeom
 from pymist.enrichment.enzyme_activity import metabolite_distance
-from pymist.enrichment.gsea import gsea
 from pymist.reader.sbml_reader import read_sbml_model
 
 
@@ -34,13 +25,6 @@ def pearson(x, y):
 
 def remove_nan(values):
     return values[~np.isnan(values)]
-
-
-def get_site(protein, peptide):
-    pep_start = protein.find(re.sub('\[.+\]', '', peptide))
-    pep_site_strat = peptide.find('[')
-    site_pos = pep_start + pep_site_strat
-    return protein[site_pos - 1] + str(site_pos)
 
 
 def metric(func, x, y):
@@ -55,26 +39,22 @@ def my_pairwise(x, y, metric):
 
 wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
 
-# Seaborn configurations
-sns.set_style('white')
-
 # Import Kegg bioservice
 kegg_srv, kegg_prs = KEGG(verbose=True, cache=True), KEGGParser()
 
 # Import acc map to name form uniprot
 acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)
 
-# Import growth rates
-growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)
+# Import phospho log2 FC
+phospho_df = read_csv(wd + 'tables/steady_state_phosphoproteomics.tab', sep='\t', index_col='site')
 
-# Import Phosphogrid network
-network = read_csv(wd + 'files/phosphosites.txt', sep='\t').loc[:, ['ORF_NAME', 'PHOSPHO_SITE', 'KINASES_ORFS', 'PHOSPHATASES_ORFS', 'SEQUENCE']]
-print '[INFO] [PHOSPHOGRID] ', network.shape
+# Import metabol log2 FC
+metabol_df = read_csv(wd + 'tables/steady_state_metabolomics.tab', sep='\t', index_col=0)
+metabol_df.index = Index(metabol_df.index, dtype=str)
 
-# Import phosphoproteomics
-phospho_df = read_csv(wd + 'files/phosphoproteomics/allEvents.tsv', sep='\t')
-phospho_df = phospho_df.pivot_table(values='logFC', index=['peptide', 'target'], columns='regulator', aggfunc=np.median)
-print '[INFO] [PHOSPHOPROTEOMICS] merge repeated phosphopeptides, i.e. median : ', phospho_df.shape
+# Import kinase enrichment
+kinase_df = read_csv(wd + 'tables/kinase_enrichment.tab', sep='\t', index_col=0)
+kinase_df = kinase_df[kinase_df.count(1) > 110]  # Threshold: number of measurements for kinases enrichments
 
 # Import metabolites mass charge to metabolic model
 metabolites_map = read_csv(wd + 'files/metabolomics/metabolite_mz_map_kegg.txt', sep='\t')  # _adducts
@@ -87,13 +67,6 @@ metabolites_map_dict = metabolites_map['id'].to_dict()
 metabolites_map.to_csv(wd + 'tables/metabolites_map.tab', sep='\t')
 print '[INFO] Metabolites map filtered'
 
-# Import metabolomics
-metabol_df = read_csv(wd + 'files/metabolomics/Table_S3.txt', sep='\t')
-metabol_df.index = [str(i) for i in metabol_df['m/z']]
-metabol_df = metabol_df.drop('m/z', 1).dropna()
-metabol_df = metabol_df[(metabol_df.abs() > 1.0).sum(1) > 1]
-print '[INFO] [METABOLOMICS]: ', metabol_df.shape
-
 # Filter metabolites within the model
 metabol_df['kegg'] = [metabolites_map_dict[i] if i in metabolites_map_dict else np.NaN for i in metabol_df.index]
 metabol_df = metabol_df.dropna(subset=['kegg']).groupby('kegg').first()
@@ -103,102 +76,11 @@ print '[INFO] [METABOLOMICS] (filtered metabolites within model/kegg): ', metabo
 strains = list(set(phospho_df.columns).intersection(set(metabol_df.columns)))
 print '[INFO] Overlaping conditions: ', len(strains), ' : ', strains
 
-# Consider phoshopeptides with only one phosphosite
-phospho_df = phospho_df.loc[[len(re.findall('\[[0-9]*\.?[0-9]*\]', peptide)) == 1 for peptide in phospho_df.index.levels[0]]]
-print '[INFO] [PHOSPHOPROTEOMICS] (filtered phosphopetides with multiple phosphosites): ', phospho_df.shape
-
-# Remove K and R aminoacids from the peptide head
-phospho_df.index = phospho_df.index.set_levels([re.split('^[K|R]\.', x)[1] for x in phospho_df.index.levels[0]], 'peptide')
-
-# Match peptide sequences to protein sequence and calculate peptide phosphorylation site
-pep_match = {peptide: set(network.loc[network['ORF_NAME'] == target, 'SEQUENCE']) for (peptide, target), r in phospho_df.iterrows()}
-pep_site = {peptide: target + '_' + get_site(list(pep_match[peptide])[0].upper(), peptide) for (peptide, target), r in phospho_df.iterrows() if len(pep_match[peptide]) == 1}
-
-# Merge phosphosites with median
-phospho_df['site'] = [pep_site[peptide] if peptide in pep_site else np.NaN for (peptide, target), r in phospho_df.iterrows()]
-phospho_df = phospho_df.groupby('site').median()
-print '[INFO] [PHOSPHOPROTEOMICS] (merge phosphosites, i.e median): ', phospho_df.shape
-
 # Sort data-sets in same strain order and export data-sets
 metabol_df, phospho_df = metabol_df[strains], phospho_df[strains]
 metabol_df.to_csv(wd + 'tables/metabolomics.tab', sep='\t')
 phospho_df.to_csv(wd + 'tables/phosphoproteomics.tab', sep='\t')
 print '[INFO] Data-sets exported'
-
-# Filter interactions without kinases/phosphatases
-network = network.loc[np.bitwise_or(network['KINASES_ORFS'] != '-', network['PHOSPHATASES_ORFS'] != '-')]
-print '[INFO] [PHOSPHOGRID] (filter non-kinase/phosphatase interactions): ', network.shape
-
-# Split into multiple interactions into different lines and remove self-phosphorylation events
-network['SOURCE'] = network['KINASES_ORFS'] + '|' + network['PHOSPHATASES_ORFS']
-network = [(k, r['ORF_NAME'] + '_' + r['PHOSPHO_SITE']) for i, r in network.iterrows() for k in r['SOURCE'].split('|') if k != '-' and r['ORF_NAME'] != k]
-network = DataFrame(network, columns=['SOURCE', 'TARGET'])
-print '[INFO] [PHOSPHOGRID] (split into multiple interactions into different lines and remove self-phosphorylation events): ', network.shape
-
-# Kinases enrichment
-kinases = set(network.loc[network['SOURCE'] != '', 'SOURCE'])
-kinases_targets = {k: set(network.loc[network['SOURCE'] == k, 'TARGET']) for k in kinases}
-kinases_targets = {k: t.intersection(phospho_df.index) for k, t in kinases_targets.items() if len(t.intersection(phospho_df.index)) > 2}
-# kinase_df = [(k, ko, gsea(phospho_df[ko], targets, True, 1000)[:2]) for k, targets in kinases_targets.items() for ko in strains]
-# kinase_df = [(k, ko, -np.log10(pvalue) if es < 0 else np.log10(pvalue)) for k, ko, (es, pvalue) in kinase_df]
-# kinase_df = DataFrame(kinase_df, columns=['kinase', 'strain', 'score']).dropna()
-# kinase_df = pivot_table(kinase_df, values='score', index='kinase', columns='strain')
-# print '[INFO] GSEA for kinase enrichment done. ', kinase_df.shape
-#
-# # Export matrix
-# kinase_df.to_csv(wd + 'tables/kinase_enrichment_df.tab', sep='\t')
-# print '[INFO] Kinase enrichment matrix exported to: ', wd + 'files/kinase_enrichment_df.tab'
-
-# Import matrix
-kinase_df = read_csv(wd + 'tables/kinase_enrichment.tab', sep='\t', index_col=0)
-# kinase_df = kinase_df[kinase_df.count(1) > 110]  # Threshold: number of measurements for kinases enrichments
-
-
-# Kinase enrichment with z-test
-def ztest(dataset, targets):
-    targets_values = DescrStatsW(dataset[targets].dropna().values)
-    non_targets_values = DescrStatsW(dataset.drop(set(dataset.index).intersection(targets)).dropna().values)
-
-    if len(targets_values.data) > 1:
-        t_stat, p_value = CompareMeans(targets_values, non_targets_values).ztest_ind(usevar='unequal')
-        mean_diff = targets_values.data.mean() - non_targets_values.data.mean()
-
-        return np.log10(p_value) if mean_diff < 0 else -np.log10(p_value)
-
-    else:
-        return np.NaN
-
-kinases_ztest_df = [(k, ko, ztest(phospho_df[ko], targets)) for k, targets in kinases_targets.items() for ko in strains]
-print '[INFO] GSEA for kinase enrichment done z-test. ', len(kinases_ztest_df)
-
-kinases_ztest_df = DataFrame(kinases_ztest_df, columns=['kinase', 'strain', 'score']).dropna()
-kinases_ztest_df = pivot_table(kinases_ztest_df, values='score', index='kinase', columns='strain')
-kinases_ztest_df.to_csv(wd + 'tables/kinase_enrichment_df_ztest.tab', sep='\t')
-print '[INFO] Kinase enrichment matrix exported to: ', wd + 'kinase_enrichment_df_ztest.tab'
-
-# Regulatory-sites
-reg_motif, kinases, strains = ['Activates The Protein Function', 'Inhibits The Protein Function'], list(kinases_ztest_df.index), list(kinases_ztest_df.columns)
-regulatory_sites = read_csv(wd + 'files/phosphosites.txt', sep='\t').loc[:, ['ORF_NAME', 'PHOSPHO_SITE', 'SITE_FUNCTIONS']]
-regulatory_sites = regulatory_sites[regulatory_sites['SITE_FUNCTIONS'] != '-']
-regulatory_sites = regulatory_sites[[k in kinases for k in regulatory_sites['ORF_NAME']]]
-regulatory_sites['SITE'] = regulatory_sites['ORF_NAME'] + '_' + regulatory_sites['PHOSPHO_SITE']
-regulatory_sites = regulatory_sites[[k in phospho_df.index for k in regulatory_sites['SITE']]]
-regulatory_sites = regulatory_sites.set_index('SITE')
-
-gsea_reg_sites_cor = [(k, pearson(phospho_df.ix[k, strains].values, kinase_df.ix[k.split('_')[0], strains].values)) for k in regulatory_sites.index]
-gsea_reg_sites_cor = [(k, c, p, x_values[i], y_values[i], count) for (k, (c, p, x_values, y_values, count)) in gsea_reg_sites_cor if np.isfinite(c) for i in range(len(x_values))]
-gsea_reg_sites_cor = DataFrame(gsea_reg_sites_cor, columns=['kinase', 'correlation', 'pvalue', 'phospho', 'enrichment', 'count'])
-gsea_reg_sites_cor['method'] = 'GSEA'
-gsea_reg_sites_cor['function'] = [regulatory_sites.ix[k, 'SITE_FUNCTIONS'] for k in gsea_reg_sites_cor['kinase']]
-
-ztest_reg_sites_cor = [(k, pearson(phospho_df.ix[k, strains].values, kinases_ztest_df.ix[k.split('_')[0], strains].values)) for k in regulatory_sites.index]
-ztest_reg_sites_cor = [(k, c, p, x_values[i], y_values[i], count) for (k, (c, p, x_values, y_values, count)) in ztest_reg_sites_cor if np.isfinite(c) for i in range(len(x_values))]
-ztest_reg_sites_cor = DataFrame(ztest_reg_sites_cor, columns=['kinase', 'correlation', 'pvalue', 'phospho', 'enrichment', 'count'])
-ztest_reg_sites_cor['method'] = 'z_test'
-ztest_reg_sites_cor['function'] = [regulatory_sites.ix[k, 'SITE_FUNCTIONS'] for k in ztest_reg_sites_cor['kinase']]
-
-regulatory_sites_cor = gsea_reg_sites_cor.append(ztest_reg_sites_cor)
-regulatory_sites_cor.to_csv(wd + 'tables/regulatory_sites_cor.tab', sep='\t', index=False)
 
 # Metabolic model distance
 model = read_sbml_model('/Users/emanuel/Projects/resources/metabolic_models/1752-0509-4-145-s1/yeast_4.04.xml')
@@ -372,82 +254,3 @@ for bkg_type, db in dbs.items():
 int_enrichment = DataFrame(int_enrichment, columns=['db', 'thres', 'fraction', 'pvalue', 'M', 'n', 'N', 'x'])
 int_enrichment.to_csv(wd + 'tables/interactions_enrichment.tab', sep='\t', index=False)
 print '[INFO] Kinase/Enzyme enrichment ready'
-
-# Machine learning: metabolites -> growth
-X, Y = kinase_df.copy(), metabol_df.copy()
-
-Xs, Ys = Y.copy().T.values, growth.loc[strains, 'relative_growth'].copy().values / 100
-
-scores = []
-for train, test in LeaveOneOut(Ys.shape[0]):
-    lm = Lasso().fit(Xs[train], Ys[train])
-    score = np.linalg.norm(lm.predict(Xs[test]) - Ys[test])
-    scores.append((score, strains[test[0]]))
-print '[INFO] Model training done'
-
-scores = DataFrame(scores, columns=['error', 'strain']).sort(columns='error')
-scores['strain_name'] = [acc_name.loc[x, 'gene'].split(';')[0] for x in scores['strain']]
-
-scores.to_csv(wd + 'tables/lm_growth_prediction.tab', index=False, sep='\t')
-print '[INFO] Growth prediction done!'
-
-# Kinases -> metabolites
-pred_df, meas_df, error_df, m_features = [], [], [], dict()
-models = {}
-for i in range(Y.shape[0]):
-    Xs, Ys = X.T.copy().replace(np.NaN, 0.0), Y.ix[i].copy()
-
-    samples, features, metabolite = Xs.index, Xs.columns, Y.index[i]
-
-    m_features[metabolite] = []
-    models[metabolite] = {}
-
-    cv = LeaveOneOut(len(samples))
-    for train, test in cv:
-        train_i, test_i = samples[train], samples[test]
-
-        fs = SelectKBest(f_regression, 10).fit(Xs.ix[train_i], Ys[train_i])
-        m_features[metabolite].extend(features[fs.get_support()])
-
-        # lm_1 = SVR(kernel='linear').fit(Xs.ix[train_i], Ys[train_i])
-        # lm_2 = RidgeCV().fit(Xs.ix[train_i], Ys[train_i])
-        lm = LinearRegression(normalize=True).fit(Xs.ix[train_i], Ys[train_i])
-
-        pred = lm.predict(Xs.ix[test_i])[0]
-
-        meas = Ys[test_i][0]
-        error = np.linalg.norm(pred - meas)
-
-        pred_df.append((metabolite, test_i[0], pred))
-        meas_df.append((metabolite, test_i[0], meas))
-        error_df.append((metabolite, test_i[0], error))
-
-        models[metabolite][test_i[0]] = lm
-
-        print metabolite, test_i[0], pred, meas, error
-
-error_df = pivot_table(DataFrame(error_df, columns=['metabolite', 'strain', 'value']), values='value', index='strain', columns='metabolite')
-meas_df = pivot_table(DataFrame(meas_df, columns=['metabolite', 'strain', 'value']), values='value', index='strain', columns='metabolite')
-pred_df = pivot_table(DataFrame(pred_df, columns=['metabolite', 'strain', 'value']), values='value', index='strain', columns='metabolite')
-
-m_features_df = {k: dict(zip(*np.unique(v, return_counts=True))) for k, v in m_features.items()}
-m_features_df = DataFrame(m_features_df).replace(np.NaN, 0.0)
-
-error_df.to_csv(wd + 'tables/lm_error.tab', sep='\t')
-meas_df.to_csv(wd + 'tables/lm_measured.tab', sep='\t')
-pred_df.to_csv(wd + 'tables/lm_predicted.tab', sep='\t')
-m_features_df.to_csv(wd + 'tables/lm_features.tab', sep='\t')
-print '[INFO] Model training done'
-
-# # Test case
-# kinases_targets_test = {k: t.intersection(phospho_df.index) for k, t in kinases_targets.items() if len(t.intersection(phospho_test_df.index)) > 2}
-# kinase_test_df = [(k, gsea(phospho_test_df.to_dict()['fc'], targets, True, 1000)[:2]) for k, targets in kinases_targets_test.items()]
-# kinase_test_df = Series({k: -np.log10(pvalue) if es < 0 else np.log10(pvalue) for k, (es, pvalue) in kinase_test_df})
-#
-# for m in set(metabol_test_df.index).intersection(metabol_df.index):
-#     Xs, Ys = X.T.copy().replace(np.NaN, 0.0), Y.ix[m].copy()
-#
-#     lm = LinearRegression(normalize=True).fit(Xs, Ys)
-#
-#     Xs_test, Ys_test = [kinase_test_df[k] if k in kinase_test_df else 0.0 for k in kinase_df.index], metabol_test_df[m]
-#     print lm.predict(Xs_test), Ys_test
