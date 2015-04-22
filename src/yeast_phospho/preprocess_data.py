@@ -1,6 +1,6 @@
 import re
 import numpy as np
-from pandas import read_csv, Index
+from pandas import read_csv, Index, DataFrame
 
 
 def get_site(protein, peptide):
@@ -13,10 +13,12 @@ wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
 
 # Import Phosphogrid network
 network = read_csv(wd + 'files/phosphosites.txt', sep='\t').loc[:, ['ORF_NAME', 'PHOSPHO_SITE', 'KINASES_ORFS', 'PHOSPHATASES_ORFS', 'SEQUENCE']]
+protein_seq = network.groupby('ORF_NAME').first()['SEQUENCE'].to_dict()
 print '[INFO] [PHOSPHOGRID] ', network.shape
 
+
 ####  Process steady-state phosphoproteomics
-phospho_df = read_csv(wd + 'files/phosphoproteomics/allEvents.tsv', sep='\t')
+phospho_df = read_csv(wd + 'data/steady_state_phosphoproteomics.tab', sep='\t')
 phospho_df = phospho_df.pivot_table(values='logFC', index=['peptide', 'target'], columns='regulator', aggfunc=np.median)
 print '[INFO] [PHOSPHOPROTEOMICS] merge repeated phosphopeptides, i.e. median : ', phospho_df.shape
 
@@ -41,8 +43,9 @@ phospho_df_file = wd + 'tables/steady_state_phosphoproteomics.tab'
 phospho_df.to_csv(phospho_df_file, sep='\t')
 print '[INFO] [PHOSPHOPROTEOMICS] Exported to: %s' % phospho_df_file
 
-#### Process steady-state metabolomics
-metabol_df = read_csv(wd + 'files/metabolomics/Table_S3.txt', sep='\t')
+
+####  Process steady-state metabolomics
+metabol_df = read_csv(wd + 'data/steady_state_metabolomics.tab', sep='\t')
 metabol_df.index = Index(metabol_df['m/z'], dtype=np.str)
 print '[INFO] [METABOLOMICS]: ', metabol_df.shape
 
@@ -57,3 +60,36 @@ print '[INFO] [METABOLOMICS] drop metabolites with less than %d abs FC higher th
 metabol_df_file = wd + 'tables/steady_state_metabolomics.tab'
 metabol_df.to_csv(metabol_df_file, sep='\t')
 print '[INFO] [METABOLOMICS] Exported to: %s' % metabol_df_file
+
+
+####  Process dynamic phosphoproteomics
+phospho_dyn_df = read_csv(wd + 'data/dynamic_phosphoproteomics.tab', sep='\t')
+phospho_dyn_map = read_csv(wd + 'data/dynamic_peptides_map.tab', sep='\t')
+
+dyn_phospho_df, conditions, timepoints = DataFrame(), ['N_downshift', 'N_upshift', 'Rapamycin'], ['5min', '9min', '15min', '25min', '44min', '79min']
+
+for condition in conditions:
+    phospho_dyn_df_cond = phospho_dyn_df[phospho_dyn_df['condition'] == condition]
+    phospho_dyn_map_cond = phospho_dyn_map[phospho_dyn_map['condition'] == condition]
+
+    phospho_dyn_df_cond = phospho_dyn_df_cond[[1 == len(phospho_dyn_map_cond.loc[phospho_dyn_map_cond['peptide'] == i, 'phosphopeptide']) for i in phospho_dyn_df_cond['peptide']]]
+    phospho_dyn_df_cond = phospho_dyn_df_cond[[phospho_dyn_map_cond.loc[phospho_dyn_map_cond['peptide'] == i, ['site_%d' % p for p in [1, 2, 3, 4]]].count(1).values[0] == 1 for i in phospho_dyn_df_cond['peptide']]]
+    phospho_dyn_df_cond = phospho_dyn_df_cond[[p in network['ORF_NAME'].values for p in phospho_dyn_df_cond['protein']]]
+    phospho_dyn_df_cond = phospho_dyn_df_cond[[len(p.split('/')) == 1 for p in phospho_dyn_df_cond['protein']]]
+    phospho_dyn_df_cond = phospho_dyn_df_cond.set_index('peptide')
+
+    protein_pos = [tuple(phospho_dyn_map_cond.loc[phospho_dyn_map_cond['peptide'] == i, ['protein', 'site_1']].values[0]) for i in phospho_dyn_df_cond.index]
+    phospho_dyn_df_cond['site'] = ['%s_%s%d' % (protein, protein_seq[protein][int(pos - 1)].upper(), int(pos)) for protein, pos in protein_pos]
+
+    phospho_dyn_df_cond = phospho_dyn_df_cond.groupby('site').mean()[timepoints]
+
+    phospho_dyn_df_cond.columns = ['%s_%s' % (condition, c) for c in phospho_dyn_df_cond.columns]
+
+    dyn_phospho_df = phospho_dyn_df_cond.join(dyn_phospho_df, how='outer')
+
+    print '[INFO] %s' % condition
+
+# Export processed data-set
+dyn_phospho_df_file = wd + 'tables/dynamic_phosphoproteomics.tab'
+dyn_phospho_df.to_csv(dyn_phospho_df_file, sep='\t')
+print '[INFO] [PHOSPHOPROTEOMICS] Exported to: %s' % dyn_phospho_df_file
