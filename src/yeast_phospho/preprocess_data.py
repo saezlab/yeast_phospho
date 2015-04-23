@@ -102,7 +102,8 @@ print '[INFO] [METABOLOMICS]: ', dyn_metabol.shape
 
 ss = read_csv(wd + 'data/metabol_samplesheet.tab', sep='\t', index_col=0)
 
-timepoints = ['5min', '15min']
+timepoints = ['0.1min', '0.5min', '1min', '2min', '3min', '4min', '5min', '7min', '10min', '15min', '20min', '30min', '45min', '60min']
+conditions = ['N_downshift', 'N_upshift', 'Rapamycin']
 
 dyn_metabol_df = [np.log2(dyn_metabol[ss.query('time == "%s" & condition == "%s"' % (t, c)).index].mean(1) / dyn_metabol[ss.query('time == "%s" & condition == "%s"' % ('-10min', c)).index].mean(1)) for c in conditions for t in timepoints]
 dyn_metabol_df = concat(dyn_metabol_df, axis=1)
