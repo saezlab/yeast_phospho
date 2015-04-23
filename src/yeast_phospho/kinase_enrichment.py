@@ -32,6 +32,7 @@ print '[INFO] [PHOSPHOGRID] (split into multiple interactions into different lin
 kinases = set(network['SOURCE'])
 kinases_targets = {k: set(network.loc[network['SOURCE'] == k, 'TARGET']) for k in kinases}
 
+
 ####  Steady-state phosphoproteomics kinases enrichment
 start_time = time.time()
 kinase_df = [(k, ko, gsea(phospho_df[ko], targets, True, 10000)[:2]) for k, targets in kinases_targets.items() for ko in strains]
@@ -44,6 +45,7 @@ print '[INFO] GSEA for kinase enrichment done (ellapsed time %.2fmin).' % ((time
 kinase_df_file = wd + 'tables/kinase_enrichment_df.tab'
 kinase_df.to_csv(kinase_df_file, sep='\t')
 print '[INFO] Kinase enrichment matrix exported to: %s' % kinase_df_file
+
 
 ####  Dynamic phosphoproteomics kinases enrichment
 start_time = time.time()
