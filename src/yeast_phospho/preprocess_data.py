@@ -1,6 +1,6 @@
 import re
 import numpy as np
-from pandas import read_csv, Index, DataFrame
+from pandas import read_csv, Index, DataFrame, concat
 
 
 def get_site(protein, peptide):
@@ -96,3 +96,19 @@ print '[INFO] [PHOSPHOPROTEOMICS] Exported to: %s' % dyn_phospho_df_file
 
 
 ####  Process dynamic metabolomics
+dyn_metabol = read_csv(wd + 'data/metabol_intensities.tab', sep='\t')
+dyn_metabol.index = Index(dyn_metabol['m/z'], dtype=np.str)
+print '[INFO] [METABOLOMICS]: ', dyn_metabol.shape
+
+ss = read_csv(wd + 'data/metabol_samplesheet.tab', sep='\t', index_col=0)
+
+timepoints = ['5min', '15min']
+
+dyn_metabol_df = [np.log2(dyn_metabol[ss.query('time == "%s" & condition == "%s"' % (t, c)).index].mean(1) / dyn_metabol[ss.query('time == "%s" & condition == "%s"' % ('-10min', c)).index].mean(1)) for c in conditions for t in timepoints]
+dyn_metabol_df = concat(dyn_metabol_df, axis=1)
+dyn_metabol_df.columns = Index(['%s_%s' % (c, t) for c in conditions for t in timepoints], dtype=str, name='m/z')
+
+# Export processed data-set
+dyn_metabol_df_file = wd + 'tables/dynamic_metabolomics.tab'
+dyn_metabol_df.to_csv(dyn_metabol_df_file, sep='\t', )
+print '[INFO] [METABOLOMICS] Exported to: %s' % dyn_metabol_df_file
