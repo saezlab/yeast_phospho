@@ -1,6 +1,7 @@
 import re
 import numpy as np
 from pandas import read_csv, Index, DataFrame, concat
+from scipy.interpolate.interpolate import interp1d
 
 
 def get_site(protein, peptide):
@@ -98,16 +99,27 @@ print '[INFO] [PHOSPHOPROTEOMICS] Exported to: %s' % dyn_phospho_df_file
 ####  Process dynamic metabolomics
 dyn_metabol = read_csv(wd + 'data/metabol_intensities.tab', sep='\t')
 dyn_metabol.index = Index(dyn_metabol['m/z'], dtype=np.str)
+dyn_metabol = dyn_metabol.groupby(level=0).first()
 print '[INFO] [METABOLOMICS]: ', dyn_metabol.shape
 
+# Import samplesheet
 ss = read_csv(wd + 'data/metabol_samplesheet.tab', sep='\t', index_col=0)
+ss['time_value'] = [float(i.replace('min', '')) for i in ss['time']]
 
-timepoints = ['0.1min', '0.5min', '1min', '2min', '3min', '4min', '5min', '7min', '10min', '15min', '20min', '30min', '45min', '60min']
-conditions = ['N_downshift', 'N_upshift', 'Rapamycin']
+conditions, p_timepoints, dyn_metabol_df = ['N_downshift', 'N_upshift', 'Rapamycin'], [5, 9, 15, 25, 44, 79], DataFrame()
+for condition in conditions:
+    ss_cond = ss[ss['condition'] == condition]
 
-dyn_metabol_df = [np.log2(dyn_metabol[ss.query('time == "%s" & condition == "%s"' % (t, c)).index].mean(1) / dyn_metabol[ss.query('time == "%s" & condition == "%s"' % ('-10min', c)).index].mean(1)) for c in conditions for t in timepoints]
-dyn_metabol_df = concat(dyn_metabol_df, axis=1)
-dyn_metabol_df.columns = Index(['%s_%s' % (c, t) for c in conditions for t in timepoints], dtype=str, name='m/z')
+    # Average metabolite replicates
+    m_df_cond = DataFrame({m: {t: dyn_metabol.ix[m, ss_cond[ss_cond['time'] == t].index].mean() for t in set(ss_cond['time'])} for m in dyn_metabol.index})
+    m_df_cond.index = Index([float(i.replace('min', '')) for i in m_df_cond.index])
+    m_df_cond = m_df_cond.ix[np.sort(m_df_cond.index)]
+
+    # Interpolate phospho time-points
+    m_df_cond = DataFrame({m: interp1d(m_df_cond.index, m_df_cond[m])(p_timepoints) for m in dyn_metabol.index}, index=['%s_%dmin' % (condition, i) for i in p_timepoints]).T
+
+    # Append to existing data-set
+    dyn_metabol_df = dyn_metabol_df.join(m_df_cond, how='outer')
 
 # Export processed data-set
 dyn_metabol_df_file = wd + 'tables/dynamic_metabolomics.tab'
