@@ -115,6 +115,9 @@ for condition in conditions:
     m_df_cond.index = Index([float(i.replace('min', '')) for i in m_df_cond.index])
     m_df_cond = m_df_cond.ix[np.sort(m_df_cond.index)]
 
+    # Calculate log2 fold-change
+    m_df_cond = np.log2(m_df_cond / m_df_cond.ix[-10.0])
+
     # Interpolate phospho time-points
     m_df_cond = DataFrame({m: interp1d(m_df_cond.index, m_df_cond[m])(p_timepoints) for m in dyn_metabol.index}, index=['%s_%dmin' % (condition, i) for i in p_timepoints]).T
 
