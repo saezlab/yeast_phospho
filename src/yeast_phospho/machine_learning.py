@@ -111,12 +111,15 @@ print '[INFO] Model training done'
 
 
 # Prediction of the dynamic data-set
-kinases = set(kinase_df.dropna().index).intersection(dyn_kinase_df.index)
-metabol = set(metabol_df.dropna().index).intersection(dyn_metabol_df.index)
+X, Y = kinase_df.dropna().copy().T, metabol_df.dropna().copy().T
+X_test, Y_test = dyn_kinase_df.dropna().copy().T, dyn_metabol_df.dropna().copy().T
 
-X, Y = zscore(kinase_df.ix[kinases].copy().T), metabol_df.ix[metabol].copy().T
+kinases = list(set(X.columns).intersection(X_test.columns))
+metabol = list(set(Y.columns).intersection(Y_test.columns))
 
-X_test, Y_test = dyn_kinase_df.ix[kinases].T.dropna(), dyn_metabol_df.ix[metabol].T.dropna()
+X, Y = zscore(X[kinases]), Y[metabol]
+X_test, Y_test = X_test[kinases], Y_test[metabol]
+
 dyn_cond = set(X_test.index).intersection(Y_test.index)
 X_test, Y_test = zscore(X_test.ix[dyn_cond]), Y_test.ix[dyn_cond].T.groupby(level=0).first().T
 
@@ -130,8 +133,8 @@ cor_pred_c = [(c, pearsonr(Y_test.ix[c], Y_test_predict.ix[c]), Y_test.ix[c].val
 cor_pred_c = DataFrame([(m, c, p, x[i], y[i]) for m, (c, p), x, y in cor_pred_c for i in range(len(x))], columns=['cond', 'cor', 'pvalue', 'y_true', 'y_pred'])
 
 titles = {k: '%s (r=%.2f)' % (k, c) for k, c in cor_pred_c.groupby('cond').first()['cor'].to_dict().items()}
-g = sns.lmplot('y_true', 'y_pred', cor_pred_c, col='cond', col_wrap=5, size=3, scatter_kws={'s': 50, 'alpha': .8}, palette='muted', sharex=False, sharey=False, col_order=titles.keys())
-[ax.set_title(title) for ax, title in zip(g.axes.flat, titles.values())]
+g = sns.lmplot('y_true', 'y_pred', cor_pred_c, col='cond', col_wrap=6, size=3, scatter_kws={'s': 50, 'alpha': .8}, palette='muted', sharex=False, sharey=False, col_order=dyn_metabol_df.columns)
+[ax.set_title(titles[title]) for ax, title in zip(g.axes.flat, dyn_metabol_df.columns)]
 plt.savefig(wd + 'reports/%s_lm_pred_conditions.pdf' % version, bbox_inches='tight')
 plt.close('all')
 
@@ -139,8 +142,9 @@ plt.close('all')
 cor_pred_m = [(m, pearsonr(Y_test[m], Y_test_predict[m]), Y_test[m].values, Y_test_predict[m].values) for m in metabol]
 cor_pred_m = DataFrame([(m, c, p, x[i], y[i]) for m, (c, p), x, y in cor_pred_m for i in range(len(x))], columns=['met', 'cor', 'pvalue', 'y_true', 'y_pred'])
 
+col_order = cor_pred_m.groupby('met').first().sort('cor', ascending=False).index
 titles = {k: '%s (r=%.2f)' % (k, c) for k, c in cor_pred_m.groupby('met').first()['cor'].to_dict().items()}
-g = sns.lmplot('y_true', 'y_pred', cor_pred_m, col='met', col_wrap=10, size=3, scatter_kws={'s': 50, 'alpha': .8}, palette='muted', sharex=False, sharey=False, col_order=titles.keys())
-[ax.set_title(title) for ax, title in zip(g.axes.flat, titles.values())]
+g = sns.lmplot('y_true', 'y_pred', cor_pred_m, col='met', col_wrap=10, size=3, scatter_kws={'s': 50, 'alpha': .8}, palette='muted', sharex=False, sharey=False, col_order=col_order)
+[ax.set_title(titles[title]) for ax, title in zip(g.axes.flat, col_order)]
 plt.savefig(wd + 'reports/%s_lm_pred_metabolites.pdf' % version, bbox_inches='tight')
 plt.close('all')
