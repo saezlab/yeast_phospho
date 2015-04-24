@@ -1,19 +1,22 @@
 import numpy as np
-from pandas.stats.misc import zscore
-from scipy.stats.stats import spearmanr, pearsonr
 import seaborn as sns
 import matplotlib.pyplot as plt
+from pandas.stats.misc import zscore
+from scipy.stats.stats import spearmanr, pearsonr
 from pandas import DataFrame, read_csv, Index, pivot_table, melt
 from sklearn.cross_validation import KFold, LeaveOneOut
 from sklearn.feature_selection.univariate_selection import f_classif, SelectKBest, chi2, f_regression
 from sklearn.linear_model import Lasso, LinearRegression
 from sklearn.metrics.metrics import r2_score
+from sklearn.preprocessing.imputation import Imputer
 
 
 wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
 
 # Version
-version = 'v9'
+sns.set_style('white')
+
+version = 'v10'
 print '[INFO] Version: %s' % version
 
 # Import metabolites map
@@ -111,40 +114,44 @@ print '[INFO] Model training done'
 
 
 # Prediction of the dynamic data-set
-X, Y = kinase_df.dropna().copy().T, metabol_df.dropna().copy().T
+X, Y = kinase_df.copy().dropna().T, metabol_df.dropna().copy().T
 X_test, Y_test = dyn_kinase_df.dropna().copy().T, dyn_metabol_df.dropna().copy().T
 
-kinases = list(set(X.columns).intersection(X_test.columns))
-metabol = list(set(Y.columns).intersection(Y_test.columns))
+# Centre features
+X, X_test = zscore(X), zscore(X_test)
 
-X, Y = zscore(X[kinases]), Y[metabol]
-X_test, Y_test = X_test[kinases], Y_test[metabol]
+# Sort and re-shape data-sets
+dyncond, kinases, metabol = Y_test.index.values, list(set(X.columns).intersection(X_test.columns)), list(set(Y.columns).intersection(Y_test.columns))
 
-dyn_cond = set(X_test.index).intersection(Y_test.index)
-X_test, Y_test = zscore(X_test.ix[dyn_cond]), Y_test.ix[dyn_cond].T.groupby(level=0).first().T
+X, Y = X.ix[strains, kinases], Y.ix[strains, metabol]
+X_test, Y_test = X_test.ix[dyncond, kinases], Y_test.ix[dyncond, metabol]
+print '[INFO] %d kinases, %d metabolites' % (len(kinases), len(metabol))
 
-models = {m: LinearRegression(normalize=False).fit(X, Y[m]) for m in Y.columns}
+# Run linear models
+models = {m: LinearRegression().fit(X, Y[m]) for m in metabol}
 
-Y_test_predict = DataFrame({m: models[m].predict(X_test) for m in metabol}, index=dyn_cond)
+# Run predictions
+Y_test_predict = DataFrame({m: models[m].predict(X_test) for m in metabol}, index=dyncond)
 
-sns.set_style('white')
 # Predict conditions across metabolites
-cor_pred_c = [(c, pearsonr(Y_test.ix[c], Y_test_predict.ix[c]), Y_test.ix[c].values, Y_test_predict.ix[c].values) for c in dyn_cond]
+cor_pred_c = [(c, pearsonr(Y_test.ix[c, metabol], Y_test_predict.ix[c, metabol]), Y_test.ix[c, metabol].values, Y_test_predict.ix[c, metabol].values) for c in dyncond]
 cor_pred_c = DataFrame([(m, c, p, x[i], y[i]) for m, (c, p), x, y in cor_pred_c for i in range(len(x))], columns=['cond', 'cor', 'pvalue', 'y_true', 'y_pred'])
 
 titles = {k: '%s (r=%.2f)' % (k, c) for k, c in cor_pred_c.groupby('cond').first()['cor'].to_dict().items()}
-g = sns.lmplot('y_true', 'y_pred', cor_pred_c, col='cond', col_wrap=6, size=3, scatter_kws={'s': 50, 'alpha': .8}, palette='muted', sharex=False, sharey=False, col_order=dyn_metabol_df.columns)
+g = sns.lmplot('y_true', 'y_pred', cor_pred_c, col='cond', col_wrap=6, size=3, scatter_kws={'s': 50, 'alpha': .8}, line_kws={'c': '#FFFFFF', 'alpha': .7}, ci=90, palette='muted', sharex=False, sharey=False, col_order=dyncond)
 [ax.set_title(titles[title]) for ax, title in zip(g.axes.flat, dyn_metabol_df.columns)]
 plt.savefig(wd + 'reports/%s_lm_pred_conditions.pdf' % version, bbox_inches='tight')
 plt.close('all')
 
 # Predict metabolites across conditions
-cor_pred_m = [(m, pearsonr(Y_test[m], Y_test_predict[m]), Y_test[m].values, Y_test_predict[m].values) for m in metabol]
-cor_pred_m = DataFrame([(m, c, p, x[i], y[i]) for m, (c, p), x, y in cor_pred_m for i in range(len(x))], columns=['met', 'cor', 'pvalue', 'y_true', 'y_pred'])
+cor_pred_m = [(m, pearsonr(Y_test.ix[dyncond, m], Y_test_predict.ix[dyncond, m]), Y_test.ix[dyncond, m].values, Y_test_predict.ix[dyncond, m].values) for m in metabol]
+cor_pred_m = DataFrame([(m, c, p, x[i], y[i], dyncond[i]) for m, (c, p), x, y in cor_pred_m for i in range(len(x))], columns=['met', 'cor', 'pvalue', 'y_true', 'y_pred', 'condition'])
 
 col_order = cor_pred_m.groupby('met').first().sort('cor', ascending=False).index
 titles = {k: '%s (r=%.2f)' % (k, c) for k, c in cor_pred_m.groupby('met').first()['cor'].to_dict().items()}
-g = sns.lmplot('y_true', 'y_pred', cor_pred_m, col='met', col_wrap=10, size=3, scatter_kws={'s': 50, 'alpha': .8}, palette='muted', sharex=False, sharey=False, col_order=col_order)
+g = sns.lmplot('y_true', 'y_pred', cor_pred_m, col='met', col_wrap=8, size=3, scatter_kws={'s': 50, 'alpha': .8}, line_kws={'c': '#FFFFFF', 'alpha': .7}, ci=90, palette='muted', sharex=False, sharey=False, col_order=col_order)
 [ax.set_title(titles[title]) for ax, title in zip(g.axes.flat, col_order)]
 plt.savefig(wd + 'reports/%s_lm_pred_metabolites.pdf' % version, bbox_inches='tight')
 plt.close('all')
+
+print '[INFO] Predictions done'
