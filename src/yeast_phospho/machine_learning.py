@@ -19,6 +19,10 @@ sns.set_style('white')
 version = 'v10'
 print '[INFO] Version: %s' % version
 
+# Import phospho FC
+phospho_df = read_csv(wd + 'tables/steady_state_phosphoproteomics.tab', sep='\t', index_col='site')
+dyn_phospho_fc = read_csv(wd + 'tables/dynamic_phosphoproteomics.tab', sep='\t', index_col='site')
+
 # Import metabolites map
 m_map = read_csv(wd + 'files/metabolomics/metabolite_mz_map_kegg.txt', sep='\t')  # _adducts
 m_map['mz'] = ['%.2f' % c for c in m_map['mz']]
@@ -40,6 +44,11 @@ growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_
 
 # Import acc map to name form uniprot
 acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)
+
+# Import kinases targets
+kinases_targets = read_csv(wd + 'tables/kinases_phosphatases_targets.tab', sep='\t')
+kinases = set(kinases_targets['SOURCE'])
+kinases_targets = {k: set(kinases_targets.loc[kinases_targets['SOURCE'] == k, 'TARGET']) for k in kinases}
 
 # Overlapping kinases/phosphatases knockout
 strains = list(set(kinase_df.columns).intersection(set(metabol_df.columns)))
@@ -114,7 +123,7 @@ print '[INFO] Model training done'
 
 
 # Prediction of the dynamic data-set
-X, Y = kinase_df.copy().dropna().T, metabol_df.dropna().copy().T
+X, Y = kinase_df.dropna().copy().T, metabol_df.dropna().copy().T
 X_test, Y_test = dyn_kinase_df.dropna().copy().T, dyn_metabol_df.dropna().copy().T
 
 # Centre features
@@ -145,7 +154,7 @@ plt.close('all')
 
 # Predict metabolites across conditions
 cor_pred_m = [(m, pearsonr(Y_test.ix[dyncond, m], Y_test_predict.ix[dyncond, m]), Y_test.ix[dyncond, m].values, Y_test_predict.ix[dyncond, m].values) for m in metabol]
-cor_pred_m = DataFrame([(m, c, p, x[i], y[i], dyncond[i]) for m, (c, p), x, y in cor_pred_m for i in range(len(x))], columns=['met', 'cor', 'pvalue', 'y_true', 'y_pred', 'condition'])
+cor_pred_m = DataFrame([(m, c, p, x[i], y[i]) for m, (c, p), x, y in cor_pred_m for i in range(len(x))], columns=['met', 'cor', 'pvalue', 'y_true', 'y_pred'])
 
 col_order = cor_pred_m.groupby('met').first().sort('cor', ascending=False).index
 titles = {k: '%s (r=%.2f)' % (k, c) for k, c in cor_pred_m.groupby('met').first()['cor'].to_dict().items()}

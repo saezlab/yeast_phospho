@@ -23,7 +23,7 @@ wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
 sns.set_style('white')
 
 # Version
-version = 'v8'
+version = 'v10'
 print '[INFO] Version: %s' % version
 
 # Import id maps
