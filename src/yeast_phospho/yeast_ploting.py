@@ -15,7 +15,7 @@ from pandas import DataFrame, Series, read_csv, melt
 def pearson(x, y):
     mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
     cor, pvalue = pearsonr(x[mask], y[mask]) if np.sum(mask) > 1 else (np.NaN, np.NaN)
-    return cor, pvalue, x[mask], y[mask], np.sum(mask)
+    return cor, pvalue
 
 wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
 
@@ -29,6 +29,9 @@ print '[INFO] Version: %s' % version
 # Import id maps
 acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)
 metabolites_map = read_csv(wd + 'tables/metabolites_map.tab', sep='\t', index_col=0)
+
+met_map = metabolites_map.copy()
+met_map.index = ['%.2f' % c for c in met_map.index]
 
 # Import tables
 metabol_df = read_csv(wd + 'tables/metabolomics.tab', sep='\t', index_col=0)
@@ -255,11 +258,11 @@ plt.close('all')
 # ---- Correlation plot of the errors
 plot_df = lm_error.copy().T
 plot_df = plot_df[plot_df < 1].replace(np.NaN, -1)
-plot_df.index = [metabolites_map.ix[metabolites_map['id'] == i, 'name'].values[0] for i in plot_df.index]
+plot_df.index = [met_map.ix[str(i), 'name'] if str(i) in met_map.index else str(i) for i in plot_df.index]
 plot_df.columns = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.columns]
 sns.clustermap(plot_df, figsize=(25, 30))
 plt.title('fold-change error |predicted - measured|')
-plt.savefig(wd + 'reports/%s_lm_error_clustermap.pdf' % version, bbox_inches='tight')
+plt.savefig(wd + 'reports/%s_lm_error_clustermap.png' % version, bbox_inches='tight')
 plt.close('all')
 
 # ---- Plot samples errors
@@ -296,7 +299,7 @@ met_error_df = DataFrame([(m, c, p) for m, (c, p) in met_error_df], columns=['me
 met_error_df = met_error_df.sort('correlation')
 met_error_df['adjpvalue'] = multipletests(met_error_df['pvalue'], method='fdr_bh')[1]
 met_error_df['colour'] = ['#3498db' if x < 0.05 else '#95a5a6' for x in met_error_df['adjpvalue']]
-met_error_df.index = [metabolites_map.ix[metabolites_map['id'] == i, 'name'].values[0] for i in met_error_df['metabolite']]
+met_error_df.index = [met_map.ix[str(i), 'name'] if str(i) in met_map.index else str(i) for i in met_error_df['metabolite']]
 print 'Mean correlation: ', met_error_df['correlation'].mean()
 
 (f, enrichemnt_plot), pos = plt.subplots(1, 2, figsize=(13, 35)), 0
@@ -320,7 +323,7 @@ plt.close('all')
 
 # Feature importance
 plot_df = lm_features.copy().T
-plot_df.index = [metabolites_map.ix[metabolites_map['id'] == i, 'name'].values[0] for i in plot_df.index]
+plot_df.index = [met_map.ix[str(i), 'name'] if str(i) in met_map.index else str(i) for i in plot_df.index]
 plot_df.columns = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.columns]
 sns.clustermap(plot_df, figsize=(25, 30), cmap='Blues')
 plt.savefig(wd + 'reports/%s_lm_features_clustermap.pdf' % version, bbox_inches='tight')

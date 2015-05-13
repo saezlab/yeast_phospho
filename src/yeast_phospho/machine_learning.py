@@ -158,7 +158,7 @@ cor_pred_m = DataFrame([(m, c, p, x[i], y[i]) for m, (c, p), x, y in cor_pred_m 
 
 col_order = cor_pred_m.groupby('met').first().sort('cor', ascending=False).index
 titles = {k: '%s (r=%.2f)' % (k, c) for k, c in cor_pred_m.groupby('met').first()['cor'].to_dict().items()}
-g = sns.lmplot('y_true', 'y_pred', cor_pred_m, col='met', col_wrap=8, size=3, scatter_kws={'s': 50, 'alpha': .8}, line_kws={'c': '#FFFFFF', 'alpha': .7}, ci=90, palette='muted', sharex=False, sharey=False, col_order=col_order)
+g = sns.lmplot('y_true', 'y_pred', cor_pred_m, col='met', col_wrap=9, size=3, scatter_kws={'s': 50, 'alpha': .8}, line_kws={'c': '#FFFFFF', 'alpha': .7}, ci=90, palette='muted', sharex=False, sharey=False, col_order=col_order)
 [ax.set_title(titles[title]) for ax, title in zip(g.axes.flat, col_order)]
 plt.savefig(wd + 'reports/%s_lm_pred_metabolites.pdf' % version, bbox_inches='tight')
 plt.close('all')
