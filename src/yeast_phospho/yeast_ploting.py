@@ -57,7 +57,14 @@ lm_pred = read_csv(wd + 'tables/lm_predicted.tab', sep='\t', index_col=0)
 lm_meas = read_csv(wd + 'tables/lm_measured.tab', sep='\t', index_col=0)
 lm_features = read_csv(wd + 'tables/lm_features.tab', sep='\t', index_col=0)
 
-# ---- Plot 
+# ---- Plot kinases number of targets
+plot_df = np.unique([len(v.intersection(phospho_df.index)) for k, v in kinases_targets.items()], return_counts=True)
+sns.barplot(plot_df[0], plot_df[1], ci=None)
+sns.despine(left=True, bottom=True)
+plt.xlabel('# measured target p-sites\n(at least 1 condition)')
+plt.ylabel('# kinases')
+plt.savefig(wd + 'reports/%s_count_kinases_targets.pdf' % version, bbox_inches='tight')
+plt.close('all')
 
 # ---- Plot metabolite cluster map
 plot_df = metabol_df.copy().replace(np.NaN, 0)
@@ -81,7 +88,7 @@ plot_df = kinase_df.copy().replace(np.NaN, 0).loc[plot_df_order, plot_df_order]
 plot_df.index = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.index]
 plot_df.columns = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.columns]
 plot_df.columns.name, plot_df.index.name = 'perturbations', 'kinases'
-sns.clustermap(plot_df, figsize=(8, 8), col_cluster=False, row_cluster=False)
+sns.clustermap(plot_df, figsize=(15, 15), col_cluster=False, row_cluster=False)
 plt.title('GSEA')
 plt.savefig(wd + 'reports/%s_kinase_df_diagonal_clustermap.pdf' % version, bbox_inches='tight')
 plt.close('all')
