@@ -16,7 +16,7 @@ wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
 # Version
 sns.set_style('white')
 
-version = 'v10'
+version = 'v1'
 print '[INFO] Version: %s' % version
 
 # Import phospho FC
@@ -29,6 +29,7 @@ m_map['mz'] = ['%.2f' % c for c in m_map['mz']]
 
 # Import steady-state data-sets kinase enrichment
 kinase_df = read_csv(wd + 'tables/kinase_enrichment_df.tab', sep='\t', index_col=0)
+kinase_df = kinase_df[kinase_df.count(1) > 80]
 
 metabol_df = read_csv(wd + 'tables/steady_state_metabolomics.tab', sep='\t', index_col=0)
 metabol_df.index = Index(['%.2f' % c for c in metabol_df.index], dtype=str)
@@ -45,33 +46,9 @@ growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_
 # Import acc map to name form uniprot
 acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)
 
-# Import kinases targets
-kinases_targets = read_csv(wd + 'tables/kinases_phosphatases_targets.tab', sep='\t')
-kinases = set(kinases_targets['SOURCE'])
-kinases_targets = {k: set(kinases_targets.loc[kinases_targets['SOURCE'] == k, 'TARGET']) for k in kinases}
-
 # Overlapping kinases/phosphatases knockout
 strains = list(set(kinase_df.columns).intersection(set(metabol_df.columns)))
 kinase_df, metabol_df = kinase_df[strains], metabol_df[strains]
-
-# Machine learning: metabolites -> growth
-X, Y = kinase_df.copy(), metabol_df.copy()
-
-Xs, Ys = Y.copy().T.values, growth.loc[strains, 'relative_growth'].copy().values / 100
-
-scores = []
-for train, test in LeaveOneOut(Ys.shape[0]):
-    lm = Lasso().fit(Xs[train], Ys[train])
-    score = np.linalg.norm(lm.predict(Xs[test]) - Ys[test])
-    scores.append((score, strains[test[0]]))
-print '[INFO] Model training done'
-
-scores = DataFrame(scores, columns=['error', 'strain']).sort(columns='error')
-scores['strain_name'] = [acc_name.loc[x, 'gene'].split(';')[0] for x in scores['strain']]
-
-scores.to_csv(wd + 'tables/lm_growth_prediction.tab', index=False, sep='\t')
-print '[INFO] Growth prediction done!'
-
 
 # Kinases -> metabolites
 X, Y = kinase_df.copy(), metabol_df.copy()
@@ -105,8 +82,6 @@ for i in range(Y.shape[0]):
         error_df.append((metabolite, test_i[0], error))
 
         models[metabolite][test_i[0]] = lm
-
-        print metabolite, test_i[0], pred, meas, error
 
 error_df = pivot_table(DataFrame(error_df, columns=['metabolite', 'strain', 'value']), values='value', index='strain', columns='metabolite')
 meas_df = pivot_table(DataFrame(meas_df, columns=['metabolite', 'strain', 'value']), values='value', index='strain', columns='metabolite')

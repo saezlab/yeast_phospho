@@ -29,12 +29,14 @@ def remove_nan(values):
 
 def metric(func, x, y):
     mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
-    return func(x[mask], y[mask]) if np.sum(mask) > 5 else np.NaN
+    res = func(x[mask], y[mask]) if np.sum(mask) > 5 else np.NaN
+    return res if np.isfinite(res) else [[res]]
 
 
 def my_pairwise(x, y, metric):
     mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
-    return pairwise_distances(x[mask], y[mask], metric=metric) if np.sum(mask) > 5 else np.NaN
+    res = pairwise_distances(x[mask], y[mask], metric=metric) if np.sum(mask) > 5 else np.NaN
+    return res if np.isfinite(res) else [[res]]
 
 
 wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
@@ -54,7 +56,7 @@ metabol_df.index = Index(metabol_df.index, dtype=str)
 
 # Import kinase enrichment
 kinase_df = read_csv(wd + 'tables/kinase_enrichment_df.tab', sep='\t', index_col=0)
-kinase_df = kinase_df[kinase_df.count(1) > 110]  # Threshold: number of measurements for kinases enrichments
+# kinase_df = kinase_df[kinase_df.count(1) > 110]  # Threshold: number of measurements for kinases enrichments
 
 # Import metabolites mass charge to metabolic model
 metabolites_map = read_csv(wd + 'files/metabolomics/metabolite_mz_map_kegg.txt', sep='\t')  # _adducts
@@ -74,17 +76,13 @@ print '[INFO] Overlaping conditions: ', len(strains), ' : ', strains
 # Sort data-sets in same strain order and export data-sets
 metabol_df, phospho_df = metabol_df[strains], phospho_df[strains]
 
-# Filter metabolites within the model
-metabol_df['kegg'] = [metabolites_map_dict[i] if i in metabolites_map_dict else np.NaN for i in metabol_df.index]
-metabol_df = metabol_df.dropna(subset=['kegg']).groupby('kegg').first()
-print '[INFO] [METABOLOMICS] (filtered metabolites within model/kegg): ', metabol_df.shape
-
 # Metabolomics phospho correlation
-cor_df = [(m, k, pearson(metabol_df.loc[m, strains], kinase_df.loc[k, strains])[0:1]) for m in metabol_df.index for k in kinase_df.index]
+cor_df = [(m, k, pearson(metabol_df.loc[m, strains], kinase_df.loc[k, strains])[:2]) for m in metabol_df.index for k in kinase_df.index]
 cor_df = DataFrame([(m, k, c, p) for m, k, (c, p) in cor_df], columns=['metabolite', 'kinase', 'cor', 'pval'])
 cor_df_pvalue = pivot_table(cor_df, values='pval', index='metabolite', columns='kinase')
 cor_df = pivot_table(cor_df, values='cor', index='metabolite', columns='kinase')
 cor_df.to_csv(wd + 'tables/met_kin_correlation.tab', sep='\t')
+print '[INFO] Correaltion between metabolites and kinases done'
 
 # Metabolic model distance
 model = read_sbml_model('/Users/emanuel/Projects/resources/metabolic_models/1752-0509-4-145-s1/yeast_4.04.xml')
@@ -108,7 +106,7 @@ model.remove_not_used_reactions()
 
 s_distance = metabolite_distance(model, drop_metabolites=[])
 
-model_met_map = read_csv(wd + 'metabolomics/metabolite_mz_map_dobson.txt', sep='\t', index_col='id')
+model_met_map = read_csv(wd + 'files/metabolomics/metabolite_mz_map_dobson.txt', sep='\t', index_col='id')
 model_met_map['mz'] = [str(i) for i in model_met_map['mz']]
 model_met_map = model_met_map.drop_duplicates('mz')['mz'].to_dict()
 model_met_map = {k: metabolites_map_dict[str(v)] for k, v in model_met_map.items() if str(v) in metabolites_map_dict}
@@ -125,7 +123,6 @@ print '[INFO] Metabolites distance matrix calculated'
 
 # Gene metabolite association
 met_reactions = {kegg_id: set(model.s[met_id].keys()) for met_id, kegg_id in model_met_map.items() if met_id in model.s}
-
 gene_reactions = dict(model.get_reactions_by_genes(model.get_genes()).items())
 
 # Read protein interactions dbs
@@ -162,11 +159,18 @@ for bkg_type in ['string', 'phosphogrid']:
 
 print '[INFO] Kinase/Enzymes interactions data-bases imported'
 
+# Filter metabolites within the model
+metabol_df['kegg'] = [metabolites_map_dict[i] if i in metabolites_map_dict else np.NaN for i in metabol_df.index]
+metabol_df = metabol_df.dropna(subset=['kegg']).groupby('kegg').first()
+print '[INFO] [METABOLOMICS] (filtered metabolites within model/kegg): ', metabol_df.shape
+
 # Build information table
-info_table = [(k, m, cor_df.ix[m, k], cor_df_pvalue.ix[m, k]) for k in cor_df.columns for m in cor_df.index if not np.isnan(cor_df.ix[m, k]) and m in met_reactions]
+info_table = [(k, m, cor_df.ix[m, k], cor_df_pvalue.ix[m, k]) for k in cor_df.columns for m in cor_df.index if not np.isnan(cor_df.ix[m, k])]
 info_table = DataFrame(info_table, columns=['kinase', 'metabolite', 'correlation', 'pvalue'])
 
-info_table['metabolite_name'] = [metabolites_map.ix[metabolites_map['id'] == m, 'name'][0] for m in info_table['metabolite']]
+info_table = info_table[[i in metabolites_map.index for i in info_table['metabolite']]]
+
+info_table['metabolite_name'] = [metabolites_map.loc[m, 'id'] for m in info_table['metabolite']]
 info_table['kinase_name'] = [acc_name.loc[k, 'gene'].split(';')[0] for k in info_table['kinase']]
 
 info_table['metabolite_count'] = [metabol_df.ix[m].count() for m in info_table['metabolite']]
@@ -177,33 +181,27 @@ info_table['correlation_abs'] = [np.abs(i) for i in info_table['correlation']]
 
 # Kinase/Enzyme interactions via metabolite correlations
 for bkg_type, db in dbs.items():
-    info_table['class_%s' % bkg_type] = [int(i in db) for i in zip(info_table['kinase'], info_table['metabolite'])]
+    info_table['class_%s' % bkg_type] = [int(i in db) for i in zip(info_table['kinase'], info_table['metabolite_name'])]
 
 # Other metrics
-info_table['euclidean'] = [metric(euclidean_distances, metabol_df.ix[m], kinase_df.ix[k])[0][0] for k, m in zip(info_table['kinase'], info_table['metabolite'])]
+info_table['euclidean'] = [metric(euclidean_distances, metabol_df.ix[m, strains], kinase_df.ix[k, strains])[0][0] for k, m in zip(info_table['kinase'], info_table['metabolite'])]
 
-info_table['linear_kernel'] = [metric(linear_kernel, metabol_df.ix[m], kinase_df.ix[k])[0][0] for k, m in zip(info_table['kinase'], info_table['metabolite'])]
+info_table['linear_kernel'] = [metric(linear_kernel, metabol_df.ix[m, strains], kinase_df.ix[k, strains])[0][0] for k, m in zip(info_table['kinase'], info_table['metabolite'])]
 info_table['linear_kernel_abs'] = info_table['linear_kernel'].abs()
 
-info_table['manhattan_distances'] = [metric(manhattan_distances, metabol_df.ix[m], kinase_df.ix[k])[0][0] for k, m in zip(info_table['kinase'], info_table['metabolite'])]
-
-info_table['rbf_kernel'] = [metric(rbf_kernel, metabol_df.ix[m], kinase_df.ix[k])[0][0] for k, m in zip(info_table['kinase'], info_table['metabolite'])]
-
-info_table['polynomial_kernel'] = [metric(polynomial_kernel, metabol_df.ix[m], kinase_df.ix[k])[0][0] for k, m in zip(info_table['kinase'], info_table['metabolite'])]
-
-info_table['cosine'] = [my_pairwise(metabol_df.ix[m], kinase_df.ix[k], 'cosine')[0][0] for k, m in zip(info_table['kinase'], info_table['metabolite'])]
-
 # Export information table
-info_table = info_table.sort('pvalue')
+info_table = info_table.dropna().sort('pvalue')
 info_table.to_csv(wd + 'tables/information_table.tab', sep='\t', index=False)
 print '[INFO] Information table ready'
 
 # Kinase/Enzyme enrichment
+info_table = read_csv(wd + 'tables/information_table.tab', sep='\t')
+
 int_enrichment = []
 for bkg_type, db in dbs.items():
     db_proteins = {c for i in db for c in i}
 
-    M = {(k, m) for k, m in set(zip(info_table['kinase'], info_table['metabolite'])) if k in db_proteins}
+    M = {(k, m) for k, m in set(zip(info_table['kinase'], info_table['metabolite_name'])) if k in db_proteins}
     n = M.intersection(db)
 
     thresholds, fractions, pvalues = np.arange(0, 3.0, .2), [], []
@@ -211,7 +209,7 @@ for bkg_type, db in dbs.items():
 
     for threshold in thresholds:
         N = info_table.loc[info_table['pvalue_log'] > threshold]
-        N = set(zip(N['kinase'], N['metabolite'])).intersection(M)
+        N = set(zip(N['kinase'], N['metabolite_name'])).intersection(M)
 
         x = N.intersection(n)
 

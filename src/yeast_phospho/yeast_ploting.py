@@ -68,8 +68,8 @@ plt.close('all')
 plot_df = metabol_df.copy().replace(np.NaN, 0)
 plot_df.columns = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.columns]
 # plot_df.index = [metabolites_map.ix[metabolites_map['id'] == i, 'name'].values[0] for i in plot_df.index]
-sns.clustermap(plot_df, figsize=(25, 20))
-plt.savefig(wd + 'reports/%s_metabolites_clustermap.pdf' % version, bbox_inches='tight')
+sns.clustermap(plot_df, figsize=(20, 20), linewidths=0, xticklabels=False, yticklabels=False)
+plt.savefig(wd + 'reports/%s_metabolites_clustermap.png' % version, bbox_inches='tight')
 plt.close('all')
 
 # ---- Plot kinase cluster map
@@ -94,9 +94,9 @@ plt.close('all')
 # ---- Plot correlation cluster map
 plot_df = cor_df.copy().replace(np.NaN, 0)
 plot_df.columns = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.columns]
-plot_df.index = [metabolites_map.ix[metabolites_map['id'] == i, 'name'].values[0] for i in plot_df.index]
-sns.clustermap(plot_df, figsize=(25, 20))
-plt.savefig(wd + 'reports/%s_cordf_clustermap.pdf' % version, bbox_inches='tight')
+# plot_df.index = [metabolites_map.ix[metabolites_map['id'] == i, 'name'].values[0] for i in plot_df.index]
+sns.clustermap(plot_df, figsize=(20, 20), linewidths=0, xticklabels=False, yticklabels=False)
+plt.savefig(wd + 'reports/%s_cordf_clustermap.png' % version, bbox_inches='tight')
 plt.close('all')
 
 # ---- Distance boxplots
@@ -173,7 +173,7 @@ plt.close('all')
 for bkg_type in dbs:
     # Ploting
     ax = enrichemnt_plot[pos][0]
-    N_thres = 1.8
+    N_thres = 2.0
     values = int_enrichment.loc[np.bitwise_and(int_enrichment['db'] == bkg_type, int_enrichment['thres'] == N_thres)]
 
     plot_df = values[['M', 'n', 'N', 'x']].T
@@ -229,7 +229,7 @@ plot_df = lm_error.copy().T
 plot_df = plot_df[plot_df < 1].replace(np.NaN, -1)
 plot_df.index = [met_map.ix[str(i), 'name'] if str(i) in met_map.index else str(i) for i in plot_df.index]
 plot_df.columns = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.columns]
-sns.clustermap(plot_df, figsize=(25, 30))
+sns.clustermap(plot_df, figsize=(25, 30), linewidths=0, xticklabels=False, yticklabels=False)
 plt.title('fold-change error |predicted - measured|')
 plt.savefig(wd + 'reports/%s_lm_error_clustermap.png' % version, bbox_inches='tight')
 plt.close('all')
