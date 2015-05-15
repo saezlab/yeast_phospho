@@ -21,7 +21,7 @@ print '[INFO] [PHOSPHOGRID] ', network.shape
 ####  Process steady-state phosphoproteomics
 phospho_df = read_csv(wd + 'data/steady_state_phosphoproteomics.tab', sep='\t')
 phospho_df = phospho_df.pivot_table(values='logFC', index=['peptide', 'target'], columns='regulator', aggfunc=np.median)
-print '[INFO] [PHOSPHOPROTEOMICS] merge repeated phosphopeptides, i.e. median : ', phospho_df.shape
+print '[INFO] [PHOSPHOPROTEOMICS] : ', phospho_df.shape
 
 # Consider phoshopeptides with only one phosphosite
 phospho_df = phospho_df.loc[[len(re.findall('\[[0-9]*\.?[0-9]*\]', peptide)) == 1 for peptide in phospho_df.index.levels[0]]]

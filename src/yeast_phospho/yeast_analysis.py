@@ -53,7 +53,7 @@ metabol_df = read_csv(wd + 'tables/steady_state_metabolomics.tab', sep='\t', ind
 metabol_df.index = Index(metabol_df.index, dtype=str)
 
 # Import kinase enrichment
-kinase_df = read_csv(wd + 'tables/kinase_enrichment.tab', sep='\t', index_col=0)
+kinase_df = read_csv(wd + 'tables/kinase_enrichment_df.tab', sep='\t', index_col=0)
 kinase_df = kinase_df[kinase_df.count(1) > 110]  # Threshold: number of measurements for kinases enrichments
 
 # Import metabolites mass charge to metabolic model
@@ -67,20 +67,24 @@ metabolites_map_dict = metabolites_map['id'].to_dict()
 metabolites_map.to_csv(wd + 'tables/metabolites_map.tab', sep='\t')
 print '[INFO] Metabolites map filtered'
 
-# Filter metabolites within the model
-metabol_df['kegg'] = [metabolites_map_dict[i] if i in metabolites_map_dict else np.NaN for i in metabol_df.index]
-metabol_df = metabol_df.dropna(subset=['kegg']).groupby('kegg').first()
-print '[INFO] [METABOLOMICS] (filtered metabolites within model/kegg): ', metabol_df.shape
-
 # Overlapping kinases/phosphatases knockout
 strains = list(set(phospho_df.columns).intersection(set(metabol_df.columns)))
 print '[INFO] Overlaping conditions: ', len(strains), ' : ', strains
 
 # Sort data-sets in same strain order and export data-sets
 metabol_df, phospho_df = metabol_df[strains], phospho_df[strains]
-metabol_df.to_csv(wd + 'tables/metabolomics.tab', sep='\t')
-phospho_df.to_csv(wd + 'tables/phosphoproteomics.tab', sep='\t')
-print '[INFO] Data-sets exported'
+
+# Filter metabolites within the model
+metabol_df['kegg'] = [metabolites_map_dict[i] if i in metabolites_map_dict else np.NaN for i in metabol_df.index]
+metabol_df = metabol_df.dropna(subset=['kegg']).groupby('kegg').first()
+print '[INFO] [METABOLOMICS] (filtered metabolites within model/kegg): ', metabol_df.shape
+
+# Metabolomics phospho correlation
+cor_df = [(m, k, pearson(metabol_df.loc[m, strains], kinase_df.loc[k, strains])[0:1]) for m in metabol_df.index for k in kinase_df.index]
+cor_df = DataFrame([(m, k, c, p) for m, k, (c, p) in cor_df], columns=['metabolite', 'kinase', 'cor', 'pval'])
+cor_df_pvalue = pivot_table(cor_df, values='pval', index='metabolite', columns='kinase')
+cor_df = pivot_table(cor_df, values='cor', index='metabolite', columns='kinase')
+cor_df.to_csv(wd + 'tables/met_kin_correlation.tab', sep='\t')
 
 # Metabolic model distance
 model = read_sbml_model('/Users/emanuel/Projects/resources/metabolic_models/1752-0509-4-145-s1/yeast_4.04.xml')
@@ -118,33 +122,6 @@ s_distance = s_distance.groupby('kegg').min()
 s_distance = s_distance.ix[[i.startswith('C') for i in s_distance.index], [i.startswith('C') for i in s_distance.columns]]
 s_distance.to_csv(wd + 'tables/metabolites_distances.tab', sep='\t')
 print '[INFO] Metabolites distance matrix calculated'
-
-
-# Metabolomics phospho correlation
-def randomise_matrix(matrix):
-    matrix_copy = matrix.copy()
-    movers = ~np.isnan(matrix_copy.values)
-    matrix_copy.values[movers] = np.random.permutation(matrix_copy.values[movers])
-    return matrix_copy
-
-n_permutations = 1000
-rand_kinases = {i: randomise_matrix(kinase_df) for i in range(n_permutations)}
-print '[INFO] Random kinases matrices generated'
-
-rand_cor_dist = {k: {m: [r2_score(mask(metabol_df.loc[m, strains]), mask(rand_kinase.loc[k, strains])) for i, rand_kinase in rand_kinases.items()] for m in metabol_df.index} for k in kinase_df.index}
-print '[INFO] Random correlation distributions generated'
-
-
-def empirical_pvalue(m, k, cor):
-    random_cor = rand_cor_dist[k][m]
-    count = np.sum(random_cor >= cor) if cor > 0 else np.sum(random_cor <= cor)
-    return 1.0 / n_permutations if count == 0 else float(count) / n_permutations
-
-cor_df = [(m, k, pearsonr(mask(metabol_df.loc[m, strains]), mask(kinase_df.loc[k, strains]))[0]) for m in metabol_df.index for k in kinase_df.index]
-cor_df = DataFrame([(m, k, c, empirical_pvalue(m, k, c)) for m, k, c in cor_df], columns=['metabolite', 'kinase', 'cor', 'pval'])
-cor_df_pvalue = pivot_table(cor_df, values='pval', index='metabolite', columns='kinase')
-cor_df = pivot_table(cor_df, values='cor', index='metabolite', columns='kinase')
-cor_df.to_csv(wd + 'tables/met_kin_correlation.tab', sep='\t')
 
 # Gene metabolite association
 met_reactions = {kegg_id: set(model.s[met_id].keys()) for met_id, kegg_id in model_met_map.items() if met_id in model.s}

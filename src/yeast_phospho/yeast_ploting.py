@@ -39,10 +39,8 @@ kinases = set(network['SOURCE'])
 kinases_targets = {k: set(network.loc[network['SOURCE'] == k, 'TARGET']) for k in kinases}
 
 # Import tables
-metabol_df = read_csv(wd + 'tables/metabolomics.tab', sep='\t', index_col=0)
-
+metabol_df = read_csv(wd + 'tables/steady_state_metabolomics.tab', sep='\t', index_col=0)
 phospho_df = read_csv(wd + 'tables/steady_state_phosphoproteomics.tab', sep='\t', index_col='site')
-
 kinase_df = read_csv(wd + 'tables/kinase_enrichment_df.tab', sep='\t', index_col=0)
 
 cor_df = read_csv(wd + 'tables/met_kin_correlation.tab', sep='\t', index_col=0)
@@ -69,7 +67,7 @@ plt.close('all')
 # ---- Plot metabolite cluster map
 plot_df = metabol_df.copy().replace(np.NaN, 0)
 plot_df.columns = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.columns]
-plot_df.index = [metabolites_map.ix[metabolites_map['id'] == i, 'name'].values[0] for i in plot_df.index]
+# plot_df.index = [metabolites_map.ix[metabolites_map['id'] == i, 'name'].values[0] for i in plot_df.index]
 sns.clustermap(plot_df, figsize=(25, 20))
 plt.savefig(wd + 'reports/%s_metabolites_clustermap.pdf' % version, bbox_inches='tight')
 plt.close('all')
@@ -88,7 +86,7 @@ plot_df = kinase_df.copy().replace(np.NaN, 0).loc[plot_df_order, plot_df_order]
 plot_df.index = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.index]
 plot_df.columns = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.columns]
 plot_df.columns.name, plot_df.index.name = 'perturbations', 'kinases'
-sns.clustermap(plot_df, figsize=(15, 15), col_cluster=False, row_cluster=False)
+sns.clustermap(plot_df, figsize=(20, 20), col_cluster=False, row_cluster=False)
 plt.title('GSEA')
 plt.savefig(wd + 'reports/%s_kinase_df_diagonal_clustermap.pdf' % version, bbox_inches='tight')
 plt.close('all')
