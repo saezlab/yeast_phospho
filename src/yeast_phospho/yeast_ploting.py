@@ -289,13 +289,3 @@ ax.set_ylabel('')
 
 plt.savefig(wd + 'reports/%s_lm_metabolites_error_boxplot.pdf' % version, bbox_inches='tight')
 plt.close('all')
-
-# Feature importance
-plot_df = lm_features.copy().T
-plot_df.index = [met_map.ix[str(i), 'name'] if str(i) in met_map.index else str(i) for i in plot_df.index]
-plot_df.columns = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.columns]
-sns.clustermap(plot_df, figsize=(25, 30), cmap='Blues')
-plt.savefig(wd + 'reports/%s_lm_features_clustermap.pdf' % version, bbox_inches='tight')
-plt.close('all')
-
-print '[INFO] Plotting done: ', wd
