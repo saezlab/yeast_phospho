@@ -3,4 +3,4 @@ files/*
 gurobi.log
 .idea
 *.pyc
-gene_expresion/*
+data/gene_expresion/*
