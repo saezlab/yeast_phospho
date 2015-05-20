@@ -42,35 +42,6 @@ kinase_df = read_csv(wd + 'tables/kinase_enrichment_df.tab', sep='\t', index_col
 metabol_df = read_csv(wd + 'tables/steady_state_metabolomics.tab', sep='\t', index_col=0)
 metabol_df.index = Index(['%.2f' % c for c in metabol_df.index], dtype=str)
 
-metabol_cor = metabol_df.T.corr()
-metabol_cor['index'] = metabol_cor.index
-metabol_cor = melt(metabol_cor, id_vars='index')
-metabol_cor = metabol_cor[[k1 != k2 for k1, k2, in zip(*[metabol_cor['index'].values, metabol_cor['variable'].values])]]
-metabol_cor = metabol_cor[metabol_cor['value'].abs() > 0.4]
-
-plt.scatter(metabol_df.ix['118.05'], metabol_df.ix['67.02'])
-
-sns.clustermap(metabol_df.T.corr(), figsize=(25, 25), linewidths=0, xticklabels=False, yticklabels=False)
-plt.savefig(wd + 'reports/%s_met_cor.png' % version, bbox_inches='tight')
-plt.close('all')
-
-metabol_pca = PCA().fit(metabol_df)
-metabol_pca.transform(metabol_df).shape
-plt.plot(metabol_pca.explained_variance_ratio_)
-
-dist_m = linkage(metabol_df, method='complete', metric='correlation')
-dendrogram(dist_m)
-
-[(i, m_map.loc[m_map['mz'] == i, 'name'].values) for i in metabol_cor.index if i in m_map['mz'].values]
-
-serine = metabol_df.ix['74.02']
-threonine = metabol_df.ix['118.05']
-ppyruvate = metabol_df.ix['166.97']
-arginine = metabol_df.ix['173.10']
-aspartate = metabol_df.ix['116.04']
-
-plt.scatter(serine, aspartate)
-
 # Import dynamic data-sets
 dyn_kinase_df = read_csv(wd + 'tables/kinase_enrichment_dynamic_df.tab', sep='\t', index_col=0)
 
