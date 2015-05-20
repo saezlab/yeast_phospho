@@ -3,10 +3,4 @@ files/*
 gurobi.log
 .idea
 *.pyc
-Chua_2006_zscores_51tfs_parsed.tab
-Hu_2006_xscores_269tfs_parsed.tab
-Kemmeren_2014_zscores_parsed.tab
-tf_ko_gene_expression.tab
-Chua_2006_zscores_51tfs_parsed.rds
-Hu_2006_xscores_269tfs_parsed.rds
-Kemmeren_2014_zscores_parsed.rds
+data/gene_expresion/*
