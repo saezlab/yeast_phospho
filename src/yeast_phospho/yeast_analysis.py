@@ -6,7 +6,7 @@ import igraph as igraph
 import itertools as it
 from numpy.ma import masked_invalid as mask
 from sklearn.metrics.pairwise import euclidean_distances, linear_kernel, manhattan_distances, rbf_kernel, polynomial_kernel, pairwise_distances
-from sklearn.metrics.metrics import roc_curve, auc, jaccard_similarity_score, r2_score
+from sklearn.metrics import roc_curve, auc, jaccard_similarity_score, r2_score
 from pandas.tools.pivot import pivot_table
 from bioservices.kegg import KEGGParser, KEGG
 from pandas import DataFrame, Series, read_csv
