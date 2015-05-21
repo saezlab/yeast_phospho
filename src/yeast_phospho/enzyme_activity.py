@@ -59,35 +59,6 @@ model_met_map = model_met_map.drop_duplicates('mz')['mz'].to_dict()
 # Import metabolic model
 model = read_sbml_model('/Users/emanuel/Projects/resources/metabolic_models/1752-0509-4-145-s1/yeast_4.04.xml')
 
-# Import protein-protein interactions networks
-dbs, gene_reactions = {}, dict(model.get_reactions_by_genes(model.get_genes()).items())
-for bkg_type in ['string', 'phosphogrid']:
-    if bkg_type == 'phosphogrid':
-        db = read_csv(wd + 'files/phosphosites.txt', sep='\t').loc[:, ['KINASES_ORFS', 'ORF_NAME']]
-        db = {(k, r['ORF_NAME']) for i, r in db.iterrows() for k in r['KINASES_ORFS'].split('|') if k != '-'}
-
-    elif bkg_type == 'string':
-        db = read_csv(wd + 'files/4932.protein.links.v9.1.txt', sep=' ')
-        db_threshold = db['combined_score'].max() * 0.8
-        db = db[db['combined_score'] > db_threshold]
-        db = {(source.split('.')[1], target.split('.')[1]) for source, target in zip(db['protein1'], db['protein2'])}
-
-    db = {(s, t) for s, t in db if s != t}
-    print '[INFO] %s: %d' % (bkg_type, len(db))
-
-    db = {(s, t) for s, t in db if t in gene_reactions}
-    print '[INFO] %s, only enzyme targets: %d' % (bkg_type, len(db))
-
-    db = {(s, r) for s, t in db for r in gene_reactions[t]}
-    print '[INFO] %s, only enzymatic reactions: %d' % (bkg_type, len(db))
-
-    db = {(k, r) for k, r in db if r in e_k_corr_df.index}
-    print '[INFO] %s, only measured enzymatic reactions: %d' % (bkg_type, len(db))
-
-    dbs[bkg_type] = db
-
-print '[INFO] Kinase/Enzymes interactions data-bases imported'
-
 # Remove extracellular metabolites
 s_matrix = model.get_stoichiometric_matrix()
 s_matrix = s_matrix[[not i.endswith('_b') for i in s_matrix.index]]
@@ -198,6 +169,35 @@ g.set_xlabels('Distance')
 g.set_ylabels('Correlation')
 plt.savefig(wd + 'reports/%s_reaction_activity_kinase_distance.pdf' % version, bbox_inches='tight')
 plt.close('all')
+
+# Import protein-protein interactions networks
+dbs, gene_reactions = {}, dict(model.get_reactions_by_genes(model.get_genes()).items())
+for bkg_type in ['string', 'phosphogrid']:
+    if bkg_type == 'phosphogrid':
+        db = read_csv(wd + 'files/phosphosites.txt', sep='\t').loc[:, ['KINASES_ORFS', 'ORF_NAME']]
+        db = {(k, r['ORF_NAME']) for i, r in db.iterrows() for k in r['KINASES_ORFS'].split('|') if k != '-'}
+
+    elif bkg_type == 'string':
+        db = read_csv(wd + 'files/4932.protein.links.v9.1.txt', sep=' ')
+        db_threshold = db['combined_score'].max() * 0.8
+        db = db[db['combined_score'] > db_threshold]
+        db = {(source.split('.')[1], target.split('.')[1]) for source, target in zip(db['protein1'], db['protein2'])}
+
+    db = {(s, t) for s, t in db if s != t}
+    print '[INFO] %s: %d' % (bkg_type, len(db))
+
+    db = {(s, t) for s, t in db if t in gene_reactions}
+    print '[INFO] %s, only enzyme targets: %d' % (bkg_type, len(db))
+
+    db = {(s, r) for s, t in db for r in gene_reactions[t]}
+    print '[INFO] %s, only enzymatic reactions: %d' % (bkg_type, len(db))
+
+    db = {(k, r) for k, r in db if r in e_k_corr_df.index}
+    print '[INFO] %s, only measured enzymatic reactions: %d' % (bkg_type, len(db))
+
+    dbs[bkg_type] = db
+
+print '[INFO] Kinase/Enzymes interactions data-bases imported'
 
 # Enrichment for kinase/enzymes interactions
 int_enrichment = []
