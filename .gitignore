@@ -4,3 +4,4 @@ gurobi.log
 .idea
 *.pyc
 data/gene_expresion/*
+*.sqlite

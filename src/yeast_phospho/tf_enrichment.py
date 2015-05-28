@@ -3,7 +3,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from pandas import DataFrame, Series, read_csv, Index, pivot_table
-from pymist.enrichment.gsea import gsea, plot_gsea
+from pymist.enrichment.gsea import gsea
 
 wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
 
@@ -37,13 +37,16 @@ tfs = set(tf_network['tf'])
 tfs_targets = {tf: set(tf_network.loc[tf_network['tf'] == tf, 'target']) for tf in tfs}
 print '[INFO] TF targets calculated!'
 
-####  Steady-state phosphoproteomics kinases enrichment
+# TF enrichment
 start_time = time.time()
-tf_df = [(k, ko, gsea(gexp[ko], targets, True, 10000)[:2]) for k, targets in tfs_targets.items() for ko in strains]
+
+conditions = {ko: gexp[ko].dropna().to_dict() for ko in strains}
+
+tf_df = [(k, ko, gsea(conditions[ko], tfs_targets[k], 1000)) for k in tfs_targets for ko in strains]
 tf_df = [(k, ko, -np.log10(pvalue) if es < 0 else np.log10(pvalue)) for k, ko, (es, pvalue) in tf_df]
 tf_df = DataFrame(tf_df, columns=['tf', 'strain', 'score']).dropna()
 tf_df = pivot_table(tf_df, values='score', index='tf', columns='strain')
-print '[INFO] GSEA for TF enrichment done (ellapsed time %.2fmin).' % ((time.time() - start_time) / 60), tf_df.shape
+print '[INFO] GSEA for TF enrichment done (ellapsed time %.2fmin).' % ((time.time() - start_time) / 60)
 
 # Export matrix
 tf_df_file = wd + 'tables/tf_enrichment_df.tab'
