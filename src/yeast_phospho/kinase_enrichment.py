@@ -1,7 +1,7 @@
 import time
 import numpy as np
 from pandas import DataFrame, read_csv, pivot_table
-from pymist.enrichment.gsea import gsea, plot_gsea
+from pymist.enrichment.gsea import gsea
 
 wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
 
