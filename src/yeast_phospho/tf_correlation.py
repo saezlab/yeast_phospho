@@ -37,19 +37,17 @@ kinase_df = read_csv(wd + 'tables/kinase_enrichment_df.tab', sep='\t', index_col
 
 # Overlapping strains
 strains = set(tf_df.columns).intersection(kinase_df.columns)
-tf_df, kinase_df = tf_df.loc[:, strains], kinase_df.loc[:, strains]
+tf_df, kinase_df, gexp = tf_df.loc[:, strains], kinase_df.loc[:, strains], gexp.loc[:, strains]
 
-# Import TF network
-tf_network = read_csv(wd + 'data/tf_network/tf_gene_network_chip_only.tab', sep='\t')
-tf_network['tf'] = [name2id[i] if i in name2id else id2name[i] for i in tf_network['tf']]
-tfs = set(tf_network['tf'])
-tfs_targets = {tf: set(tf_network.loc[tf_network['tf'] == tf, 'target']) for tf in tfs}
-print '[INFO] TF targets calculated!'
+# Significantly chaning TF
+tfs = gexp.ix[tf_df.index].dropna()
+tfs = list(tfs.index[tfs.std(1) > 1])
 
-plot_df = [pearson(tf_df.ix[tf, strains], gexp.ix[tf, strains])[0] for tf in tf_df.index if tf in gexp.index]
+plot_df = [pearson(tf_df.ix[tf, strains], gexp.ix[tf, strains])[0] for tf in tfs if tf in gexp.index]
 sns.boxplot(plot_df, widths=0.3)
 sns.despine(bottom=True)
-plt.title('correlation (TF activity vs TF expression)')
+plt.title('TF correlation with gene expression (%d TFs)\naverage correlation: %.2f' % (len(plot_df), np.mean(plot_df)))
 plt.ylabel('pearson r')
 plt.savefig(wd + 'reports/%s_TF_correlation_gexp.pdf' % version, bbox_inches='tight')
 plt.close('all')
+print '[INFO] TF correlation with gene expression (%d): %.2f' % (len(plot_df), np.mean(plot_df))

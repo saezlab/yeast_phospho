@@ -20,6 +20,9 @@ print '[INFO] Version: %s' % version
 
 wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
 
+# Import gene names
+acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)['gene'].to_dict()
+
 # Import phospho FC
 phospho_df = read_csv(wd + 'tables/steady_state_phosphoproteomics.tab', sep='\t', index_col='site')
 
@@ -57,9 +60,16 @@ tfs = set(tf_network['tf'])
 tfs_targets = {tf: set(tf_network.loc[tf_network['tf'] == tf, 'target']) for tf in tfs}
 print '[INFO] TF targets calculated!'
 
-# ---- Remove TF p-sites
-test_cases = [(k, s) for k in kinases_targets for s in kinases_targets[k] if s.split('_')[0] in tfs_targets]
-kinases_targets = {k: {s for s in kinases_targets[k] if s.split('_')[0] not in tfs_targets} for k in kinases_targets}
+# ---- Remove regulatory TF sites
+tf_reg_sites = read_csv(wd + 'files/phosphosites.txt', sep='\t')[['ORF_NAME', 'PHOSPHO_SITE', 'KINASES_ORFS', 'PHOSPHATASES_ORFS', 'SITE_FUNCTIONS']]
+tf_reg_sites = tf_reg_sites[[p in tfs_targets for p in tf_reg_sites['ORF_NAME']]]
+tf_reg_sites = tf_reg_sites[['Inhibits The Protein Function' in f or 'Activates The Protein Function' in f for f in tf_reg_sites['SITE_FUNCTIONS']]]
+tf_reg_sites.index = tf_reg_sites['ORF_NAME'] + '_' + tf_reg_sites['PHOSPHO_SITE']
+tf_reg_sites = tf_reg_sites['SITE_FUNCTIONS'].to_dict()
+
+test_cases = [(k, s, tf_reg_sites[s]) for k in kinases_targets for s in kinases_targets[k] if s in tf_reg_sites]
+
+kinases_targets = {k: {s for s in kinases_targets[k] if s not in tf_reg_sites} for k in kinases_targets}
 
 # ---- Kinase Enrichment without TF p-sites
 strains = list(set(tf_df.columns).intersection(phospho_df.columns))
@@ -79,12 +89,14 @@ kinase_df.to_csv(kinase_df_file, sep='\t')
 print '[INFO] Kinase enrichment matrix exported to: %s' % kinase_df_file
 
 # ---- Correlation Kinases vs TF
-test_cases = {(k, s.split('_')[0]) for k, s in test_cases}
+test_cases_simp = {(k, s.split('_')[0]) for k, s, _ in test_cases}
 
-k_tf_cor = [(k, tf, pearson(tf_df.ix[tf, strains], kinase_df.ix[k, strains]), int((k, tf) in test_cases)) for tf in tf_df.index for k in kinase_df.index]
+k_tf_cor = [(k, tf, pearson(tf_df.ix[tf, strains], kinase_df.ix[k, strains]), int((k, tf) in test_cases_simp)) for tf in tf_df.index for k in kinase_df.index]
 k_tf_cor = DataFrame([(k, tf, c, p, n, tp) for k, tf, (c, p, n), tp in k_tf_cor], columns=['kinase', 'TF', 'cor', 'pvalue', 'n', 'TP']).dropna()
 k_tf_cor = k_tf_cor[k_tf_cor['n'] > 5]
 k_tf_cor['log10_pvalue'] = -np.log10(k_tf_cor['pvalue'])
+k_tf_cor['kinase_name'] = [acc_name[p].split(';')[0] for p in k_tf_cor['kinase']]
+k_tf_cor['TF_name'] = [acc_name[p].split(';')[0] for p in k_tf_cor['TF']]
 print '[INFO] Kinase vs TF Correlation: ', k_tf_cor.shape
 
 curve_fpr, curve_tpr, _ = roc_curve(k_tf_cor['TP'], k_tf_cor['log10_pvalue'])
