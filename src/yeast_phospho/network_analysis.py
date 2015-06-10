@@ -1,12 +1,19 @@
 import pydot
 import igraph
 import numpy as np
-from pyparsing import col
 import seaborn as sns
 import matplotlib.pyplot as plt
+from pyparsing import col
+from scipy.stats import pearsonr
 from statsmodels.distributions import ECDF
 from pandas import DataFrame, Series, read_csv, pivot_table
 from pymist.reader.sbml_reader import read_sbml_model
+
+
+def pearson(x, y):
+    mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
+    cor, pvalue = pearsonr(x[mask], y[mask]) if np.sum(mask) > 1 else (np.NaN, np.NaN)
+    return cor, pvalue, np.sum(mask)
 
 wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
 
@@ -52,7 +59,7 @@ regulatory_sites = regulatory_sites[['KINASES_ORFS', 'site', 'SITE_FUNCTIONS']]
 
 # ---- Define condition
 strains = kinase_df.columns
-condition = 'YLR113W'
+condition = 'YJL187C'
 
 c_kinase = kinase_df[condition].dropna().abs()
 c_phosph = phospho_df[condition].dropna().abs()
@@ -63,6 +70,7 @@ c_kinase_weights = {k: c_kinase_ecdf(c_kinase.ix[k]) for k in c_kinase.index}
 
 plot_df = zip(*[(c_kinase_weights[k], c_kinase.ix[k]) for k in c_kinase_weights])
 plt.scatter(plot_df[0], plot_df[1])
+plt.close('all')
 
 # ---- Scale p-sites fold-change
 c_phosph_ecdf = ECDF(c_phosph.values)
@@ -70,6 +78,7 @@ c_phosph_weights = {s: c_phosph_ecdf(c_phosph.ix[s]) for s in c_phosph.index}
 
 plot_df = zip(*[(c_phosph_weights[k], c_phosph.ix[k]) for k in c_phosph_weights])
 plt.scatter(plot_df[0], plot_df[1])
+plt.close('all')
 
 # ---- Create network
 network_i = igraph.Graph(directed=True)
@@ -134,13 +143,21 @@ cutoff = 5.0
 sub_network = network_i.subgraph_edges([k for k, v in shortest_paths_edges_freq.items() if v >= cutoff])
 print '[INFO] cutoff: %d, network: %s' % (cutoff, sub_network.summary())
 
+sub_network = network_i.spanning_tree('weight')
+sub_network = sub_network.subgraph([i for i in vertices if len(i.split('_')) == 1 or i in c_phosph.index and c_phosph.ix[i] > 1.0])
+print sub_network.summary()
+
+sub_network = network_i.subgraph({x for i in c_phosph[c_phosph > 1.0].index if i in vertices for x in network_i.neighborhood(i, order=5, mode='IN')})
+# sub_network = sub_network.spanning_tree('weight')
+print sub_network.summary()
+
 # ---- Plot consensus network
 graph = pydot.Dot(graph_type='digraph', rankdir='LR')
 
 graph.set_node_defaults(fontcolor='white', penwidth='3')
 graph.set_edge_defaults(color='gray', arrowhead='vee')
 
-freq_ecdf = ECDF(sub_network.es.get_attribute_values('freq'))
+freq_ecdf = ECDF(sub_network.es.get_attribute_values('weight'))
 
 for edge_index in sub_network.es.indices:
     edge = sub_network.es[edge_index]
@@ -174,16 +191,10 @@ for edge_index in sub_network.es.indices:
         graph.add_node(node)
 
     # Set edge width
-    edge_width = str(freq_ecdf(sub_network.es[edge_index].attributes()['freq']) * 5 + 1)
+    edge_width = str((1 - freq_ecdf(sub_network.es[edge_index].attributes()['weight'])) * 5 + 1)
 
     edge = pydot.Edge(source, target, penwidth=edge_width)
     graph.add_edge(edge)
 
 graph.write_pdf(wd + 'reports/consensus_network.pdf')
 print '[INFO] Network PDF saved!'
-
-[network_i.vs[y]['name'] for x in network_i.neighbors('YNL167C', mode='IN') for y in network_i.neighbors(x, mode='IN')]
-
-[network_i.vs[x]['name'] for x in network_i.neighbors('YNL167C', mode='IN') if network_i.vs[x]['name'] in c_sites]
-
-network_i.neighbors('YPL267W_S102', mode='IN')
