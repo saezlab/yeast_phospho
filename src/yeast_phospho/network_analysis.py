@@ -5,6 +5,8 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from pyparsing import col
+from pandas.stats.misc import zscore
+from sklearn.linear_model import LinearRegression
 from sklearn.svm import LinearSVC, SVC
 from scipy.stats.distributions import hypergeom
 from sklearn.neighbors import NearestNeighbors
@@ -38,6 +40,9 @@ acc_name = {k: acc_name[k].split(';')[0] for k in acc_name}
 # Import phospho FC
 phospho_df = read_csv(wd + 'tables/steady_state_phosphoproteomics.tab', sep='\t', index_col='site')
 
+# Import multiple phospho p-sites
+phospho_df_ms = read_csv(wd + 'tables/steady_state_phosphoproteomics_multiple_psites.tab', sep='\t', index_col='site')
+
 # Import kinase enrichment
 kinase_df = read_csv(wd + 'tables/kinase_enrichment_df.tab', sep='\t', index_col=0)
 
@@ -69,8 +74,8 @@ reg_sites_proteins = {s.split('_')[0] for s in reg_sites.index}
 # ---- Define condition
 strains = kinase_df.columns
 
+# ---- Weight network
 plot_networks = False
-
 condition_networks, condition_networks_nweighted = {}, {}
 for condition in strains:
     print '[INFO] Condition: %s' % condition
@@ -100,18 +105,21 @@ for condition in strains:
     vertices = list(set(network['SOURCE']).union(network['TARGET']).union([s.split('_')[0] for s in network['TARGET']]))
     network_i.add_vertices(vertices)
 
-    edges, edges_weights = [], []
+    edges, edges_names, edges_weights = [], [], []
     for i in network.index:
         source, site, substrate = network.ix[i, 'SOURCE'], network.ix[i, 'TARGET'], network.ix[i, 'TARGET'].split('_')[0]
 
         edges.append((source, site))
+        edges_names.append('%s -> %s' % (source, site))
         edges_weights.append(1.0 - c_kinase_weights[source] if source in c_kinase_weights else 1.0)
 
         edges.append((site, substrate))
+        edges_names.append('%s -> %s' % (site, substrate))
         edges_weights.append(1.0 - c_phosph_weights[site] if site in c_phosph_weights else 1.0)
 
     network_i.add_edges(edges)
 
+    network_i.es['name'] = edges_names
     network_i.es['weight'] = edges_weights
 
     network_i.simplify(True, False, 'first')
@@ -196,27 +204,29 @@ print '[INFO] x: %d, M: %d, n: %d, N: %d' % (len(x), len(M), len(n), len(N))
 print '[INFO] network_regulatory_sites done: %.2e' % p_value
 
 
-# ---- Predict regulatory sites with SVM classification
-x = phospho_df.replace(np.NaN, 0)
-x = x[[i.split('_')[0] in reg_sites_proteins for i in x.index]]
-y = np.array([int(s in reg_sites.index) for s in x.index])
-
-print np.mean([f1_score(LinearSVC().fit(x.values[train], y[train]).predict(x.values[test]), y[test]) for train, test in KFold(len(y))])
-
-x_weights = DataFrame({condition: {condition_networks[condition].vs[e.source]['name']: e['weight'] for e in condition_networks[condition].es} for condition in strains})
-x_weights = x_weights.ix[x.index].replace(np.NaN, 0)
-# x_weights = x_weights.join(x, lsuffix='_weights')
-print np.mean([f1_score(LinearSVC().fit(x_weights.values[train], y[train]).predict(x_weights.values[test]), y[test]) for train, test in KFold(len(y))])
-
-x_topology = DataFrame({condition: {condition_networks_nweighted[condition].vs[e.source]['name']: 1 for e in condition_networks_nweighted[condition].es} for condition in strains})
-x_topology = x_topology.ix[x.index].replace(np.NaN, 0)
-# x_topology = x_topology.join(x, lsuffix='_weights')
-print np.mean([f1_score(LinearSVC().fit(x_topology.values[train], y[train]).predict(x_topology.values[test]), y[test]) for train, test in KFold(len(y))])
-
-
 # ---- Predict multiple phosphorylated peptides
+phospho_df_ms = phospho_df_ms[phospho_df_ms.count(1) > 50]
 
+predicted_weights = {condition: {e['name']: condition_networks[condition].es.select(name=e['name'])['weight'] for e in network_i.es} for condition in strains}
+predicted_weights = {c: {e: np.NaN if len(predicted_weights[c][e]) == 0 else predicted_weights[c][e][0] for e in predicted_weights[c]} for c in predicted_weights}
+predicted_weights = DataFrame(predicted_weights)
 
+predicted_topology = {condition: {e['name']: condition_networks_nweighted[condition].es.select(name=e['name'])['weight'] for e in network_i.es} for condition in strains}
+predicted_topology = {c: {e: np.NaN if len(predicted_topology[c][e]) == 0 else 1 for e in predicted_topology[c]} for c in predicted_topology}
+predicted_topology = DataFrame(predicted_topology)
+
+ms_psites_predictions = {}
+for p in phospho_df_ms.index:
+    y = phospho_df_ms.ix[p].dropna()
+
+    x = phospho_df[y.index].T
+    x = x.loc[:, x.count() > 50].replace(np.NaN, 0.0)
+
+    avg_prediction = np.mean([pearson(LinearRegression().fit(x.ix[train], y[train]).predict(x.ix[test]), y[test].values)[0] for train, test in KFold(len(y))])
+
+    ms_psites_predictions[p] = avg_prediction
+
+print '[INFO] Peptides with multiple p-sites prediction complete: %.2f' % np.mean(ms_psites_predictions.values())
 
 # ---- Calculate weighted shortest-paths between differential phospho sites and all the kinases
 c_sites = set(c_phosph.index).intersection(vertices)
