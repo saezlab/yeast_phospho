@@ -1,14 +1,19 @@
+import re
 import pydot
 import igraph
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from pyparsing import col
+from sklearn.svm import LinearSVC, SVC
 from scipy.stats.distributions import hypergeom
+from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics import roc_curve, auc
 from scipy.stats import pearsonr
+from sklearn.cross_validation import KFold
 from statsmodels.distributions import ECDF
 from pandas import DataFrame, Series, read_csv, pivot_table
+from sklearn.metrics import roc_curve, auc, jaccard_similarity_score, f1_score
 from pymist.reader.sbml_reader import read_sbml_model
 
 
@@ -59,6 +64,7 @@ reg_sites = reg_sites[reg_sites['SITE_FUNCTIONS'] != '-']
 reg_sites['SITE'] = reg_sites['ORF_NAME'] + '_' + reg_sites['PHOSPHO_SITE']
 reg_sites = reg_sites.set_index('SITE')
 reg_sites = reg_sites[[is_regulatory(x) for x in reg_sites['SITE_FUNCTIONS']]]
+reg_sites_proteins = {s.split('_')[0] for s in reg_sites.index}
 
 # ---- Define condition
 strains = kinase_df.columns
@@ -189,6 +195,29 @@ p_value = hypergeom.sf(len(x), len(M), len(n), len(N))
 print '[INFO] x: %d, M: %d, n: %d, N: %d' % (len(x), len(M), len(n), len(N))
 print '[INFO] network_regulatory_sites done: %.2e' % p_value
 
+
+# ---- Predict regulatory sites with SVM classification
+x = phospho_df.replace(np.NaN, 0)
+x = x[[i.split('_')[0] in reg_sites_proteins for i in x.index]]
+y = np.array([int(s in reg_sites.index) for s in x.index])
+
+print np.mean([f1_score(LinearSVC().fit(x.values[train], y[train]).predict(x.values[test]), y[test]) for train, test in KFold(len(y))])
+
+x_weights = DataFrame({condition: {condition_networks[condition].vs[e.source]['name']: e['weight'] for e in condition_networks[condition].es} for condition in strains})
+x_weights = x_weights.ix[x.index].replace(np.NaN, 0)
+# x_weights = x_weights.join(x, lsuffix='_weights')
+print np.mean([f1_score(LinearSVC().fit(x_weights.values[train], y[train]).predict(x_weights.values[test]), y[test]) for train, test in KFold(len(y))])
+
+x_topology = DataFrame({condition: {condition_networks_nweighted[condition].vs[e.source]['name']: 1 for e in condition_networks_nweighted[condition].es} for condition in strains})
+x_topology = x_topology.ix[x.index].replace(np.NaN, 0)
+# x_topology = x_topology.join(x, lsuffix='_weights')
+print np.mean([f1_score(LinearSVC().fit(x_topology.values[train], y[train]).predict(x_topology.values[test]), y[test]) for train, test in KFold(len(y))])
+
+
+# ---- Predict multiple phosphorylated peptides
+
+
+
 # ---- Calculate weighted shortest-paths between differential phospho sites and all the kinases
 c_sites = set(c_phosph.index).intersection(vertices)
 c_kinases = set(c_kinase.index).intersection(vertices)
@@ -201,6 +230,7 @@ print '[INFO] Non-weighted shortest paths calculated: ', len(shortest_paths_all)
 
 shortest_paths_len = [(k, s, network_i.shortest_paths(vertices[k], vertices[s], 'weight')) for k in c_kinases for s in c_sites]
 print '[INFO] Lenght of shortest paths calculated: ', len(shortest_paths_len)
+
 
 # ---- Assemble all shortest-paths
 # Weighted shortest-paths

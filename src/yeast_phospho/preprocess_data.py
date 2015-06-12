@@ -5,10 +5,16 @@ from scipy.interpolate.interpolate import interp1d
 
 
 def get_site(protein, peptide):
-    pep_start = protein.find(re.sub('\[.+\]', '', peptide))
+    pep_start = protein.find(re.sub('\[[0-9]*\.?[0-9]*\]', '', peptide))
     pep_site_strat = peptide.find('[')
     site_pos = pep_start + pep_site_strat
     return protein[site_pos - 1] + str(site_pos)
+
+
+def get_multiple_site(protein, peptide):
+    n_sites = len(re.findall('\[[0-9]*\.?[0-9]*\]', peptide))
+    return [get_site(protein, peptide if i == 0 else re.sub('\[[0-9]*\.?[0-9]*\]', '', peptide, i)) for i in xrange(n_sites)]
+
 
 wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
 
@@ -18,7 +24,7 @@ protein_seq = network.groupby('ORF_NAME').first()['SEQUENCE'].to_dict()
 print '[INFO] [PHOSPHOGRID] ', network.shape
 
 
-####  Process steady-state phosphoproteomics
+# ----  Process steady-state phosphoproteomics
 phospho_df = read_csv(wd + 'data/steady_state_phosphoproteomics.tab', sep='\t')
 phospho_df = phospho_df.pivot_table(values='logFC', index=['peptide', 'target'], columns='regulator', aggfunc=np.median)
 print '[INFO] [PHOSPHOPROTEOMICS] : ', phospho_df.shape
@@ -45,7 +51,33 @@ phospho_df.to_csv(phospho_df_file, sep='\t')
 print '[INFO] [PHOSPHOPROTEOMICS] Exported to: %s' % phospho_df_file
 
 
-####  Process steady-state metabolomics
+# ---- Process steady-state phosphoproteomics with multiple p-sites
+phospho_df = read_csv(wd + 'data/steady_state_phosphoproteomics.tab', sep='\t')
+phospho_df = phospho_df.pivot_table(values='logFC', index=['peptide', 'target'], columns='regulator', aggfunc=np.median)
+print '[INFO] [PHOSPHOPROTEOMICS] : ', phospho_df.shape
+
+# Remove ambiguos peptides
+phospho_df = phospho_df.loc[[(len(peptide.split(',')) == 1) and (len(re.findall('\[[0-9]*\.?[0-9]*\]', peptide)) > 1) for peptide in phospho_df.index.levels[0]]]
+print '[INFO] [PHOSPHOPROTEOMICS] Consider only peptides with multiple p-sites: ', phospho_df.shape
+
+# Remove K and R aminoacids from the peptide head
+phospho_df.index = phospho_df.index.set_levels([re.split('^[K|R]\.', x)[1] for x in phospho_df.index.levels[0]], 'peptide')
+
+# Match peptide sequences to protein sequence and calculate peptide phosphorylation site
+pep_match = {peptide: set(network.loc[network['ORF_NAME'] == target, 'SEQUENCE']) for peptide, target in phospho_df.index}
+pep_site = {peptide: target + '_' + '_'.join(get_multiple_site(list(pep_match[peptide])[0].upper(), peptide)) for peptide, target in phospho_df.index if len(pep_match[peptide]) == 1}
+
+phospho_df['site'] = [pep_site[peptide] if peptide in pep_site else np.NaN for peptide, target in phospho_df.index]
+phospho_df = phospho_df.groupby('site').median()
+print '[INFO] [PHOSPHOPROTEOMICS] (merge phosphosites, i.e median): ', phospho_df.shape
+
+# Export processed data-set
+phospho_df_file = wd + 'tables/steady_state_phosphoproteomics_multiple_psites.tab'
+phospho_df.to_csv(phospho_df_file, sep='\t')
+print '[INFO] [PHOSPHOPROTEOMICS] Exported to: %s' % phospho_df_file
+
+
+# ----  Process steady-state metabolomics
 metabol_df = read_csv(wd + 'data/steady_state_metabolomics.tab', sep='\t')
 metabol_df.index = Index(metabol_df['m/z'], dtype=np.str)
 print '[INFO] [METABOLOMICS]: ', metabol_df.shape
@@ -63,7 +95,7 @@ metabol_df.to_csv(metabol_df_file, sep='\t')
 print '[INFO] [METABOLOMICS] Exported to: %s' % metabol_df_file
 
 
-####  Process dynamic phosphoproteomics
+# ----  Process dynamic phosphoproteomics
 phospho_dyn_df = read_csv(wd + 'data/dynamic_phosphoproteomics.tab', sep='\t')
 phospho_dyn_map = read_csv(wd + 'data/dynamic_peptides_map.tab', sep='\t')
 
@@ -96,7 +128,7 @@ dyn_phospho_df.to_csv(dyn_phospho_df_file, sep='\t')
 print '[INFO] [PHOSPHOPROTEOMICS] Exported to: %s' % dyn_phospho_df_file
 
 
-####  Process dynamic metabolomics
+# ----  Process dynamic metabolomics
 dyn_metabol = read_csv(wd + 'data/metabol_intensities.tab', sep='\t')
 dyn_metabol.index = Index(dyn_metabol['m/z'], dtype=np.str)
 dyn_metabol = dyn_metabol.groupby(level=0).first()
