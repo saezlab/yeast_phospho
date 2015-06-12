@@ -63,8 +63,12 @@ reg_sites = reg_sites[[is_regulatory(x) for x in reg_sites['SITE_FUNCTIONS']]]
 # ---- Define condition
 strains = kinase_df.columns
 
-condition_networks = {}
+plot_networks = False
+
+condition_networks, condition_networks_nweighted = {}, {}
 for condition in strains:
+    print '[INFO] Condition: %s' % condition
+
     c_kinase = kinase_df[condition].dropna().abs()
     c_phosph = phospho_df[condition].dropna().abs()
 
@@ -72,17 +76,17 @@ for condition in strains:
     c_kinase_ecdf = ECDF(c_kinase.values)
     c_kinase_weights = {k: c_kinase_ecdf(c_kinase.ix[k]) for k in c_kinase.index}
 
-    plot_df = zip(*[(c_kinase_weights[k], c_kinase.ix[k]) for k in c_kinase_weights])
-    plt.scatter(plot_df[0], plot_df[1])
-    plt.close('all')
+    # plot_df = zip(*[(c_kinase_weights[k], c_kinase.ix[k]) for k in c_kinase_weights])
+    # plt.scatter(plot_df[0], plot_df[1])
+    # plt.close('all')
 
     # ---- Scale p-sites fold-change
     c_phosph_ecdf = ECDF(c_phosph.values)
     c_phosph_weights = {s: c_phosph_ecdf(c_phosph.ix[s]) for s in c_phosph.index}
 
-    plot_df = zip(*[(c_phosph_weights[k], c_phosph.ix[k]) for k in c_phosph_weights])
-    plt.scatter(plot_df[0], plot_df[1])
-    plt.close('all')
+    # plot_df = zip(*[(c_phosph_weights[k], c_phosph.ix[k]) for k in c_phosph_weights])
+    # plt.scatter(plot_df[0], plot_df[1])
+    # plt.close('all')
 
     # ---- Create network
     network_i = igraph.Graph(directed=True)
@@ -103,18 +107,69 @@ for condition in strains:
     network_i.add_edges(edges)
 
     network_i.es['weight'] = edges_weights
-    network_i.es['inv_weight'] = [1 - i['weight'] for i in network_i.es]
 
     network_i.simplify(True, False, 'first')
-    print '[INFO] Network created: ', network_i.summary()
 
     # ---- Sub-set network to differentially phosphorylated sites
     sub_network = network_i.subgraph({x for i in c_phosph[c_phosph > .8].index if i in vertices for x in network_i.neighborhood(i, order=5, mode='IN')})
-    # sub_network = sub_network.spanning_tree('weight')
     print '[INFO] Sub-network created: ', sub_network.summary()
 
-    # ---- Store network
-    condition_networks[condition] = sub_network
+    condition_networks_nweighted[condition] = sub_network.copy()
+    print '[INFO] Unweighted sub-network created: ', condition_networks_nweighted[condition].summary()
+
+    condition_networks[condition] = sub_network.spanning_tree('weight')
+    print '[INFO] Weighted sub-network created: ', condition_networks[condition].summary()
+
+    # ---- Plot consensus network
+    if plot_networks:
+        sub_network = condition_networks[condition]
+
+        graph = pydot.Dot(graph_type='digraph', rankdir='LR')
+
+        graph.set_node_defaults(fontcolor='white', penwidth='3')
+        graph.set_edge_defaults(color='gray', arrowhead='vee')
+
+        freq_ecdf = ECDF(sub_network.es.get_attribute_values('weight'))
+
+        for edge_index in sub_network.es.indices:
+            edge = sub_network.es[edge_index]
+
+            source_id, target_id = sub_network.vs[edge.source].attributes()['name'], sub_network.vs[edge.target].attributes()['name']
+
+            source = pydot.Node(source_id, style='filled', shape='box', penwidth='0')
+            target = pydot.Node(target_id, style='filled')
+
+            for node in [source, target]:
+                node_name = node.get_name()
+
+                # Set node colour
+                if node_name.split('_')[0] in enzymes:
+                    node.set_fillcolor('#8EC127')
+
+                elif node_name in c_phosph.index:
+                    node.set_fillcolor('#3498db')
+
+                elif node_name in c_kinase:
+                    node.set_fillcolor('#BB3011')
+
+                # Set node name
+                if len(node_name.split('_')) == 2:
+                    node_name, res = node_name.split('_')
+                    node.set_name((acc_name[node_name] if node_name in acc_name else node_name) + '_' + res)
+
+                else:
+                    node.set_name(acc_name[node_name] if node_name in acc_name else node_name)
+
+                graph.add_node(node)
+
+            # Set edge width
+            edge_width = str((1 - freq_ecdf(sub_network.es[edge_index].attributes()['weight'])) * 5 + 1)
+
+            edge = pydot.Edge(source, target, penwidth=edge_width)
+            graph.add_edge(edge)
+
+        graph.write_pdf(wd + 'reports/networks/consensus_network_%s.pdf' % condition)
+        print '[INFO] Network PDF saved!\n'
 
 print '[INFO] Sub-networks calculation done'
 
@@ -122,22 +177,21 @@ print '[INFO] Sub-networks calculation done'
 site_edges = [(condition_networks[condition].vs[e.source]['name'], e['weight']) for condition in strains for e in condition_networks[condition].es]
 site_edges = {n for n, w in site_edges if len(n.split('_')) > 1}
 
-M = {network_i.vs[e.source]['name'] for e in network_i.es if len(network_i.vs[e.source]['name'].split('_')) > 1}
+site_edges_nweighted = [(condition_networks_nweighted[condition].vs[e.source]['name'], e['weight']) for condition in strains for e in condition_networks_nweighted[condition].es]
+site_edges_nweighted = {n for n, w in site_edges_nweighted if len(n.split('_')) > 1}
+
+M = site_edges_nweighted
 n = M.intersection(reg_sites.index)
 N = site_edges
 x = site_edges.intersection(n)
 
 p_value = hypergeom.sf(len(x), len(M), len(n), len(N))
+print '[INFO] x: %d, M: %d, n: %d, N: %d' % (len(x), len(M), len(n), len(N))
 print '[INFO] network_regulatory_sites done: %.2e' % p_value
 
 # ---- Calculate weighted shortest-paths between differential phospho sites and all the kinases
 c_sites = set(c_phosph.index).intersection(vertices)
 c_kinases = set(c_kinase.index).intersection(vertices)
-
-s = c_phosph[set(c_phosph.index).intersection(vertices)].argmax()
-k = s.split('_')[0]
-
-k_s_paths = [(k, network_i.vs[x]['name'], network_i.vs[p]['name'], network_i.shortest_paths(p[0], k, 'weight')) for x in network_i.neighborhood(k, 5, 'IN') for p in network_i.get_all_shortest_paths(x, k) if len(p) == 5]
 
 shortest_paths = [(k, s, network_i.get_all_shortest_paths(vertices[k], to=vertices[s], weights='weight')) for k in c_kinases for s in c_sites]
 print '[INFO] Weighted shortest paths calculated: ', len(shortest_paths)
@@ -174,53 +228,5 @@ sub_network = sub_network.subgraph([i for i in vertices if len(i.split('_')) == 
 print sub_network.summary()
 
 sub_network = network_i.subgraph({x for i in c_phosph[c_phosph > 1.0].index if i in vertices for x in network_i.neighborhood(i, order=5, mode='IN')})
-# sub_network = sub_network.spanning_tree('weight')
+sub_network = sub_network.spanning_tree('weight')
 print sub_network.summary()
-
-# ---- Plot consensus network
-graph = pydot.Dot(graph_type='digraph', rankdir='LR')
-
-graph.set_node_defaults(fontcolor='white', penwidth='3')
-graph.set_edge_defaults(color='gray', arrowhead='vee')
-
-freq_ecdf = ECDF(sub_network.es.get_attribute_values('weight'))
-
-for edge_index in sub_network.es.indices:
-    edge = sub_network.es[edge_index]
-
-    source_id, target_id = sub_network.vs[edge.source].attributes()['name'], sub_network.vs[edge.target].attributes()['name']
-
-    source = pydot.Node(source_id, style='filled', shape='box', penwidth='0')
-    target = pydot.Node(target_id, style='filled')
-
-    for node in [source, target]:
-        node_name = node.get_name()
-
-        # Set node colour
-        if node_name.split('_')[0] in enzymes:
-            node.set_fillcolor('#8EC127')
-
-        elif node_name in c_sites:
-            node.set_fillcolor('#3498db')
-
-        elif node_name in c_kinase:
-            node.set_fillcolor('#BB3011')
-
-        # Set node name
-        if len(node_name.split('_')) == 2:
-            node_name, res = node_name.split('_')
-            node.set_name((acc_name[node_name] if node_name in acc_name else node_name) + '_' + res)
-
-        else:
-            node.set_name(acc_name[node_name] if node_name in acc_name else node_name)
-
-        graph.add_node(node)
-
-    # Set edge width
-    edge_width = str((1 - freq_ecdf(sub_network.es[edge_index].attributes()['weight'])) * 5 + 1)
-
-    edge = pydot.Edge(source, target, penwidth=edge_width)
-    graph.add_edge(edge)
-
-graph.write_pdf(wd + 'reports/consensus_network.pdf')
-print '[INFO] Network PDF saved!'
