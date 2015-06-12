@@ -4,6 +4,8 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from pyparsing import col
+from scipy.stats.distributions import hypergeom
+from sklearn.metrics import roc_curve, auc
 from scipy.stats import pearsonr
 from statsmodels.distributions import ECDF
 from pandas import DataFrame, Series, read_csv, pivot_table
@@ -14,6 +16,8 @@ def pearson(x, y):
     mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
     cor, pvalue = pearsonr(x[mask], y[mask]) if np.sum(mask) > 1 else (np.NaN, np.NaN)
     return cor, pvalue, np.sum(mask)
+
+sns.set_style('white')
 
 wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
 
@@ -50,59 +54,81 @@ def is_regulatory(x):
     regulatory_functions = ['Required For Protein Function', 'Activates The Protein Function', 'Inhibits The Protein Function']
     return sum([i in x for i in regulatory_functions]) > 0
 
-regulatory_sites = read_csv(wd + 'files/phosphosites.txt', sep='\t')[['ORF_NAME', 'PHOSPHO_SITE', 'KINASES_ORFS', 'SITE_FUNCTIONS']]
-regulatory_sites['site'] = regulatory_sites['ORF_NAME'] + '_' + regulatory_sites['PHOSPHO_SITE']
-regulatory_sites = regulatory_sites[[x != '-' for x in regulatory_sites['KINASES_ORFS']]]
-regulatory_sites = regulatory_sites[[is_regulatory(x) for x in regulatory_sites['SITE_FUNCTIONS']]]
-regulatory_sites = regulatory_sites[[x in phospho_df.index for x in regulatory_sites['site']]]
-regulatory_sites = regulatory_sites[['KINASES_ORFS', 'site', 'SITE_FUNCTIONS']]
+reg_sites = read_csv(wd + 'files/phosphosites.txt', sep='\t')[['ORF_NAME', 'PHOSPHO_SITE', 'SITE_FUNCTIONS', 'KINASES_ORFS', 'PHOSPHATASES_ORFS', 'SITE_CONDITIONS']]
+reg_sites = reg_sites[reg_sites['SITE_FUNCTIONS'] != '-']
+reg_sites['SITE'] = reg_sites['ORF_NAME'] + '_' + reg_sites['PHOSPHO_SITE']
+reg_sites = reg_sites.set_index('SITE')
+reg_sites = reg_sites[[is_regulatory(x) for x in reg_sites['SITE_FUNCTIONS']]]
 
 # ---- Define condition
 strains = kinase_df.columns
-condition = 'YJL187C'
 
-c_kinase = kinase_df[condition].dropna().abs()
-c_phosph = phospho_df[condition].dropna().abs()
+condition_networks = {}
+for condition in strains:
+    c_kinase = kinase_df[condition].dropna().abs()
+    c_phosph = phospho_df[condition].dropna().abs()
 
-# ---- Scale kinase enrichment
-c_kinase_ecdf = ECDF(c_kinase.values)
-c_kinase_weights = {k: c_kinase_ecdf(c_kinase.ix[k]) for k in c_kinase.index}
+    # ---- Scale kinase enrichment
+    c_kinase_ecdf = ECDF(c_kinase.values)
+    c_kinase_weights = {k: c_kinase_ecdf(c_kinase.ix[k]) for k in c_kinase.index}
 
-plot_df = zip(*[(c_kinase_weights[k], c_kinase.ix[k]) for k in c_kinase_weights])
-plt.scatter(plot_df[0], plot_df[1])
-plt.close('all')
+    plot_df = zip(*[(c_kinase_weights[k], c_kinase.ix[k]) for k in c_kinase_weights])
+    plt.scatter(plot_df[0], plot_df[1])
+    plt.close('all')
 
-# ---- Scale p-sites fold-change
-c_phosph_ecdf = ECDF(c_phosph.values)
-c_phosph_weights = {s: c_phosph_ecdf(c_phosph.ix[s]) for s in c_phosph.index}
+    # ---- Scale p-sites fold-change
+    c_phosph_ecdf = ECDF(c_phosph.values)
+    c_phosph_weights = {s: c_phosph_ecdf(c_phosph.ix[s]) for s in c_phosph.index}
 
-plot_df = zip(*[(c_phosph_weights[k], c_phosph.ix[k]) for k in c_phosph_weights])
-plt.scatter(plot_df[0], plot_df[1])
-plt.close('all')
+    plot_df = zip(*[(c_phosph_weights[k], c_phosph.ix[k]) for k in c_phosph_weights])
+    plt.scatter(plot_df[0], plot_df[1])
+    plt.close('all')
 
-# ---- Create network
-network_i = igraph.Graph(directed=True)
+    # ---- Create network
+    network_i = igraph.Graph(directed=True)
 
-vertices = list(set(network['SOURCE']).union(network['TARGET']).union([s.split('_')[0] for s in network['TARGET']]))
-network_i.add_vertices(vertices)
+    vertices = list(set(network['SOURCE']).union(network['TARGET']).union([s.split('_')[0] for s in network['TARGET']]))
+    network_i.add_vertices(vertices)
 
-edges, edges_weights = [], []
-for i in network.index:
-    source, site, substrate = network.ix[i, 'SOURCE'], network.ix[i, 'TARGET'], network.ix[i, 'TARGET'].split('_')[0]
+    edges, edges_weights = [], []
+    for i in network.index:
+        source, site, substrate = network.ix[i, 'SOURCE'], network.ix[i, 'TARGET'], network.ix[i, 'TARGET'].split('_')[0]
 
-    edges.append((source, site))
-    edges_weights.append(1.0 - c_kinase_weights[source] if source in c_kinase_weights else 1.0)
+        edges.append((source, site))
+        edges_weights.append(1.0 - c_kinase_weights[source] if source in c_kinase_weights else 1.0)
 
-    edges.append((site, substrate))
-    edges_weights.append(1.0 - c_phosph_weights[site] if site in c_phosph_weights else 1.0)
+        edges.append((site, substrate))
+        edges_weights.append(1.0 - c_phosph_weights[site] if site in c_phosph_weights else 1.0)
 
-network_i.add_edges(edges)
+    network_i.add_edges(edges)
 
-network_i.es['weight'] = edges_weights
-network_i.es['inv_weight'] = [1 - i['weight'] for i in network_i.es]
+    network_i.es['weight'] = edges_weights
+    network_i.es['inv_weight'] = [1 - i['weight'] for i in network_i.es]
 
-network_i.simplify(True, False, 'first')
-print '[INFO] Network created: ', network_i.summary()
+    network_i.simplify(True, False, 'first')
+    print '[INFO] Network created: ', network_i.summary()
+
+    # ---- Sub-set network to differentially phosphorylated sites
+    sub_network = network_i.subgraph({x for i in c_phosph[c_phosph > .8].index if i in vertices for x in network_i.neighborhood(i, order=5, mode='IN')})
+    # sub_network = sub_network.spanning_tree('weight')
+    print '[INFO] Sub-network created: ', sub_network.summary()
+
+    # ---- Store network
+    condition_networks[condition] = sub_network
+
+print '[INFO] Sub-networks calculation done'
+
+# ---- Regulatory sites validation
+site_edges = [(condition_networks[condition].vs[e.source]['name'], e['weight']) for condition in strains for e in condition_networks[condition].es]
+site_edges = {n for n, w in site_edges if len(n.split('_')) > 1}
+
+M = {network_i.vs[e.source]['name'] for e in network_i.es if len(network_i.vs[e.source]['name'].split('_')) > 1}
+n = M.intersection(reg_sites.index)
+N = site_edges
+x = site_edges.intersection(n)
+
+p_value = hypergeom.sf(len(x), len(M), len(n), len(N))
+print '[INFO] network_regulatory_sites done: %.2e' % p_value
 
 # ---- Calculate weighted shortest-paths between differential phospho sites and all the kinases
 c_sites = set(c_phosph.index).intersection(vertices)
