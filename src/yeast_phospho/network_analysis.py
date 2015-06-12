@@ -207,26 +207,37 @@ print '[INFO] network_regulatory_sites done: %.2e' % p_value
 # ---- Predict multiple phosphorylated peptides
 phospho_df_ms = phospho_df_ms[phospho_df_ms.count(1) > 50]
 
-predicted_weights = {condition: {e['name']: condition_networks[condition].es.select(name=e['name'])['weight'] for e in network_i.es} for condition in strains}
-predicted_weights = {c: {e: np.NaN if len(predicted_weights[c][e]) == 0 else predicted_weights[c][e][0] for e in predicted_weights[c]} for c in predicted_weights}
-predicted_weights = DataFrame(predicted_weights)
+site_edges = DataFrame({condition: {condition_networks[condition].vs[e.source]['name']: e['weight'] for e in condition_networks[condition].es} for condition in strains})
+site_edges_nweighted = DataFrame({condition: {condition_networks_nweighted[condition].vs[e.source]['name']: 1 for e in condition_networks_nweighted[condition].es} for condition in strains}).replace(np.NaN, 0.0)
 
-predicted_topology = {condition: {e['name']: condition_networks_nweighted[condition].es.select(name=e['name'])['weight'] for e in network_i.es} for condition in strains}
-predicted_topology = {c: {e: np.NaN if len(predicted_topology[c][e]) == 0 else 1 for e in predicted_topology[c]} for c in predicted_topology}
-predicted_topology = DataFrame(predicted_topology)
-
-ms_psites_predictions = {}
+predictions, site_edges_predictions, site_edges_nweighted_predictions = {}, {}, {}
 for p in phospho_df_ms.index:
     y = phospho_df_ms.ix[p].dropna()
 
-    x = phospho_df[y.index].T
-    x = x.loc[:, x.count() > 50].replace(np.NaN, 0.0)
+    X = phospho_df[y.index].T
+    X = X.loc[:, X.count() > 50].replace(np.NaN, 0.0)
 
-    avg_prediction = np.mean([pearson(LinearRegression().fit(x.ix[train], y[train]).predict(x.ix[test]), y[test].values)[0] for train, test in KFold(len(y))])
+    # Only data
+    x = X
+    predictions[p] = np.mean([pearson(LinearRegression().fit(x.ix[train], y[train]).predict(x.ix[test]), y[test].values)[0] for train, test in KFold(len(y))])
 
-    ms_psites_predictions[p] = avg_prediction
+    # Data + edges weights
+    x = (1 - site_edges.T).replace(np.NaN, 0.0)
+    x = X.join(x, lsuffix='_prediction')
+    site_edges_predictions[p] = np.mean([pearson(LinearRegression().fit(x.ix[train], y[train]).predict(x.ix[test]), y[test].values)[0] for train, test in KFold(len(y))])
 
-print '[INFO] Peptides with multiple p-sites prediction complete: %.2f' % np.mean(ms_psites_predictions.values())
+    # Data + edges topology
+    x = X.join(site_edges_nweighted.T, lsuffix='_prediction')
+    site_edges_nweighted_predictions[p] = np.mean([pearson(LinearRegression().fit(x.ix[train], y[train]).predict(x.ix[test]), y[test].values)[0] for train, test in KFold(len(y))])
+print '[INFO] Peptides with multiple p-sites prediction complete: %.3f vs %.3f vs %.3f' % (np.mean(predictions.values()), np.mean(site_edges_predictions.values()), np.mean(site_edges_nweighted_predictions.values()))
+
+sns.boxplot([predictions.values(), site_edges_predictions.values(), site_edges_nweighted_predictions.values()], notch=True, names=['Data', 'Data + weights', 'Data + topology'])
+sns.despine()
+plt.ylabel('Mean pearson (3 fold cross-validation)')
+plt.title('Fold-change prediction of multiple-phosphorylated peptides')
+plt.savefig(wd + 'reports/multiple_phospho_peptides_prediction_boxplot.pdf')
+plt.close('all')
+print '[INFO] Figure saved!'
 
 # ---- Calculate weighted shortest-paths between differential phospho sites and all the kinases
 c_sites = set(c_phosph.index).intersection(vertices)
