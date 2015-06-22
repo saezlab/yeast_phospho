@@ -4,6 +4,7 @@ import scipy
 import numpy as np
 import igraph as igraph
 import itertools as it
+from yeast_phospho import wd
 from numpy.ma import masked_invalid as mask
 from sklearn.metrics.pairwise import euclidean_distances, linear_kernel, manhattan_distances, rbf_kernel, polynomial_kernel, pairwise_distances
 from sklearn.metrics import roc_curve, auc, jaccard_similarity_score, r2_score
@@ -38,8 +39,6 @@ def my_pairwise(x, y, metric):
     res = pairwise_distances(x[mask], y[mask], metric=metric) if np.sum(mask) > 5 else np.NaN
     return res if np.isfinite(res) else [[res]]
 
-
-wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
 
 # Import Kegg bioservice
 kegg_srv, kegg_prs = KEGG(verbose=True, cache=True), KEGGParser()

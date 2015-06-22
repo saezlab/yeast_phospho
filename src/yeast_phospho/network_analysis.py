@@ -6,8 +6,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from pyparsing import col
 from pandas.stats.misc import zscore
-from sklearn.linear_model import LinearRegression
-from sklearn.svm import LinearSVC, SVC
+from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.svm import LinearSVC, SVC, LinearSVR
 from scipy.stats.distributions import hypergeom
 from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics import roc_curve, auc
@@ -219,16 +219,16 @@ for p in phospho_df_ms.index:
 
     # Only data
     x = X
-    predictions[p] = np.mean([pearson(LinearRegression().fit(x.ix[train], y[train]).predict(x.ix[test]), y[test].values)[0] for train, test in KFold(len(y))])
+    predictions[p] = np.mean([pearson(Ridge().fit(x.ix[train], y[train]).predict(x.ix[test]), y[test].values)[0] for train, test in KFold(len(y))])
 
     # Data + edges weights
     x = (1 - site_edges.T).replace(np.NaN, 0.0)
     x = X.join(x, lsuffix='_prediction')
-    site_edges_predictions[p] = np.mean([pearson(LinearRegression().fit(x.ix[train], y[train]).predict(x.ix[test]), y[test].values)[0] for train, test in KFold(len(y))])
+    site_edges_predictions[p] = np.mean([pearson(Ridge().fit(x.ix[train], y[train]).predict(x.ix[test]), y[test].values)[0] for train, test in KFold(len(y))])
 
     # Data + edges topology
     x = X.join(site_edges_nweighted.T, lsuffix='_prediction')
-    site_edges_nweighted_predictions[p] = np.mean([pearson(LinearRegression().fit(x.ix[train], y[train]).predict(x.ix[test]), y[test].values)[0] for train, test in KFold(len(y))])
+    site_edges_nweighted_predictions[p] = np.mean([pearson(Ridge().fit(x.ix[train], y[train]).predict(x.ix[test]), y[test].values)[0] for train, test in KFold(len(y))])
 print '[INFO] Peptides with multiple p-sites prediction complete: %.3f vs %.3f vs %.3f' % (np.mean(predictions.values()), np.mean(site_edges_predictions.values()), np.mean(site_edges_nweighted_predictions.values()))
 
 sns.boxplot([predictions.values(), site_edges_predictions.values(), site_edges_nweighted_predictions.values()], notch=True, names=['Data', 'Data + weights', 'Data + topology'])

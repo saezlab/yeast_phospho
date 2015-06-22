@@ -1,1 +1,1 @@
-__author__ = 'emanuel'
+wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
