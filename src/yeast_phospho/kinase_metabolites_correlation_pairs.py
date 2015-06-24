@@ -64,7 +64,18 @@ def empirical_pvalue(k, m, verbose=1):
 
 k_m_cor = [empirical_pvalue(k, m) for k in kinase_df.index for m in metabol_df.index]
 k_m_cor = DataFrame(k_m_cor, columns=['k', 'm', 'cor', 'a_pvalue', 'e_pvalue', 'n_meas'])
-k_m_cor['adj_a_pvalue'] = multipletests(k_m_cor['a_pvalue'], method='fdr_bh')[1]
-k_m_cor['adj_e_pvalue'] = multipletests(k_m_cor['e_pvalue'], method='fdr_bh')[1]
 k_m_cor.to_csv(wd + 'tables/kinases_metabolites_pairs_correlation.tab', sep='\t', index=False)
 print '[INFO] Kinases correlations done:', len(k_m_cor)
+
+
+# Import correlations
+k_m_cor = read_csv(wd + 'tables/kinases_metabolites_pairs_correlation.tab', sep='\t').ix[:, range(6)].dropna()
+k_m_cor = k_m_cor[k_m_cor['n_meas'] == 115]
+
+k_m_cor['adj_a_pvalue'] = multipletests(k_m_cor['a_pvalue'], method='fdr_bh')[1]
+k_m_cor['adj_e_pvalue'] = multipletests(k_m_cor['e_pvalue'], method='fdr_bh')[1]
+
+k_m_cor['k_name'] = [acc_name.ix[i, 'gene'].split(';')[0] for i in k_m_cor['k']]
+k_m_cor['m_name'] = [metabol_map.ix[str(i), 'name'] for i in k_m_cor['m']]
+
+k_m_cor[k_m_cor['adj_e_pvalue'] < 0.10]
