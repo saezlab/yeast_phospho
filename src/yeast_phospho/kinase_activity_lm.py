@@ -7,6 +7,8 @@ from pandas import DataFrame, read_csv, melt
 from sklearn.cross_validation import KFold
 from sklearn.linear_model import RidgeCV, Ridge
 
+sns.set_style('ticks')
+
 # Import id maps
 acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)
 
@@ -44,7 +46,7 @@ k_activity = DataFrame({c: calculate_activity(c) for c in strains})
 print '[INFO] Kinase activity calculated: ', k_activity.shape
 
 # Export processed data-set
-k_activity_file = wd + 'tables/kinase_activity_steady_state.tab'
+k_activity_file = '%s/tables/kinase_activity_steady_state.tab' % wd
 k_activity.to_csv(k_activity_file, sep='\t')
 print '[INFO] [KINASE ACTIVITY] Exported to: %s' % k_activity_file
 
@@ -75,7 +77,6 @@ plot_df = melt(plot_df, id_vars='kinase')
 plot_df['type'] = [kinases_type.ix[i, 'type'] for i in plot_df['kinase']]
 plot_df['diagonal'] = ['Diagonal' if k == s else 'Off-diagonal' for k, s in plot_df[['kinase', 'strain']].values]
 
-sns.set_style('ticks')
 sns.boxplot(x='type', y='value', hue='diagonal', data=plot_df, palette='Paired', orient='v')
 sns.stripplot(x='type', y='value', hue='diagonal', data=plot_df, size=8, jitter=True, edgecolor='white', palette='Paired')
 sns.despine(offset=10, trim=True)
