@@ -3,37 +3,16 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.metrics.regression import mean_squared_error
 from yeast_phospho import wd
-from scipy.stats.stats import pearsonr, spearmanr
-from pandas import DataFrame, Series, read_csv, melt
+from pandas import DataFrame, read_csv, pivot_table
 from sklearn.cross_validation import KFold
 from sklearn.linear_model import RidgeCV, Ridge
-
-
-def spearman(x, y):
-    mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
-    cor, pvalue = spearmanr(x[mask], y[mask])
-    return cor, pvalue, np.sum(mask)
-
-
-def pearson(x, y):
-    mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
-    cor, pvalue = pearsonr(x[mask], y[mask])
-    return cor, pvalue, np.sum(mask)
 
 # Import id maps
 acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)
 
 # Import phospho FC
-phospho_df = read_csv(wd + 'tables/steady_state_phosphoproteomics.tab', sep='\t', index_col='site')
+phospho_df = read_csv('%s/tables/pproteomics_steady_state.tab' % wd, sep='\t', index_col=0)
 strains = list(set(phospho_df.columns))
-
-# Import kinases targets dictionary
-k_targets = read_csv(wd + 'tables/kinases_phosphatases_targets.tab', sep='\t')
-k_targets = {k: set(k_targets.loc[k_targets['SOURCE'] == k, 'TARGET']) for k in set(k_targets['SOURCE'])}
-k_targets = {k: k_targets[k].intersection(phospho_df.index) for k in k_targets}
-k_targets = {k: k_targets[k] for k in k_targets if len(k_targets[k]) > 0}
-k_targets = DataFrame({k: {t: 1 for t in k_targets[k]} for k in k_targets}).replace(np.NaN, 0)
-print '[INFO] [PHOSPHOGRID] Kinases targets: ', k_targets.shape
 
 # ---- Calculate kinase activity
 
