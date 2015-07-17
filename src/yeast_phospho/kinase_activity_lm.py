@@ -1,14 +1,12 @@
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-from sklearn.metrics.regression import r2_score, mean_squared_error
-from sklearn.metrics.scorer import make_scorer
+from sklearn.metrics.regression import mean_squared_error
 from yeast_phospho import wd
 from scipy.stats.stats import pearsonr, spearmanr
-from pandas import DataFrame, Series, read_csv, concat, melt
-from sklearn.cross_validation import KFold, StratifiedKFold
-from sklearn.linear_model import LinearRegression, RidgeCV, ElasticNetCV, LassoCV, Ridge, ElasticNet, BayesianRidge, SGDRegressor
-from sklearn.svm import LinearSVR
+from pandas import DataFrame, Series, read_csv, melt
+from sklearn.cross_validation import KFold
+from sklearn.linear_model import RidgeCV, Ridge
 
 
 def spearman(x, y):
@@ -44,9 +42,11 @@ def calculate_activity(strain):
     y = phospho_df.ix[k_targets.index, strain].dropna()
     x = k_targets.ix[y.index]
 
+    x = x.loc[:, x.sum() != 0]
+
     best_model = (np.Inf, 0.0)
-    for train, test in KFold(len(x)):
-        lm = RidgeCV(cv=5).fit(x.ix[train], y.ix[train])
+    for train, test in KFold(len(x), 8):
+        lm = RidgeCV().fit(x.ix[train], y.ix[train])
         score = mean_squared_error(lm.predict(x.ix[test]), y.ix[test].values)
 
         if score < best_model[0]:
@@ -54,24 +54,21 @@ def calculate_activity(strain):
 
     print '[INFO] %s, score: %.3f, alpha: %.2f' % (strain, best_model[0], best_model[1])
 
-    return Series(Ridge(alpha=best_model[0]).fit(x, y).coef_, index=x.columns, name=strain)
+    return dict(zip(*(x.columns, Ridge(alpha=best_model[0]).fit(x, y).coef_)))
 
-k_activity = concat([calculate_activity(c) for c in strains], axis=1).replace(0.0, np.NaN)
+k_activity = DataFrame({c: calculate_activity(c) for c in strains})
 print '[INFO] Kinase activity calculated!'
 
-# k_activity = DataFrame({c: {k: phospho_df.ix[k_targets[k], c].median() for k in k_targets} for c in strains})
-# k_activity = read_csv(wd + 'tables/kinase_enrichment_df.tab', sep='\t', index_col=0)
-
-# # ---- Plot kinase cluster map
-# plot_df_order = set(k_activity.index).intersection(k_activity.columns)
-# plot_df = k_activity.copy().replace(np.NaN, 0).loc[plot_df_order, plot_df_order]
-# plot_df.index = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.index]
-# plot_df.columns = [acc_name.loc[x, 'gene'].split(';')[0] for x in plot_df.columns]
-# plot_df.columns.name, plot_df.index.name = 'perturbations', 'kinases'
-# sns.clustermap(plot_df, figsize=(20, 20), col_cluster=False, row_cluster=False)
-# plt.savefig(wd + 'reports/kinase_activity_lm_diagonal.pdf', bbox_inches='tight')
-# plt.close('all')
-# print '[INFO] Plot done!'
+# ---- Plot kinase cluster map
+plot_df_order = set(k_activity.index).intersection(k_activity.columns)
+plot_df = k_activity.copy().replace(np.NaN, 0).loc[plot_df_order, plot_df_order]
+plot_df.index = [acc_name.loc[i, 'gene'].split(';')[0] for i in plot_df.index]
+plot_df.columns = [acc_name.loc[i, 'gene'].split(';')[0] for i in plot_df.columns]
+plot_df.columns.name, plot_df.index.name = 'perturbations', 'kinases'
+sns.clustermap(plot_df, figsize=(20, 20), col_cluster=False, row_cluster=False)
+plt.savefig(wd + 'reports/kinase_activity_lm_diagonal.pdf', bbox_inches='tight')
+plt.close('all')
+print '[INFO] Plot done!'
 
 # ---- Import YeastGenome gene annotation
 gene_annotation = read_csv('%s/files/gene_association.txt' % wd, sep='\t', header=None).dropna(how='all', axis=1)
