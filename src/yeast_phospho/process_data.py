@@ -93,9 +93,6 @@ plt.savefig(wd + 'reports/p-sites_growth_correlation_growth_out_hist.pdf', bbox_
 plt.close('all')
 print '[INFO] Growth regressed out from the p-sites: ', phospho_df_.shape
 
-# Round values
-phospho_df_ = np.round(phospho_df_, decimals=6)
-
 # Export processed data-set
 phospho_df_file = wd + 'tables/pproteomics_steady_state.tab'
 phospho_df_.to_csv(phospho_df_file, sep='\t')

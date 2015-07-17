@@ -3,7 +3,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.metrics.regression import mean_squared_error
 from yeast_phospho import wd
-from pandas import DataFrame, read_csv, pivot_table
+from pandas import DataFrame, read_csv, melt
 from sklearn.cross_validation import KFold
 from sklearn.linear_model import RidgeCV, Ridge
 
@@ -13,6 +13,11 @@ acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt',
 # Import phospho FC
 phospho_df = read_csv('%s/tables/pproteomics_steady_state.tab' % wd, sep='\t', index_col=0)
 strains = list(set(phospho_df.columns))
+
+# Import kinase targets matrix
+k_targets = read_csv('%s/tables/kinases_targets_phosphogrid.tab' % wd, sep='\t', index_col=0)
+k_targets = k_targets.ix[set(k_targets.index).intersection(phospho_df.index)]
+k_targets = k_targets.loc[:, k_targets.sum() != 0]
 
 # ---- Calculate kinase activity
 
@@ -24,7 +29,7 @@ def calculate_activity(strain):
     x = x.loc[:, x.sum() != 0]
 
     best_model = (np.Inf, 0.0)
-    for train, test in KFold(len(x), 8):
+    for train, test in KFold(len(x), 3):
         lm = RidgeCV().fit(x.ix[train], y.ix[train])
         score = mean_squared_error(lm.predict(x.ix[test]), y.ix[test].values)
 
@@ -36,7 +41,12 @@ def calculate_activity(strain):
     return dict(zip(*(x.columns, Ridge(alpha=best_model[0]).fit(x, y).coef_)))
 
 k_activity = DataFrame({c: calculate_activity(c) for c in strains})
-print '[INFO] Kinase activity calculated!'
+print '[INFO] Kinase activity calculated: ', k_activity.shape
+
+# Export processed data-set
+k_activity_file = wd + 'tables/kinase_activity_steady_state.tab'
+k_activity.to_csv(k_activity_file, sep='\t')
+print '[INFO] [KINASE ACTIVITY] Exported to: %s' % k_activity_file
 
 # ---- Plot kinase cluster map
 plot_df_order = set(k_activity.index).intersection(k_activity.columns)
@@ -47,7 +57,7 @@ plot_df.columns.name, plot_df.index.name = 'perturbations', 'kinases'
 sns.clustermap(plot_df, figsize=(20, 20), col_cluster=False, row_cluster=False)
 plt.savefig(wd + 'reports/kinase_activity_lm_diagonal.pdf', bbox_inches='tight')
 plt.close('all')
-print '[INFO] Plot done!'
+print '[INFO] Clustemap done!'
 
 # ---- Import YeastGenome gene annotation
 gene_annotation = read_csv('%s/files/gene_association.txt' % wd, sep='\t', header=None).dropna(how='all', axis=1)
