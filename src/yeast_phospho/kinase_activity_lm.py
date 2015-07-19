@@ -12,6 +12,8 @@ sns.set_style('ticks')
 # Import id maps
 acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)
 
+# ---- Steady-state: Calculate kinase activity
+
 # Import phospho FC
 phospho_df = read_csv('%s/tables/pproteomics_steady_state.tab' % wd, sep='\t', index_col=0)
 strains = list(set(phospho_df.columns))
@@ -20,8 +22,6 @@ strains = list(set(phospho_df.columns))
 k_targets = read_csv('%s/tables/kinases_targets_phosphogrid.tab' % wd, sep='\t', index_col=0)
 k_targets = k_targets.ix[set(k_targets.index).intersection(phospho_df.index)]
 k_targets = k_targets.loc[:, k_targets.sum() != 0]
-
-# ---- Calculate kinase activity
 
 
 def calculate_activity(strain):
@@ -45,7 +45,7 @@ def calculate_activity(strain):
 k_activity = DataFrame({c: calculate_activity(c) for c in strains})
 print '[INFO] Kinase activity calculated: ', k_activity.shape
 
-# Export processed data-set
+# Export kinase activity matrix
 k_activity_file = '%s/tables/kinase_activity_steady_state.tab' % wd
 k_activity.to_csv(k_activity_file, sep='\t')
 print '[INFO] [KINASE ACTIVITY] Exported to: %s' % k_activity_file
@@ -82,3 +82,41 @@ sns.stripplot(x='type', y='value', hue='diagonal', data=plot_df, size=8, jitter=
 sns.despine(offset=10, trim=True)
 plt.savefig(wd + 'reports/kinase_activity_lm_diagonal_boxplot.pdf', bbox_inches='tight')
 plt.close('all')
+
+
+# ---- Dynamic: Calculate kinase activity
+# Import phospho FC
+phospho_df_dyn = read_csv('%s/tables/pproteomics_dynamic.tab' % wd, sep='\t', index_col=0)
+conditions = list(phospho_df_dyn.columns)
+
+# Import kinase targets matrix
+k_targets = read_csv('%s/tables/kinases_targets_phosphogrid.tab' % wd, sep='\t', index_col=0)
+k_targets = k_targets.ix[set(k_targets.index).intersection(phospho_df_dyn.index)]
+k_targets = k_targets.loc[:, k_targets.sum() != 0]
+
+
+def calculate_activity_dynamic(condition):
+    y = phospho_df_dyn.ix[k_targets.index, condition].dropna()
+    x = k_targets.ix[y.index]
+
+    x = x.loc[:, x.sum() != 0]
+
+    best_model = (np.Inf, 0.0)
+    for train, test in KFold(len(x), 3):
+        lm = RidgeCV().fit(x.ix[train], y.ix[train])
+        score = mean_squared_error(lm.predict(x.ix[test]), y.ix[test].values)
+
+        if score < best_model[0]:
+            best_model = (score, lm.alpha_, lm.coef_)
+
+    print '[INFO] %s, score: %.3f, alpha: %.2f' % (condition, best_model[0], best_model[1])
+
+    return dict(zip(*(x.columns, Ridge(alpha=best_model[0]).fit(x, y).coef_)))
+
+k_activity_dyn = DataFrame({c: calculate_activity_dynamic(c) for c in conditions})
+print '[INFO] Kinase activity calculated: ', k_activity_dyn.shape
+
+# Export kinase activity matrix
+k_activity_dyn_file = '%s/tables/kinase_activity_dynamic.tab' % wd
+k_activity_dyn.to_csv(k_activity_dyn_file, sep='\t')
+print '[INFO] [KINASE ACTIVITY] Exported to: %s' % k_activity_dyn_file
