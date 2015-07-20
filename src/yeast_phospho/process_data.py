@@ -56,7 +56,7 @@ phospho_df['site'] = [pep_site[peptide] if peptide in pep_site else np.NaN for p
 phospho_df = phospho_df.groupby('site').median()
 print '[INFO] [PHOSPHOPROTEOMICS] (merge phosphosites, i.e median): ', phospho_df.shape
 
-# Regress out growth
+# # Regress out growth
 # psites_growth_cor = [pearson(phospho_df.ix[i, strains].values, growth.ix[strains].values)[0] for i in phospho_df.index if phospho_df.ix[i, strains].count() > 3]
 # plt.hist(psites_growth_cor, lw=0, bins=30)
 # sns.despine(offset=10, trim=True)

@@ -1,14 +1,17 @@
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-from sklearn.metrics.regression import mean_squared_error
+from sklearn.metrics.ranking import roc_auc_score, auc, roc_curve
+from sklearn.metrics.regression import explained_variance_score
 from sklearn.metrics.scorer import mean_squared_error_scorer
+from pandas.stats.misc import zscore
+from sklearn.svm.classes import LinearSVC, SVR, LinearSVR, NuSVR
 from statsmodels.stats.multitest import multipletests
 from yeast_phospho import wd
-from yeast_phospho.utils import spearman, pearson
-from pandas import DataFrame, read_csv, Index
-from sklearn.cross_validation import LeaveOneOut, cross_val_score, Bootstrap, KFold, ShuffleSplit
-from sklearn.linear_model import LinearRegression, RidgeCV, ElasticNetCV, LassoCV
+from yeast_phospho.utils import spearman
+from pandas import DataFrame, read_csv, Index, cut, concat, melt
+from sklearn.cross_validation import LeaveOneOut
+from sklearn.linear_model import LinearRegression, RidgeCV, LassoCV, MultiTaskLassoCV, ElasticNetCV
 
 sns.set_style('ticks')
 
@@ -19,7 +22,8 @@ acc_name = {k: acc_name[k].split(';')[0] for k in acc_name}
 # Import metabolites map
 m_map = read_csv('%s/files/metabolomics/metabolite_mz_map_kegg.txt' % wd, sep='\t')
 m_map['mz'] = Index([str(i) for i in m_map['mz']], dtype=str)
-m_map = m_map.groupby('mz')['name'].apply(lambda x: '; '.join(x)).to_dict()
+m_map = m_map.drop_duplicates('mz').drop_duplicates('formula')
+m_map = m_map.groupby('mz')['name'].apply(lambda i: '; '.join(i)).to_dict()
 
 # Import kinase activity
 k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
@@ -29,21 +33,17 @@ metabolomics = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t'
 metabolomics.index = Index([str(i) for i in metabolomics.index], dtype=str)
 
 # Overlapping kinases/phosphatases knockout
-strains, metabolites, kinases = list(set(k_activity.columns).intersection(set(metabolomics.columns))), list(metabolomics.index), list(k_activity.index)
-k_activity, metabolomics = k_activity[strains], metabolomics[strains]
-
+strains = list(set(k_activity.columns).intersection(set(metabolomics.columns)))
+k_activity, metabolomics = k_activity[strains], metabolomics.loc[m_map.keys(), strains].dropna()
+metabolites, kinases = list(metabolomics.index), list(k_activity.index)
 
 # ---- Steady-state: predict metabolites FC with kinases
 x, y = k_activity.loc[kinases, strains].replace(np.NaN, 0.0).T, metabolomics.loc[metabolites, strains].T
-
-lm = LinearRegression()
-cv = LeaveOneOut(len(x))
-
-m_predicted = DataFrame({strains[test]: dict(zip(*(metabolites, lm.fit(x.ix[train], y.ix[train]).predict(x.ix[test])[0]))) for train, test in cv})
+m_predicted = DataFrame({strains[test]: dict(zip(*(metabolites, LinearRegression().fit(x.ix[train], y.ix[train]).predict(x.ix[test])[0]))) for train, test in LeaveOneOut(len(x))})
 
 # Plot predicted prediction scores
 m_score = [(m, spearman(metabolomics.ix[m, strains], m_predicted.ix[m, strains])) for m in metabolites]
-m_score = DataFrame([(m, c, p) for m, (c, p) in m_score], columns=['metabolite', 'correlation', 'pvalue'])
+m_score = DataFrame([(m, c, p, n) for m, (c, p, n) in m_score], columns=['metabolite', 'correlation', 'pvalue', 'n_meas'])
 m_score = m_score.set_index('metabolite')
 m_score['adjpvalue'] = multipletests(m_score['pvalue'], method='fdr_bh')[1]
 m_score['signif'] = ['FDR < 5%' if x < 0.05 else ' FDR >= 5%' for x in m_score['adjpvalue']]
@@ -52,7 +52,7 @@ m_score = m_score.sort('correlation', ascending=False)
 print 'Mean correlation metabolites: ', m_score['correlation'].mean()
 
 s_score = [(s, spearman(metabolomics.ix[metabolites, s], m_predicted.ix[metabolites, s])) for s in strains]
-s_score = DataFrame([(m, c, p) for m, (c, p) in s_score], columns=['strain', 'correlation', 'pvalue'])
+s_score = DataFrame([(m, c, p, n) for m, (c, p, n) in s_score], columns=['strain', 'correlation', 'pvalue', 'n_meas'])
 s_score = s_score.set_index('strain')
 s_score['adjpvalue'] = multipletests(s_score['pvalue'], method='fdr_bh')[1]
 s_score['signif'] = ['FDR < 5%' if x < 0.05 else ' FDR >= 5%' for x in s_score['adjpvalue']]
@@ -100,18 +100,18 @@ conditions = list(metabolomics_dyn.columns)
 # Import metabolites map
 m_map_dyn = read_csv('%s/files/metabolomics/metabolite_mz_map_kegg.txt' % wd, sep='\t')
 m_map_dyn['mz'] = Index(['%.2f' % i for i in m_map_dyn['mz']], dtype=str)
+m_map_dyn = m_map_dyn.drop_duplicates('mz').drop_duplicates('formula')
 m_map_dyn = m_map_dyn.groupby('mz')['name'].apply(lambda x: '; '.join(x)).to_dict()
 
 # Fit linear regression model
 x_train, y_train = k_activity.ix[kinases_ov, strains].dropna(how='all').replace(np.NaN, 0.0).T, metabolomics.ix[metabol_ov, strains].T
 x_test, y_test = k_activity_dyn.ix[kinases_ov, conditions].replace(np.NaN, 0.0).T, metabolomics_dyn.ix[metabol_ov, conditions].T
 
-lm = LinearRegression()
-m_dyn_predicted = DataFrame(lm.fit(x_train, y_train).predict(x_test), index=conditions, columns=metabol_ov).T
+m_dyn_predicted = DataFrame({m: dict(zip(*(conditions, SVR(kernel='linear').fit(zscore(x_train), y_train[m]).predict(zscore(x_test))))) for m in metabol_ov}).T
 
 # Plot predicted prediction scores
 m_score_dyn = [(m, spearman(metabolomics_dyn.ix[m, conditions], m_dyn_predicted.ix[m, conditions])) for m in m_dyn_predicted.index]
-m_score_dyn = DataFrame([(m, c, p) for m, (c, p) in m_score_dyn], columns=['metabolite', 'correlation', 'pvalue'])
+m_score_dyn = DataFrame([(m, c, p, n) for m, (c, p, n) in m_score_dyn], columns=['metabolite', 'correlation', 'pvalue', 'n_meas'])
 m_score_dyn = m_score_dyn.set_index('metabolite')
 m_score_dyn['adjpvalue'] = multipletests(m_score_dyn['pvalue'], method='fdr_bh')[1]
 m_score_dyn['signif'] = ['FDR < 5%' if x < 0.05 else ' FDR >= 5%' for x in m_score_dyn['adjpvalue']]
@@ -120,7 +120,7 @@ m_score_dyn = m_score_dyn.sort('correlation', ascending=False)
 print 'Mean correlation metabolites: ', m_score_dyn['correlation'].mean()
 
 s_score_dyn = [(s, spearman(metabolomics_dyn.ix[metabolomics.index, s], m_dyn_predicted.ix[metabolomics.index, s])) for s in conditions]
-s_score_dyn = DataFrame([(m, c, p) for m, (c, p) in s_score_dyn], columns=['condition', 'correlation', 'pvalue'])
+s_score_dyn = DataFrame([(m, c, p, n) for m, (c, p, n) in s_score_dyn], columns=['condition', 'correlation', 'pvalue', 'n_meas'])
 s_score_dyn = s_score_dyn.set_index('condition')
 s_score_dyn['adjpvalue'] = multipletests(s_score_dyn['pvalue'], method='fdr_bh')[1]
 s_score_dyn['signif'] = ['FDR < 5%' if x < 0.05 else ' FDR >= 5%' for x in s_score_dyn['adjpvalue']]
@@ -132,9 +132,9 @@ plot_df = DataFrame([(m_score_dyn.ix[m, 'name'], m_dyn_predicted.ix[m, s], metab
 plot_df.columns = ['metabolite', 'predicted', 'measured', 'signif']
 
 colour_pallete = list(reversed(sns.color_palette('Paired')[:2]))
-g = sns.lmplot(x='measured', y='predicted', col='metabolite', hue='signif', data=plot_df, col_wrap=6, palette=colour_pallete, sharex=False, sharey=False, scatter_kws={'s': 80})
+g = sns.lmplot(x='measured', y='predicted', col='metabolite', hue='signif', data=plot_df, col_wrap=6, palette=colour_pallete, sharex=False, sharey=False, scatter_kws={'s': 80}, size=3.5)
 plt.savefig('%s/reports/lm_metabolites_dynamic_corr.pdf' % wd, bbox_inches='tight')
-g.set_axis_labels('Measured', 'Predicted').fig.subplots_adjust(wspace=.02)
+g.set_axis_labels('Measured', 'Predicted').fig.subplots_adjust(wspace=.01)
 plt.close('all')
 print '[INFO] Plot done!'
 
@@ -142,9 +142,8 @@ plot_df = DataFrame([(s, m_dyn_predicted.ix[m, s], metabolomics_dyn.ix[m, s], s_
 plot_df.columns = ['strain', 'predicted', 'measured', 'signif']
 
 colour_pallete = list(reversed(sns.color_palette('Paired')[:2]))
-g = sns.lmplot(x='measured', y='predicted', col='strain', hue='signif', data=plot_df, col_wrap=6, palette=colour_pallete, sharex=False, sharey=False, scatter_kws={'s': 80})
+g = sns.lmplot(x='measured', y='predicted', col='strain', hue='signif', data=plot_df, col_wrap=6, palette=colour_pallete, sharex=False, sharey=False, scatter_kws={'s': 80}, size=3.5)
 plt.savefig('%s/reports/lm_samples_dynamic_corr.pdf' % wd, bbox_inches='tight')
-g.set_axis_labels('Measured', 'Predicted').fig.subplots_adjust(wspace=.02)
+g.set_axis_labels('Measured', 'Predicted').fig.subplots_adjust(wspace=.01)
 plt.close('all')
 print '[INFO] Plot done!'
-

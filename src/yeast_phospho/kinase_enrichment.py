@@ -1,9 +1,8 @@
 import time
 import numpy as np
+from yeast_phospho import wd
 from pandas import DataFrame, read_csv, pivot_table
 from pymist.enrichment.gsea import gsea
-
-wd = '/Users/emanuel/Projects/projects/yeast_phospho/'
 
 # Import phospho FC
 phospho_df = read_csv(wd + 'tables/steady_state_phosphoproteomics.tab', sep='\t', index_col='site')
@@ -33,7 +32,7 @@ kinases = set(network['SOURCE'])
 kinases_targets = {k: set(network.loc[network['SOURCE'] == k, 'TARGET']) for k in kinases}
 
 
-####  Steady-state phosphoproteomics kinases enrichment
+# ----  Steady-state phosphoproteomics kinases enrichment
 start_time = time.time()
 kinase_df = [(k, ko, gsea(phospho_df[ko], targets, True, 10000)[:2]) for k, targets in kinases_targets.items() for ko in strains]
 kinase_df = [(k, ko, -np.log10(pvalue) if es < 0 else np.log10(pvalue)) for k, ko, (es, pvalue) in kinase_df]
@@ -47,7 +46,7 @@ kinase_df.to_csv(kinase_df_file, sep='\t')
 print '[INFO] Kinase enrichment matrix exported to: %s' % kinase_df_file
 
 
-####  Dynamic phosphoproteomics kinases enrichment
+# ----  Dynamic phosphoproteomics kinases enrichment
 start_time = time.time()
 dyn_kinase_df = [(k, c, gsea(dyn_phospho_fc[c], targets, True, 10000)[:2]) for k, targets in kinases_targets.items() for c in dyn_phospho_fc.columns]
 dyn_kinase_df = [(k, c, -np.log10(pvalue) if es < 0 else np.log10(pvalue)) for k, c, (es, pvalue) in dyn_kinase_df]

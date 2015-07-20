@@ -24,11 +24,12 @@ gexp['tf'] = [name2id[i] if i in name2id else id2name[i] for i in gexp['tf']]
 gexp = pivot_table(gexp, values='value', index='target', columns='tf')
 print '[INFO] Gene-expression imported!'
 
-# Overlap conditions with metabolomcis
+# Overlap conditions with growth measurements
 strains = list(set(gexp.columns).intersection(growth.index))
 
 # Filter gene-expression to overlapping conditions
 gexp = gexp[strains]
+gexp = gexp[(gexp.abs() > 2).sum(1) > 1]
 
 # TF targets
 tf_targets = read_csv(wd + 'data/tf_network/tf_gene_network_chip_only.tab', sep='\t')
@@ -60,8 +61,8 @@ tf_activity = DataFrame({c: calculate_activity(c) for c in strains})
 print '[INFO] Kinase activity calculated: ', tf_activity.shape
 
 # Regress out growth
-kinase_growth_cor = [pearson(tf_activity.ix[i, strains].values, growth.ix[strains].values)[0] for i in tf_activity.index]
-plt.hist(kinase_growth_cor, lw=0, bins=20)
+tf_growth_cor = [pearson(tf_activity.ix[i, strains].values, growth.ix[strains].values)[0] for i in tf_activity.index]
+plt.hist(tf_growth_cor, lw=0, bins=20)
 sns.despine(offset=10, trim=True)
 plt.title('pearson(TF, growth)')
 plt.xlabel('pearson')
@@ -89,8 +90,8 @@ def regress_out_growth(kinase):
 
 tf_activity_ = DataFrame({kinase: regress_out_growth(kinase) for kinase in tf_activity.index}).T.dropna(axis=0, how='all')
 
-kinase_growth_cor = [pearson(tf_activity_.ix[i, strains].values, growth.ix[strains].values)[0] for i in tf_activity_.index]
-plt.hist(kinase_growth_cor, lw=0, bins=20)
+tf_growth_cor = [pearson(tf_activity_.ix[i, strains].values, growth.ix[strains].values)[0] for i in tf_activity_.index]
+plt.hist(tf_growth_cor, lw=0, bins=20)
 sns.despine(offset=10, trim=True)
 plt.title('pearson(TF, growth)')
 plt.xlabel('pearson')
@@ -102,4 +103,4 @@ print '[INFO] Growth regressed out from the Kinases activity scores: ', tf_activ
 # Export kinase activity matrix
 tf_activity_file = '%s/tables/tf_activity_steady_state.tab' % wd
 tf_activity_.to_csv(tf_activity_file, sep='\t')
-print '[INFO] [KINASE ACTIVITY] Exported to: %s' % tf_activity_file
+print '[INFO] [TF ACTIVITY] Exported to: %s' % tf_activity_file

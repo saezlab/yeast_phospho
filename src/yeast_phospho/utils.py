@@ -5,13 +5,13 @@ from scipy.stats.stats import spearmanr, pearsonr
 def pearson(x, y):
     mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
     cor, pvalue = pearsonr(x[mask], y[mask]) if np.sum(mask) > 1 else (np.NaN, np.NaN)
-    return cor, pvalue
+    return cor, pvalue, mask.sum()
 
 
 def spearman(x, y):
     mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
     cor, pvalue = spearmanr(x[mask], y[mask]) if np.sum(mask) > 1 else (np.NaN, np.NaN)
-    return cor, pvalue
+    return cor, pvalue, mask.sum()
 
 
 def cohend(x, y):
