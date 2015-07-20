@@ -2,7 +2,6 @@ import re
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
 from yeast_phospho import wd
 from yeast_phospho.utils import pearson
 from sklearn.linear_model import LinearRegression
@@ -32,13 +31,13 @@ print '[INFO] [PHOSPHOGRID] ', network.shape
 # Import growth rates
 growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth']
 
-
 # ----  Process steady-state phosphoproteomics
 phospho_df = read_csv(wd + 'data/steady_state_phosphoproteomics.tab', sep='\t')
 phospho_df = phospho_df.pivot_table(values='logFC', index=['peptide', 'target'], columns='regulator', aggfunc=np.median)
 print '[INFO] [PHOSPHOPROTEOMICS] : ', phospho_df.shape
 
 # Define lists of strains
+# strains = list(set(phospho_df.columns).intersection(growth.index).difference(['YBR097W', 'YJL106W', 'YJL128C', 'YDR247W', 'YKL126W', 'YKL139W']))
 strains = list(set(phospho_df.columns).intersection(growth.index))
 
 # Filter ambigous peptides

@@ -9,11 +9,19 @@ from sklearn.svm.classes import LinearSVC, SVR, LinearSVR, NuSVR
 from statsmodels.stats.multitest import multipletests
 from yeast_phospho import wd
 from yeast_phospho.utils import spearman
-from pandas import DataFrame, read_csv, Index, cut, concat, melt
+from pandas import DataFrame, read_csv, Index, cut, concat, melt, Series
 from sklearn.cross_validation import LeaveOneOut
 from sklearn.linear_model import LinearRegression, RidgeCV, LassoCV, MultiTaskLassoCV, ElasticNetCV
 
 sns.set_style('ticks')
+
+# m_strains = read_csv('/Users/emanuel/Downloads/m_strains.txt', sep='\t', header=None)[0]
+#
+# acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)
+#
+# ids = [(s, [a for a in acc_name.index if s.upper() in acc_name.ix[a, 'gene'].split(';')]) for s in m_strains]
+# Series([n[0] if len(n) != 0 else i for i, n in ids]).to_csv('/Users/emanuel/Downloads/m_strains_conv.txt', index=False)
+
 
 # Import acc map to name form uniprot
 acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)['gene'].to_dict()
@@ -34,19 +42,19 @@ metabolomics.index = Index([str(i) for i in metabolomics.index], dtype=str)
 
 # Overlapping kinases/phosphatases knockout
 strains = list(set(k_activity.columns).intersection(set(metabolomics.columns)))
-k_activity, metabolomics = k_activity[strains], metabolomics.loc[m_map.keys(), strains].dropna()
+k_activity, metabolomics = k_activity[strains], metabolomics[strains]
 metabolites, kinases = list(metabolomics.index), list(k_activity.index)
 
 # ---- Steady-state: predict metabolites FC with kinases
 x, y = k_activity.loc[kinases, strains].replace(np.NaN, 0.0).T, metabolomics.loc[metabolites, strains].T
-m_predicted = DataFrame({strains[test]: dict(zip(*(metabolites, LinearRegression().fit(x.ix[train], y.ix[train]).predict(x.ix[test])[0]))) for train, test in LeaveOneOut(len(x))})
+m_predicted = DataFrame({strains[test]: {m: LinearRegression().fit(x.ix[train], y.ix[train, m]).predict(x.ix[test])[0] for m in metabolites} for train, test in LeaveOneOut(len(x))})
 
 # Plot predicted prediction scores
 m_score = [(m, spearman(metabolomics.ix[m, strains], m_predicted.ix[m, strains])) for m in metabolites]
 m_score = DataFrame([(m, c, p, n) for m, (c, p, n) in m_score], columns=['metabolite', 'correlation', 'pvalue', 'n_meas'])
 m_score = m_score.set_index('metabolite')
 m_score['adjpvalue'] = multipletests(m_score['pvalue'], method='fdr_bh')[1]
-m_score['signif'] = ['FDR < 5%' if x < 0.05 else ' FDR >= 5%' for x in m_score['adjpvalue']]
+m_score['signif'] = ['FDR < 5%' if i < 0.05 else ' FDR >= 5%' for i in m_score['adjpvalue']]
 m_score['name'] = [m_map[m] if m in m_map else m for m in m_score.index]
 m_score = m_score.sort('correlation', ascending=False)
 print 'Mean correlation metabolites: ', m_score['correlation'].mean()
@@ -55,10 +63,19 @@ s_score = [(s, spearman(metabolomics.ix[metabolites, s], m_predicted.ix[metaboli
 s_score = DataFrame([(m, c, p, n) for m, (c, p, n) in s_score], columns=['strain', 'correlation', 'pvalue', 'n_meas'])
 s_score = s_score.set_index('strain')
 s_score['adjpvalue'] = multipletests(s_score['pvalue'], method='fdr_bh')[1]
-s_score['signif'] = ['FDR < 5%' if x < 0.05 else ' FDR >= 5%' for x in s_score['adjpvalue']]
+s_score['signif'] = ['FDR < 5%' if i < 0.05 else ' FDR >= 5%' for i in s_score['adjpvalue']]
 s_score['name'] = [acc_name[s] for s in s_score.index]
 s_score = s_score.sort('correlation', ascending=False)
 print 'Mean correlation samples: ', s_score['correlation'].mean()
+
+sns.clustermap(m_predicted.T.loc[strains, metabolites], figsize=(25, 25))
+plt.savefig('%s/reports/lm_predicted_metabolomics_clustermap.pdf' % wd, bbox_inches='tight')
+plt.close('all')
+
+sns.clustermap(metabolomics.T.loc[strains, metabolites], figsize=(25, 25))
+plt.savefig('%s/reports/lm_measured_metabolomics_clustermap.pdf' % wd, bbox_inches='tight')
+plt.close('all')
+print '[DONE]'
 
 plot_df = m_score[m_score['adjpvalue'] < 0.1].index
 plot_df = DataFrame([(m_score.ix[m, 'name'], m_predicted.ix[m, s], metabolomics.ix[m, s], m_score.ix[m, 'signif']) for m in plot_df for s in strains])
