@@ -2,6 +2,7 @@ import re
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
 from yeast_phospho import wd
 from yeast_phospho.utils import pearson
 from sklearn.linear_model import LinearRegression
@@ -47,57 +48,57 @@ phospho_df = phospho_df[[len(i[0].split(',')) == 1 for i in phospho_df.index]]
 phospho_df.index = phospho_df.index.set_levels([re.split('^[K|R]\.', x)[1] for x in phospho_df.index.levels[0]], 'peptide')
 
 # Match peptide sequences to protein sequence and calculate peptide phosphorylation site
-pep_match = {peptide: set(network.loc[network['ORF_NAME'] == target, 'SEQUENCE']) for (peptide, target), r in phospho_df.iterrows()}
-pep_site = {peptide: target + '_' + '_'.join(get_multiple_site(list(pep_match[peptide])[0].upper(), peptide)) for (peptide, target), r in phospho_df.iterrows() if len(pep_match[peptide]) == 1}
+pep_match = {peptide: set(network.loc[network['ORF_NAME'] == target, 'SEQUENCE']) for peptide, target in phospho_df.index}
+pep_site = {peptide: target + '_' + '_'.join(get_multiple_site(list(pep_match[peptide])[0].upper(), peptide)) for peptide, target in phospho_df.index if len(pep_match[peptide]) == 1}
 
 # Merge phosphosites with median
-phospho_df['site'] = [pep_site[peptide] if peptide in pep_site else np.NaN for (peptide, target), r in phospho_df.iterrows()]
+phospho_df['site'] = [pep_site[peptide] if peptide in pep_site else np.NaN for peptide, target in phospho_df.index]
 phospho_df = phospho_df.groupby('site').median()
 print '[INFO] [PHOSPHOPROTEOMICS] (merge phosphosites, i.e median): ', phospho_df.shape
 
 # Regress out growth
-psites_growth_cor = [pearson(phospho_df.ix[i, strains].values, growth.ix[strains].values)[0] for i in phospho_df.index if phospho_df.ix[i, strains].count() > 3]
-plt.hist(psites_growth_cor, lw=0, bins=30)
-sns.despine(offset=10, trim=True)
-plt.title('pearson(p-site, growth)')
-plt.xlabel('pearson')
-plt.ylabel('counts')
-plt.savefig(wd + 'reports/p-sites_growth_correlation_hist.pdf', bbox_inches='tight')
-plt.close('all')
-
-
-def regress_out_growth(site):
-    x, y = growth.ix[strains].values, phospho_df.ix[site, strains].values
-
-    mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
-
-    if sum(mask) > 3:
-        x, y = x[mask], y[mask]
-
-        effect_size = LinearRegression().fit(np.mat(x).T, y).coef_[0]
-
-        y_ = y - effect_size * x
-
-        return dict(zip(np.array(strains)[mask], y_))
-
-    else:
-        return {}
-
-phospho_df_ = DataFrame({site: regress_out_growth(site) for site in phospho_df.index}).T.dropna(axis=0, how='all')
-
-psites_growth_cor = [pearson(phospho_df_.ix[i, strains].values, growth.ix[strains].values)[0] for i in phospho_df_.index if phospho_df_.ix[i, strains].count() > 3]
-plt.hist(psites_growth_cor, lw=0, bins=30)
-sns.despine(offset=10, trim=True)
-plt.title('pearson(p-site, growth)')
-plt.xlabel('pearson')
-plt.ylabel('counts')
-plt.savefig(wd + 'reports/p-sites_growth_correlation_growth_out_hist.pdf', bbox_inches='tight')
-plt.close('all')
-print '[INFO] Growth regressed out from the p-sites: ', phospho_df_.shape
+# psites_growth_cor = [pearson(phospho_df.ix[i, strains].values, growth.ix[strains].values)[0] for i in phospho_df.index if phospho_df.ix[i, strains].count() > 3]
+# plt.hist(psites_growth_cor, lw=0, bins=30)
+# sns.despine(offset=10, trim=True)
+# plt.title('pearson(p-site, growth)')
+# plt.xlabel('pearson')
+# plt.ylabel('counts')
+# plt.savefig(wd + 'reports/p-sites_growth_correlation_hist.pdf', bbox_inches='tight')
+# plt.close('all')
+#
+#
+# def regress_out_growth(site):
+#     x, y = growth.ix[strains].values, phospho_df.ix[site, strains].values
+#
+#     mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
+#
+#     if sum(mask) > 3:
+#         x, y = x[mask], y[mask]
+#
+#         effect_size = LinearRegression().fit(np.mat(x).T, y).coef_[0]
+#
+#         y_ = y - effect_size * x
+#
+#         return dict(zip(np.array(strains)[mask], y_))
+#
+#     else:
+#         return {}
+#
+# phospho_df_ = DataFrame({site: regress_out_growth(site) for site in phospho_df.index}).T.dropna(axis=0, how='all')
+#
+# psites_growth_cor = [pearson(phospho_df_.ix[i, strains].values, growth.ix[strains].values)[0] for i in phospho_df_.index if phospho_df_.ix[i, strains].count() > 3]
+# plt.hist(psites_growth_cor, lw=0, bins=30)
+# sns.despine(offset=10, trim=True)
+# plt.title('pearson(p-site, growth)')
+# plt.xlabel('pearson')
+# plt.ylabel('counts')
+# plt.savefig(wd + 'reports/p-sites_growth_correlation_growth_out_hist.pdf', bbox_inches='tight')
+# plt.close('all')
+# print '[INFO] Growth regressed out from the p-sites: ', phospho_df_.shape
 
 # Export processed data-set
 phospho_df_file = wd + 'tables/pproteomics_steady_state.tab'
-phospho_df_.to_csv(phospho_df_file, sep='\t')
+phospho_df.to_csv(phospho_df_file, sep='\t')
 print '[INFO] [PHOSPHOPROTEOMICS] Exported to: %s' % phospho_df_file
 
 
