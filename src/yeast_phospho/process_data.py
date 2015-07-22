@@ -83,9 +83,9 @@ print '[INFO] [PHOSPHOPROTEOMICS] (merge phosphosites, i.e median): ', phospho_d
 #     else:
 #         return {}
 #
-# phospho_df_ = DataFrame({site: regress_out_growth(site) for site in phospho_df.index}).T.dropna(axis=0, how='all')
+# phospho_df = DataFrame({site: regress_out_growth(site) for site in phospho_df.index}).T.dropna(axis=0, how='all')
 #
-# psites_growth_cor = [pearson(phospho_df_.ix[i, strains].values, growth.ix[strains].values)[0] for i in phospho_df_.index if phospho_df_.ix[i, strains].count() > 3]
+# psites_growth_cor = [pearson(phospho_df.ix[i, strains].values, growth.ix[strains].values)[0] for i in phospho_df.index if phospho_df.ix[i, strains].count() > 3]
 # plt.hist(psites_growth_cor, lw=0, bins=30)
 # sns.despine(offset=10, trim=True)
 # plt.title('pearson(p-site, growth)')
@@ -93,7 +93,7 @@ print '[INFO] [PHOSPHOPROTEOMICS] (merge phosphosites, i.e median): ', phospho_d
 # plt.ylabel('counts')
 # plt.savefig(wd + 'reports/p-sites_growth_correlation_growth_out_hist.pdf', bbox_inches='tight')
 # plt.close('all')
-# print '[INFO] Growth regressed out from the p-sites: ', phospho_df_.shape
+# print '[INFO] Growth regressed out from the p-sites: ', phospho_df.shape
 
 # Export processed data-set
 phospho_df_file = wd + 'tables/pproteomics_steady_state.tab'
@@ -132,9 +132,9 @@ def regress_out_growth_metabolite(metabolite):
 
     return dict(zip(np.array(strains), y_))
 
-metabol_df_ = DataFrame({metabolite: regress_out_growth_metabolite(metabolite) for metabolite in metabol_df.index}).T.dropna(axis=0, how='all')
+metabol_df = DataFrame({metabolite: regress_out_growth_metabolite(metabolite) for metabolite in metabol_df.index}).T.dropna(axis=0, how='all')
 
-metabolites_growth_cor = [pearson(metabol_df_.ix[i, strains].values, growth.ix[strains].values)[0] for i in metabol_df_.index if metabol_df_.ix[i, strains].count() > 3]
+metabolites_growth_cor = [pearson(metabol_df.ix[i, strains].values, growth.ix[strains].values)[0] for i in metabol_df.index if metabol_df.ix[i, strains].count() > 3]
 plt.hist(metabolites_growth_cor, lw=0, bins=30)
 sns.despine(offset=10, trim=True)
 plt.title('pearson(metabolite, growth)')
@@ -142,11 +142,11 @@ plt.xlabel('pearson')
 plt.ylabel('counts')
 plt.savefig(wd + 'reports/metabolites_growth_correlation_growth_out_hist.pdf', bbox_inches='tight')
 plt.close('all')
-print '[INFO] Growth regressed out from the metabolites: ', metabol_df_.shape
+print '[INFO] Growth regressed out from the metabolites: ', metabol_df.shape
 
 # Export processed data-set
 metabol_df_file = wd + 'tables/metabolomics_steady_state.tab'
-metabol_df_.to_csv(metabol_df_file, sep='\t')
+metabol_df.to_csv(metabol_df_file, sep='\t')
 print '[INFO] [METABOLOMICS] Exported to: %s' % metabol_df_file
 
 

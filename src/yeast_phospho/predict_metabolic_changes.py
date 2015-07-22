@@ -15,13 +15,8 @@ from sklearn.linear_model import LinearRegression, RidgeCV, LassoCV, MultiTaskLa
 
 sns.set_style('ticks')
 
-# m_strains = read_csv('/Users/emanuel/Downloads/m_strains.txt', sep='\t', header=None)[0]
-#
-# acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)
-#
-# ids = [(s, [a for a in acc_name.index if s.upper() in acc_name.ix[a, 'gene'].split(';')]) for s in m_strains]
-# Series([n[0] if len(n) != 0 else i for i, n in ids]).to_csv('/Users/emanuel/Downloads/m_strains_conv.txt', index=False)
-
+# Import growth rates
+growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth']
 
 # Import acc map to name form uniprot
 acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)['gene'].to_dict()
@@ -47,7 +42,10 @@ metabolites, kinases = list(metabolomics.index), list(k_activity.index)
 
 # ---- Steady-state: predict metabolites FC with kinases
 x, y = k_activity.loc[kinases, strains].replace(np.NaN, 0.0).T, metabolomics.loc[metabolites, strains].T
-m_predicted = DataFrame({strains[test]: {m: LinearRegression().fit(x.ix[train], y.ix[train, m]).predict(x.ix[test])[0] for m in metabolites} for train, test in LeaveOneOut(len(x))})
+# x = x.join(growth[x.index])
+
+lm = LinearRegression()
+m_predicted = DataFrame({strains[test]: dict(zip(*(metabolites, lm.fit(x.ix[train], y.ix[train]).predict(x.ix[test])[0]))) for train, test in LeaveOneOut(len(x))})
 
 # Plot predicted prediction scores
 m_score = [(m, spearman(metabolomics.ix[m, strains], m_predicted.ix[m, strains])) for m in metabolites]

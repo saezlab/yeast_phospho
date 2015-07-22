@@ -77,9 +77,9 @@ def regress_out_growth(kinase):
     else:
         return {}
 
-k_activity_ = DataFrame({kinase: regress_out_growth(kinase) for kinase in k_activity.index}).T.dropna(axis=0, how='all')
+k_activity = DataFrame({kinase: regress_out_growth(kinase) for kinase in k_activity.index}).T.dropna(axis=0, how='all')
 
-kinase_growth_cor = [pearson(k_activity_.ix[i, strains].values, growth.ix[strains].values)[0] for i in k_activity_.index if k_activity_.ix[i, strains].count() > 3]
+kinase_growth_cor = [pearson(k_activity.ix[i, strains].values, growth.ix[strains].values)[0] for i in k_activity.index if k_activity.ix[i, strains].count() > 3]
 plt.hist(kinase_growth_cor, lw=0, bins=30)
 sns.despine(offset=10, trim=True)
 plt.title('pearson(kinase, growth)')
@@ -87,11 +87,11 @@ plt.xlabel('pearson')
 plt.ylabel('counts')
 plt.savefig(wd + 'reports/kinase_growth_correlation_growth_out_hist.pdf', bbox_inches='tight')
 plt.close('all')
-print '[INFO] Growth regressed out from the Kinases activity scores: ', k_activity_.shape
+print '[INFO] Growth regressed out from the Kinases activity scores: ', k_activity.shape
 
 # Export kinase activity matrix
 k_activity_file = '%s/tables/kinase_activity_steady_state.tab' % wd
-k_activity_.to_csv(k_activity_file, sep='\t')
+k_activity.to_csv(k_activity_file, sep='\t')
 print '[INFO] [KINASE ACTIVITY] Exported to: %s' % k_activity_file
 
 # ---- Plot kinase cluster map
