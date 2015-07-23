@@ -5,18 +5,15 @@ from sklearn.metrics.ranking import roc_auc_score, auc, roc_curve
 from sklearn.metrics.regression import explained_variance_score
 from sklearn.metrics.scorer import mean_squared_error_scorer
 from pandas.stats.misc import zscore
-from sklearn.svm.classes import LinearSVC, SVR, LinearSVR, NuSVR
+from sklearn.svm.classes import LinearSVC, SVR, LinearSVR, NuSVR, SVC
 from statsmodels.stats.multitest import multipletests
 from yeast_phospho import wd
 from yeast_phospho.utils import spearman
 from pandas import DataFrame, read_csv, Index, cut, concat, melt, Series
 from sklearn.cross_validation import LeaveOneOut
-from sklearn.linear_model import LinearRegression, RidgeCV, LassoCV, MultiTaskLassoCV, ElasticNetCV
+from sklearn.linear_model import LinearRegression, RidgeCV, LassoCV, MultiTaskLassoCV, ElasticNetCV, RidgeClassifierCV, RidgeClassifier
 
 sns.set_style('ticks')
-
-# Import growth rates
-growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth']
 
 # Import acc map to name form uniprot
 acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)['gene'].to_dict()
@@ -31,21 +28,42 @@ m_map = m_map.groupby('mz')['name'].apply(lambda i: '; '.join(i)).to_dict()
 # Import kinase activity
 k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
 
+# Import TF activity
+tf_activity = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0)
+
 # Import metabolomics
 metabolomics = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0)
 metabolomics.index = Index([str(i) for i in metabolomics.index], dtype=str)
+
+metabolomics = concat([cut(metabolomics[c].abs(), [0, .8, 10], labels=[0, 1]) for c in metabolomics.columns], axis=1)
+metabolomics = metabolomics.loc[metabolomics.sum(1) > 5, metabolomics.sum() > 1]
 
 # Overlapping kinases/phosphatases knockout
 strains = list(set(k_activity.columns).intersection(set(metabolomics.columns)))
 k_activity, metabolomics = k_activity[strains], metabolomics[strains]
 metabolites, kinases = list(metabolomics.index), list(k_activity.index)
 
-# ---- Steady-state: predict metabolites FC with kinases
-x, y = k_activity.loc[kinases, strains].replace(np.NaN, 0.0).T, metabolomics.loc[metabolites, strains].T
-# x = x.join(growth[x.index])
+tfs, tf_strains = list(tf_activity.index), list(set(tf_activity.columns).intersection(metabolomics.columns))
 
-lm = LinearRegression()
-m_predicted = DataFrame({strains[test]: dict(zip(*(metabolites, lm.fit(x.ix[train], y.ix[train]).predict(x.ix[test])[0]))) for train, test in LeaveOneOut(len(x))})
+# ---- Steady-state: predict metabolites FC with kinases
+x, y = k_activity.loc[kinases, strains].dropna().T, metabolomics.loc[metabolites, strains].T
+
+lm = RidgeClassifier(normalize=True)
+m_predicted = DataFrame({x.ix[test].index[0]: {m: lm.fit(x.ix[train], list(y.ix[train, m])).decision_function(x.ix[test])[0] for m in metabolites} for train, test in LeaveOneOut(len(x))})
+# m_predicted = DataFrame({strains[test]: dict(zip(*(metabolites, lm.fit(x.ix[train], y.ix[train]).predict(x.ix[test])[0]))) for train, test in LeaveOneOut(len(x))})
+
+fpr, tpr, _ = roc_curve(list(melt(metabolomics.ix[metabolites, strains])['value'].values), melt(m_predicted.ix[metabolites, strains])['value'].values)
+roc_auc = auc(fpr, tpr)
+print roc_auc
+
+plt.plot(fpr, tpr, label='ROC curve (area = %0.2f)' % roc_auc)
+plt.plot([0, 1], [0, 1], 'k--')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+
+
 
 # Plot predicted prediction scores
 m_score = [(m, spearman(metabolomics.ix[m, strains], m_predicted.ix[m, strains])) for m in metabolites]
@@ -96,6 +114,36 @@ plt.savefig('%s/reports/lm_samples_steadystate_corr.png' % wd, bbox_inches='tigh
 g.set_axis_labels('Measured', 'Predicted').fig.subplots_adjust(wspace=.02)
 plt.close('all')
 print '[INFO] Plot done!'
+
+
+# ---- Steady-state: predict metabolites FC with TF activity
+x, y = tf_activity.loc[tfs, strains].dropna().T, metabolomics.loc[metabolites, strains].T
+
+lm = LinearRegression()
+m_predicted = DataFrame({strains[test]: {m: lm.fit(x.ix[train], y.ix[train, m]).predict(x.ix[test])[0] for m in metabolites} for train, test in LeaveOneOut(len(x))})
+
+# Plot predicted prediction scores
+m_score = [(m, spearman(metabolomics.ix[m, strains], m_predicted.ix[m, strains])) for m in metabolites]
+m_score = DataFrame([(m, c, p, n) for m, (c, p, n) in m_score], columns=['metabolite', 'correlation', 'pvalue', 'n_meas'])
+m_score = m_score.set_index('metabolite')
+m_score['adjpvalue'] = multipletests(m_score['pvalue'], method='fdr_bh')[1]
+m_score['signif'] = ['FDR < 5%' if i < 0.05 else ' FDR >= 5%' for i in m_score['adjpvalue']]
+m_score['name'] = [m_map[m] if m in m_map else m for m in m_score.index]
+m_score = m_score.sort('correlation', ascending=False)
+print 'Mean correlation metabolites: ', m_score['correlation'].mean()
+
+s_score = [(s, spearman(metabolomics.ix[metabolites, s], m_predicted.ix[metabolites, s])) for s in strains]
+s_score = DataFrame([(m, c, p, n) for m, (c, p, n) in s_score], columns=['strain', 'correlation', 'pvalue', 'n_meas'])
+s_score = s_score.set_index('strain')
+s_score['adjpvalue'] = multipletests(s_score['pvalue'], method='fdr_bh')[1]
+s_score['signif'] = ['FDR < 5%' if i < 0.05 else ' FDR >= 5%' for i in s_score['adjpvalue']]
+s_score['name'] = [acc_name[s] for s in s_score.index]
+s_score = s_score.sort('correlation', ascending=False)
+print 'Mean correlation samples: ', s_score['correlation'].mean()
+
+sns.clustermap(m_predicted.T.loc[strains, metabolites], figsize=(25, 25))
+plt.savefig('%s/reports/lm_predicted_metabolomics_clustermap.pdf' % wd, bbox_inches='tight')
+plt.close('all')
 
 
 # ---- Dynamic: predict metabolites FC with kinases

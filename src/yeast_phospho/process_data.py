@@ -109,18 +109,9 @@ print '[INFO] [METABOLOMICS]: ', metabol_df.shape
 metabol_df = metabol_df.drop('m/z', 1).dropna()[strains]
 print '[INFO] [METABOLOMICS] drop NaN: ', metabol_df.shape
 
-fc_thres, n_fc_thres = 1.0, 1
+fc_thres, n_fc_thres = 0.8, 0
 metabol_df = metabol_df[(metabol_df.abs() > fc_thres).sum(1) > n_fc_thres]
 print '[INFO] [METABOLOMICS] drop metabolites with less than %d abs FC higher than %.2f : ' % (n_fc_thres, fc_thres), metabol_df.shape
-
-metabolites_growth_cor = [pearson(metabol_df.ix[i, strains].values, growth.ix[strains].values)[0] for i in metabol_df.index]
-plt.hist(metabolites_growth_cor, lw=0, bins=30)
-sns.despine(offset=10, trim=True)
-plt.title('pearson(metabolite, growth)')
-plt.xlabel('pearson')
-plt.ylabel('counts')
-plt.savefig(wd + 'reports/metabolites_growth_correlation_hist.pdf', bbox_inches='tight')
-plt.close('all')
 
 
 def regress_out_growth_metabolite(metabolite):
@@ -133,15 +124,6 @@ def regress_out_growth_metabolite(metabolite):
     return dict(zip(np.array(strains), y_))
 
 metabol_df = DataFrame({metabolite: regress_out_growth_metabolite(metabolite) for metabolite in metabol_df.index}).T.dropna(axis=0, how='all')
-
-metabolites_growth_cor = [pearson(metabol_df.ix[i, strains].values, growth.ix[strains].values)[0] for i in metabol_df.index if metabol_df.ix[i, strains].count() > 3]
-plt.hist(metabolites_growth_cor, lw=0, bins=30)
-sns.despine(offset=10, trim=True)
-plt.title('pearson(metabolite, growth)')
-plt.xlabel('pearson')
-plt.ylabel('counts')
-plt.savefig(wd + 'reports/metabolites_growth_correlation_growth_out_hist.pdf', bbox_inches='tight')
-plt.close('all')
 print '[INFO] Growth regressed out from the metabolites: ', metabol_df.shape
 
 # Export processed data-set

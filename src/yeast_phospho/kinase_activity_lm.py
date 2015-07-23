@@ -3,18 +3,14 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.metrics.regression import mean_squared_error
 from yeast_phospho import wd
-from yeast_phospho.utils import pearson
 from pandas import DataFrame, read_csv, melt
 from sklearn.cross_validation import KFold
-from sklearn.linear_model import RidgeCV, Ridge, LinearRegression
+from sklearn.linear_model import RidgeCV, Ridge
 
 sns.set_style('ticks')
 
 # Import id maps
 acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)
-
-# Import growth rates
-growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth']
 
 # ---- Steady-state: Calculate kinase activity
 
@@ -49,45 +45,28 @@ def calculate_activity(strain):
 k_activity = DataFrame({c: calculate_activity(c) for c in strains})
 print '[INFO] Kinase activity calculated: ', k_activity.shape
 
-# Regress out growth
-kinase_growth_cor = [pearson(k_activity.ix[i, strains].values, growth.ix[strains].values)[0] for i in k_activity.index if k_activity.ix[i, strains].count() > 3]
-plt.hist(kinase_growth_cor, lw=0, bins=30)
-sns.despine(offset=10, trim=True)
-plt.title('pearson(kinase, growth)')
-plt.xlabel('pearson')
-plt.ylabel('counts')
-plt.savefig(wd + 'reports/kinases_growth_correlation_hist.pdf', bbox_inches='tight')
-plt.close('all')
-
-
-def regress_out_growth(kinase):
-    x, y = growth.ix[strains].values, k_activity.ix[kinase, strains].values
-
-    mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
-
-    if sum(mask) > 3:
-        x, y = x[mask], y[mask]
-
-        effect_size = LinearRegression().fit(np.mat(x).T, y).coef_[0]
-
-        y_ = y - effect_size * x
-
-        return dict(zip(np.array(strains)[mask], y_))
-
-    else:
-        return {}
-
-k_activity = DataFrame({kinase: regress_out_growth(kinase) for kinase in k_activity.index}).T.dropna(axis=0, how='all')
-
-kinase_growth_cor = [pearson(k_activity.ix[i, strains].values, growth.ix[strains].values)[0] for i in k_activity.index if k_activity.ix[i, strains].count() > 3]
-plt.hist(kinase_growth_cor, lw=0, bins=30)
-sns.despine(offset=10, trim=True)
-plt.title('pearson(kinase, growth)')
-plt.xlabel('pearson')
-plt.ylabel('counts')
-plt.savefig(wd + 'reports/kinase_growth_correlation_growth_out_hist.pdf', bbox_inches='tight')
-plt.close('all')
-print '[INFO] Growth regressed out from the Kinases activity scores: ', k_activity.shape
+# # Regress out growth
+#
+#
+# def regress_out_growth(kinase):
+#     x, y = growth.ix[strains].values, k_activity.ix[kinase, strains].values
+#
+#     mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
+#
+#     if sum(mask) > 3:
+#         x, y = x[mask], y[mask]
+#
+#         effect_size = LinearRegression().fit(np.mat(x).T, y).coef_[0]
+#
+#         y_ = y - effect_size * x
+#
+#         return dict(zip(np.array(strains)[mask], y_))
+#
+#     else:
+#         return {}
+#
+# k_activity = DataFrame({kinase: regress_out_growth(kinase) for kinase in k_activity.index}).T.dropna(axis=0, how='all')
+# print '[INFO] Growth regressed out from the Kinases activity scores: ', k_activity.shape
 
 # Export kinase activity matrix
 k_activity_file = '%s/tables/kinase_activity_steady_state.tab' % wd

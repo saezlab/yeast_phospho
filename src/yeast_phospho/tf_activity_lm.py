@@ -31,6 +31,9 @@ strains = list(set(gexp.columns).intersection(growth.index))
 gexp = gexp[strains]
 gexp = gexp[(gexp.abs() > 2).sum(1) > 1]
 
+# Export GEX
+gexp.to_csv(wd + 'data/steady_state_transcriptomics.tab', sep='\t')
+
 # TF targets
 tf_targets = read_csv(wd + 'data/tf_network/tf_gene_network_chip_only.tab', sep='\t')
 tf_targets['tf'] = [name2id[i] if i in name2id else id2name[i] for i in tf_targets['tf']]
@@ -46,7 +49,7 @@ def calculate_activity(strain):
     x = x.loc[:, x.sum() != 0]
 
     best_model = (np.Inf, 0.0)
-    for train, test in KFold(len(x), 3):
+    for train, test in KFold(len(x), 5):
         lm = RidgeCV().fit(x.ix[train], y.ix[train])
         score = mean_squared_error(lm.predict(x.ix[test]), y.ix[test].values)
 
@@ -60,47 +63,7 @@ def calculate_activity(strain):
 tf_activity = DataFrame({c: calculate_activity(c) for c in strains})
 print '[INFO] Kinase activity calculated: ', tf_activity.shape
 
-# Regress out growth
-tf_growth_cor = [pearson(tf_activity.ix[i, strains].values, growth.ix[strains].values)[0] for i in tf_activity.index]
-plt.hist(tf_growth_cor, lw=0, bins=20)
-sns.despine(offset=10, trim=True)
-plt.title('pearson(TF, growth)')
-plt.xlabel('pearson')
-plt.ylabel('counts')
-plt.savefig(wd + 'reports/tf_growth_correlation_hist.pdf', bbox_inches='tight')
-plt.close('all')
-
-
-def regress_out_growth(kinase):
-    x, y = growth.ix[strains].values, tf_activity.ix[kinase, strains].values
-
-    mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
-
-    if sum(mask) > 3:
-        x, y = x[mask], y[mask]
-
-        effect_size = LinearRegression().fit(np.mat(x).T, y).coef_[0]
-
-        y_ = y - effect_size * x
-
-        return dict(zip(np.array(strains)[mask], y_))
-
-    else:
-        return {}
-
-tf_activity_ = DataFrame({kinase: regress_out_growth(kinase) for kinase in tf_activity.index}).T.dropna(axis=0, how='all')
-
-tf_growth_cor = [pearson(tf_activity_.ix[i, strains].values, growth.ix[strains].values)[0] for i in tf_activity_.index]
-plt.hist(tf_growth_cor, lw=0, bins=20)
-sns.despine(offset=10, trim=True)
-plt.title('pearson(TF, growth)')
-plt.xlabel('pearson')
-plt.ylabel('counts')
-plt.savefig(wd + 'reports/tf_growth_correlation_growth_out_hist.pdf', bbox_inches='tight')
-plt.close('all')
-print '[INFO] Growth regressed out from the Kinases activity scores: ', tf_activity_.shape
-
 # Export kinase activity matrix
 tf_activity_file = '%s/tables/tf_activity_steady_state.tab' % wd
-tf_activity_.to_csv(tf_activity_file, sep='\t')
+tf_activity.to_csv(tf_activity_file, sep='\t')
 print '[INFO] [TF ACTIVITY] Exported to: %s' % tf_activity_file
