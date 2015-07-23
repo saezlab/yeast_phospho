@@ -1,6 +1,7 @@
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+from sklearn.linear_model.base import LinearRegression
 from sklearn.metrics.regression import mean_squared_error
 from yeast_phospho import wd
 from pandas import DataFrame, read_csv, melt
@@ -11,6 +12,9 @@ sns.set_style('ticks')
 
 # Import id maps
 acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)
+
+# Import growth rates
+growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth']
 
 # ---- Steady-state: Calculate kinase activity
 
@@ -45,28 +49,28 @@ def calculate_activity(strain):
 k_activity = DataFrame({c: calculate_activity(c) for c in strains})
 print '[INFO] Kinase activity calculated: ', k_activity.shape
 
-# # Regress out growth
-#
-#
-# def regress_out_growth(kinase):
-#     x, y = growth.ix[strains].values, k_activity.ix[kinase, strains].values
-#
-#     mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
-#
-#     if sum(mask) > 3:
-#         x, y = x[mask], y[mask]
-#
-#         effect_size = LinearRegression().fit(np.mat(x).T, y).coef_[0]
-#
-#         y_ = y - effect_size * x
-#
-#         return dict(zip(np.array(strains)[mask], y_))
-#
-#     else:
-#         return {}
-#
-# k_activity = DataFrame({kinase: regress_out_growth(kinase) for kinase in k_activity.index}).T.dropna(axis=0, how='all')
-# print '[INFO] Growth regressed out from the Kinases activity scores: ', k_activity.shape
+# Regress out growth
+
+
+def regress_out_growth(kinase):
+    x, y = growth.ix[strains].values, k_activity.ix[kinase, strains].values
+
+    mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
+
+    if sum(mask) > 3:
+        x, y = x[mask], y[mask]
+
+        lm = LinearRegression().fit(np.mat(x).T, y)
+
+        y_ = y - lm.coef_[0] * x - lm.intercept_
+
+        return dict(zip(np.array(strains)[mask], y_))
+
+    else:
+        return {}
+
+k_activity = DataFrame({kinase: regress_out_growth(kinase) for kinase in k_activity.index}).T.dropna(axis=0, how='all')
+print '[INFO] Growth regressed out from the Kinases activity scores: ', k_activity.shape
 
 # Export kinase activity matrix
 k_activity_file = '%s/tables/kinase_activity_steady_state.tab' % wd

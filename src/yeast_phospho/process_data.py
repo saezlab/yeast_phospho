@@ -56,14 +56,6 @@ phospho_df = phospho_df.groupby('site').median()
 print '[INFO] [PHOSPHOPROTEOMICS] (merge phosphosites, i.e median): ', phospho_df.shape
 
 # # Regress out growth
-# psites_growth_cor = [pearson(phospho_df.ix[i, strains].values, growth.ix[strains].values)[0] for i in phospho_df.index if phospho_df.ix[i, strains].count() > 3]
-# plt.hist(psites_growth_cor, lw=0, bins=30)
-# sns.despine(offset=10, trim=True)
-# plt.title('pearson(p-site, growth)')
-# plt.xlabel('pearson')
-# plt.ylabel('counts')
-# plt.savefig(wd + 'reports/p-sites_growth_correlation_hist.pdf', bbox_inches='tight')
-# plt.close('all')
 #
 #
 # def regress_out_growth(site):
@@ -84,15 +76,6 @@ print '[INFO] [PHOSPHOPROTEOMICS] (merge phosphosites, i.e median): ', phospho_d
 #         return {}
 #
 # phospho_df = DataFrame({site: regress_out_growth(site) for site in phospho_df.index}).T.dropna(axis=0, how='all')
-#
-# psites_growth_cor = [pearson(phospho_df.ix[i, strains].values, growth.ix[strains].values)[0] for i in phospho_df.index if phospho_df.ix[i, strains].count() > 3]
-# plt.hist(psites_growth_cor, lw=0, bins=30)
-# sns.despine(offset=10, trim=True)
-# plt.title('pearson(p-site, growth)')
-# plt.xlabel('pearson')
-# plt.ylabel('counts')
-# plt.savefig(wd + 'reports/p-sites_growth_correlation_growth_out_hist.pdf', bbox_inches='tight')
-# plt.close('all')
 # print '[INFO] Growth regressed out from the p-sites: ', phospho_df.shape
 
 # Export processed data-set
@@ -109,22 +92,22 @@ print '[INFO] [METABOLOMICS]: ', metabol_df.shape
 metabol_df = metabol_df.drop('m/z', 1).dropna()[strains]
 print '[INFO] [METABOLOMICS] drop NaN: ', metabol_df.shape
 
-fc_thres, n_fc_thres = 0.8, 0
-metabol_df = metabol_df[(metabol_df.abs() > fc_thres).sum(1) > n_fc_thres]
-print '[INFO] [METABOLOMICS] drop metabolites with less than %d abs FC higher than %.2f : ' % (n_fc_thres, fc_thres), metabol_df.shape
-
 
 def regress_out_growth_metabolite(metabolite):
     x, y = growth.ix[strains].values, metabol_df.ix[metabolite, strains].values
 
-    effect_size = LinearRegression().fit(np.mat(x).T, y).coef_[0]
+    lm = LinearRegression().fit(np.mat(x).T, y)
 
-    y_ = y - effect_size * x
+    y_ = y - lm.coef_[0] * x - lm.intercept_
 
     return dict(zip(np.array(strains), y_))
 
 metabol_df = DataFrame({metabolite: regress_out_growth_metabolite(metabolite) for metabolite in metabol_df.index}).T.dropna(axis=0, how='all')
 print '[INFO] Growth regressed out from the metabolites: ', metabol_df.shape
+
+# fc_thres, n_fc_thres = .8, 0
+# metabol_df = metabol_df[(metabol_df.abs() > fc_thres).sum(1) > n_fc_thres]
+# print '[INFO] [METABOLOMICS] drop metabolites with less than %d abs FC higher than %.2f : ' % (n_fc_thres, fc_thres), metabol_df.shape
 
 # Export processed data-set
 metabol_df_file = wd + 'tables/metabolomics_steady_state.tab'

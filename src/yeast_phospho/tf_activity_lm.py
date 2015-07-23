@@ -63,6 +63,29 @@ def calculate_activity(strain):
 tf_activity = DataFrame({c: calculate_activity(c) for c in strains})
 print '[INFO] Kinase activity calculated: ', tf_activity.shape
 
+# Regress out growth
+
+
+def regress_out_growth(kinase):
+    x, y = growth.ix[strains].values, tf_activity.ix[kinase, strains].values
+
+    mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
+
+    if sum(mask) > 3:
+        x, y = x[mask], y[mask]
+
+        lm = LinearRegression().fit(np.mat(x).T, y)
+
+        y_ = y - lm.coef_[0] * x - lm.intercept_
+
+        return dict(zip(np.array(strains)[mask], y_))
+
+    else:
+        return {}
+
+tf_activity = DataFrame({kinase: regress_out_growth(kinase) for kinase in tf_activity.index}).T.dropna(axis=0, how='all')
+print '[INFO] Growth regressed out from the Kinases activity scores: ', tf_activity.shape
+
 # Export kinase activity matrix
 tf_activity_file = '%s/tables/tf_activity_steady_state.tab' % wd
 tf_activity.to_csv(tf_activity_file, sep='\t')

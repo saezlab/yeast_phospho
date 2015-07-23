@@ -21,12 +21,8 @@ growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_
 
 s_info = read_csv(wd + 'files/metabolomics/strain_info.tab', sep='\t', index_col=0)
 
-metabolomics = read_csv('%s/data/steady_state_metabolomics.tab' % wd, sep='\t').dropna()
-metabolomics.index = Index(metabolomics['m/z'], dtype=np.str)
-metabolomics = metabolomics.drop('m/z', 1).dropna()
-
-fc_thres, n_fc_thres = 0.8, 0
-metabolomics = metabolomics[(metabolomics.abs() > fc_thres).sum(1) > n_fc_thres]
+metabolomics = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0).dropna()
+metabolomics.index = Index(metabolomics.index, dtype=np.str)
 
 # ---- Import metabolic model
 model_met_map = read_csv(wd + 'files/metabolomics/metabolite_mz_map_dobson.txt', sep='\t', index_col='id')
@@ -82,7 +78,7 @@ r_metabolites = r_metabolites[r_metabolites.sum(1) != 0]
 metabolites, strains, reactions = list(r_metabolites.index), list(metabolomics.columns), list(r_metabolites.columns)
 r_activity = DataFrame({s: dict(zip(*(reactions, LinearRegression().fit(r_metabolites.ix[metabolites, reactions], metabolomics.ix[metabolites, s]).coef_))) for s in strains})
 
-y = Series([int(i in ['high', 'average']) for i in s_info['impact']], index=s_info.index)
+y = Series([int(i in ['high', 'average']) for i in s_info.loc[strains, 'impact']], index=strains)
 x = r_activity[y.index].T
 
 roc_pred = [roc_auc_score(y.ix[test].values, RidgeClassifierCV().fit(x.ix[train], y.ix[train]).decision_function(x.ix[test])) for train, test in StratifiedShuffleSplit(y.values, n_iter=1000)]
