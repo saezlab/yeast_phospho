@@ -1,9 +1,6 @@
 import re
 import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
 from yeast_phospho import wd
-from yeast_phospho.utils import pearson
 from sklearn.linear_model import LinearRegression
 from pandas import DataFrame, read_csv, Index
 from scipy.interpolate.interpolate import interp1d
@@ -20,8 +17,6 @@ def get_multiple_site(protein, peptide):
     n_sites = len(re.findall('\[[0-9]*\.?[0-9]*\]', peptide))
     return [get_site(protein, peptide if i == 0 else re.sub('\[[0-9]*\.?[0-9]*\]', '', peptide, i)) for i in xrange(n_sites)]
 
-
-sns.set_style('ticks')
 
 # Import Phosphogrid network
 network = read_csv(wd + 'files/PhosphoGrid.txt', sep='\t').loc[:, ['ORF_NAME', 'PHOSPHO_SITE', 'KINASES_ORFS', 'PHOSPHATASES_ORFS', 'SEQUENCE']]
