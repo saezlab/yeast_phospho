@@ -14,9 +14,6 @@ def pearson(x, y):
     cor, pvalue = pearsonr(x[mask], y[mask]) if np.sum(mask) > 1 else (np.NaN, np.NaN)
     return cor, pvalue, np.sum(mask)
 
-# Import acc map to name form uniprot
-acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)
-
 # Import kinase activity
 kinase_df = read_csv(wd + 'tables/kinase_enrichment_df.tab', sep='\t', index_col=0)
 

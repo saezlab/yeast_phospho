@@ -27,7 +27,6 @@ version = 'v1'
 print '[INFO] Version: %s' % version
 
 # Import id maps
-acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)
 metabolites_map = read_csv(wd + 'tables/metabolites_map.tab', sep='\t', index_col=0)
 
 met_map = metabolites_map.copy()

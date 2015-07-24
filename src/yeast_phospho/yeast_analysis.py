@@ -21,12 +21,8 @@ sns.set_style('ticks')
 # Import Kegg bioservice
 kegg_srv, kegg_prs = KEGG(verbose=True, cache=True), KEGGParser()
 
-# Import acc map to name form uniprot
-acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)['gene'].to_dict()
-acc_name = {k: acc_name[k].split(';')[0] for k in acc_name}
-
 # Import metabolites map
-m_map = read_csv('%s/files/metabolomics/metabolite_mz_map_kegg.txt' % wd, sep='\t')
+m_map = read_csv('%s/files/metabolite_mz_map_kegg.txt' % wd, sep='\t')
 m_map['mz'] = Index([str(i) for i in m_map['mz']], dtype=str)
 m_map = m_map.drop_duplicates('mz').drop_duplicates('formula')
 m_map = m_map.groupby('mz')['name'].apply(lambda i: '; '.join(i)).to_dict()
@@ -54,7 +50,7 @@ print '[INFO] Correaltion between metabolites and kinases done'
 
 # ---- Calculate metabolite distances
 # Import metabolic model mapping
-model_met_map = read_csv(wd + 'files/metabolomics/metabolite_mz_map_dobson.txt', sep='\t', index_col='id')
+model_met_map = read_csv(wd + 'files/metabolite_mz_map_dobson.txt', sep='\t', index_col='id')
 model_met_map['mz'] = [str(i) for i in model_met_map['mz']]
 model_met_map = model_met_map.drop_duplicates('mz')['mz'].to_dict()
 

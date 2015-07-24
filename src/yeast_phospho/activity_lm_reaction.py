@@ -6,7 +6,7 @@ from sklearn.linear_model import RidgeCV
 from pandas import DataFrame, read_csv, Index
 
 growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth']
-s_info = read_csv(wd + 'files/metabolomics/strain_info.tab', sep='\t', index_col=0)
+s_info = read_csv(wd + 'files/strain_info.tab', sep='\t', index_col=0)
 
 # ---- Import metabolic model
 # Import metabolic model
@@ -50,7 +50,7 @@ metabolomics_growth.index = Index(metabolomics_growth.index, dtype=str)
 
 for xs, f in [(metabolomics.copy(), '%s/tables/reaction_activity_steady_state.tab' % wd), (metabolomics_growth.copy(), '%s/tables/reaction_activity_steady_state_with_growth.tab' % wd)]:
     # Import metabolites annotation
-    model_met_map = read_csv(wd + 'files/metabolomics/metabolite_mz_map_dobson.txt', sep='\t', index_col='id')
+    model_met_map = read_csv(wd + 'files/metabolite_mz_map_dobson.txt', sep='\t', index_col='id')
     model_met_map['mz'] = ['%.2f' % i for i in model_met_map['mz']]
     model_met_map = model_met_map.drop_duplicates('mz')['mz'].to_dict()
     model_met_map = {k: model_met_map[k] for k in model_met_map if model_met_map[k] in xs.index}
@@ -79,7 +79,7 @@ metabolomics_dyn = read_csv(wd + 'tables/dynamic_metabolomics.tab', sep='\t', in
 metabolomics_dyn.index = Index([str(i) for i in metabolomics_dyn.index], dtype=str)
 
 # Import metabolites map
-model_met_map_dyn = read_csv(wd + 'files/metabolomics/metabolite_mz_map_dobson.txt', sep='\t', index_col='id')
+model_met_map_dyn = read_csv(wd + 'files/metabolite_mz_map_dobson.txt', sep='\t', index_col='id')
 model_met_map_dyn['mz'] = ['%.2f' % i for i in model_met_map_dyn['mz']]
 model_met_map_dyn = model_met_map_dyn.drop_duplicates('mz')['mz'].to_dict()
 model_met_map_dyn = {k: model_met_map_dyn[k] for k in model_met_map_dyn if model_met_map_dyn[k] in metabolomics_dyn.index}
