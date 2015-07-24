@@ -36,11 +36,11 @@ tf_activity_growth = read_csv('%s/tables/tf_activity_steady_state_with_growth.ta
 # Import metabolomics
 metabolomics = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0)
 metabolomics.index = Index([str(i) for i in metabolomics.index], dtype=str)
-# metabolomics = metabolomics.ix[set(metabolomics.index).intersection(m_map)]
+metabolomics = metabolomics.ix[set(metabolomics.index).intersection(m_map)]
 
 metabolomics_growth = read_csv('%s/tables/metabolomics_steady_state_growth_rate.tab' % wd, sep='\t', index_col=0)
 metabolomics_growth.index = Index([str(i) for i in metabolomics_growth.index], dtype=str)
-# metabolomics_growth = metabolomics_growth.ix[set(metabolomics_growth.index).intersection(m_map)]
+metabolomics_growth = metabolomics_growth.ix[set(metabolomics_growth.index).intersection(m_map)]
 
 # Overlapping kinases/phosphatases knockout
 strains = list(set(k_activity.columns).intersection(set(metabolomics.columns)))
@@ -73,37 +73,6 @@ for xs, ys in [(k_activity, metabolomics), (k_activity_growth, metabolomics_grow
     s_score['name'] = [acc_name[s] for s in s_score.index]
     s_score = s_score.sort('correlation', ascending=False)
     print 'Mean correlation samples: ', s_score['correlation'].mean()
-
-# sns.clustermap(m_predicted.T.loc[strains, metabolites], figsize=(25, 25))
-# plt.savefig('%s/reports/lm_predicted_metabolomics_clustermap.pdf' % wd, bbox_inches='tight')
-# plt.close('all')
-#
-# sns.clustermap(metabolomics.T.loc[strains, metabolites], figsize=(25, 25))
-# plt.savefig('%s/reports/lm_measured_metabolomics_clustermap.pdf' % wd, bbox_inches='tight')
-# plt.close('all')
-# print '[DONE]'
-#
-# plot_df = m_score[m_score['adjpvalue'] < 0.1].index
-# plot_df = DataFrame([(m_score.ix[m, 'name'], m_predicted.ix[m, s], metabolomics.ix[m, s], m_score.ix[m, 'signif']) for m in plot_df for s in strains])
-# plot_df.columns = ['metabolite', 'predicted', 'measured', 'signif']
-#
-# colour_pallete = list(reversed(sns.color_palette('Paired')[:2]))
-# g = sns.lmplot(x='measured', y='predicted', col='metabolite', hue='signif', data=plot_df, col_wrap=12, palette=colour_pallete, sharex=False, sharey=False, scatter_kws={'s': 80})
-# plt.savefig('%s/reports/lm_metabolites_steadystate_corr.png' % wd, bbox_inches='tight')
-# g.set_axis_labels('Measured', 'Predicted').fig.subplots_adjust(wspace=.02)
-# plt.close('all')
-# print '[INFO] Plot done!'
-#
-# plot_df = s_score[s_score['adjpvalue'] < 0.1].index
-# plot_df = DataFrame([(acc_name[s], m_predicted.ix[m, s], metabolomics.ix[m, s], s_score.ix[s, 'signif']) for s in plot_df for m in m_predicted.index])
-# plot_df.columns = ['strain', 'predicted', 'measured', 'signif']
-#
-# colour_pallete = list(reversed(sns.color_palette('Paired')[:2]))
-# g = sns.lmplot(x='measured', y='predicted', col='strain', hue='signif', data=plot_df, col_wrap=14, palette=colour_pallete, sharex=False, sharey=False, scatter_kws={'s': 80}, size=4, aspect=4)
-# plt.savefig('%s/reports/lm_samples_steadystate_corr.png' % wd, bbox_inches='tight')
-# g.set_axis_labels('Measured', 'Predicted').fig.subplots_adjust(wspace=.02)
-# plt.close('all')
-# print '[INFO] Plot done!'
 
 
 # ---- Steady-state: predict metabolites FC with TF activity

@@ -54,6 +54,8 @@ k_activity.to_csv(k_activity_file, sep='\t')
 print '[INFO] [KINASE ACTIVITY] Exported to: %s' % k_activity_file
 
 # Regress out growth
+
+
 def regress_out_growth(kinase):
     x, y = growth.ix[strains].values, k_activity.ix[kinase, strains].values
 
