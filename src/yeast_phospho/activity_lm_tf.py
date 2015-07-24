@@ -1,14 +1,10 @@
 import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
 from yeast_phospho import wd
-from yeast_phospho.utils import pearson
 from sklearn.cross_validation import KFold
 from sklearn.linear_model import RidgeCV, Ridge, LinearRegression
 from sklearn.metrics.regression import mean_squared_error
 from pandas import DataFrame, read_csv, pivot_table
 
-sns.set_style('ticks')
 
 # Import growth rates
 growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth']
@@ -32,7 +28,9 @@ gexp = gexp[strains]
 gexp = gexp[(gexp.abs() > 2).sum(1) > 1]
 
 # Export GEX
-gexp.to_csv(wd + 'data/steady_state_transcriptomics.tab', sep='\t')
+gexp_file = '%s/data/steady_state_transcriptomics.tab' % wd
+gexp.to_csv(gexp_file, sep='\t')
+print '[INFO] Transcriptomics exported: %s' % gexp_file
 
 # TF targets
 tf_targets = read_csv(wd + 'data/tf_network/tf_gene_network_chip_only.tab', sep='\t')
@@ -62,6 +60,10 @@ def calculate_activity(strain):
 
 tf_activity = DataFrame({c: calculate_activity(c) for c in strains})
 print '[INFO] Kinase activity calculated: ', tf_activity.shape
+
+tf_activity_file = '%s/tables/tf_activity_steady_state_with_growth.tab' % wd
+tf_activity.to_csv(tf_activity_file, sep='\t')
+print '[INFO] [TF ACTIVITY] Exported to: %s' % tf_activity_file
 
 # Regress out growth
 

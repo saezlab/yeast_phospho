@@ -31,13 +31,13 @@ print '[INFO] [PHOSPHOGRID] ', network.shape
 # Import growth rates
 growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth']
 
+
 # ----  Process steady-state phosphoproteomics
 phospho_df = read_csv(wd + 'data/steady_state_phosphoproteomics.tab', sep='\t')
 phospho_df = phospho_df.pivot_table(values='logFC', index=['peptide', 'target'], columns='regulator', aggfunc=np.median)
 print '[INFO] [PHOSPHOPROTEOMICS] : ', phospho_df.shape
 
 # Define lists of strains
-# strains = list(set(phospho_df.columns).intersection(growth.index).difference(['YBR097W', 'YJL106W', 'YJL128C', 'YDR247W', 'YKL126W', 'YKL139W']))
 strains = list(set(phospho_df.columns).intersection(growth.index))
 
 # Filter ambigous peptides
@@ -55,29 +55,6 @@ phospho_df['site'] = [pep_site[peptide] if peptide in pep_site else np.NaN for p
 phospho_df = phospho_df.groupby('site').median()
 print '[INFO] [PHOSPHOPROTEOMICS] (merge phosphosites, i.e median): ', phospho_df.shape
 
-# # Regress out growth
-#
-#
-# def regress_out_growth(site):
-#     x, y = growth.ix[strains].values, phospho_df.ix[site, strains].values
-#
-#     mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
-#
-#     if sum(mask) > 3:
-#         x, y = x[mask], y[mask]
-#
-#         effect_size = LinearRegression().fit(np.mat(x).T, y).coef_[0]
-#
-#         y_ = y - effect_size * x
-#
-#         return dict(zip(np.array(strains)[mask], y_))
-#
-#     else:
-#         return {}
-#
-# phospho_df = DataFrame({site: regress_out_growth(site) for site in phospho_df.index}).T.dropna(axis=0, how='all')
-# print '[INFO] Growth regressed out from the p-sites: ', phospho_df.shape
-
 # Export processed data-set
 phospho_df_file = wd + 'tables/pproteomics_steady_state.tab'
 phospho_df.to_csv(phospho_df_file, sep='\t')
@@ -92,6 +69,10 @@ print '[INFO] [METABOLOMICS]: ', metabol_df.shape
 metabol_df = metabol_df.drop('m/z', 1).dropna()[strains]
 print '[INFO] [METABOLOMICS] drop NaN: ', metabol_df.shape
 
+metabol_df_file = wd + 'tables/metabolomics_steady_state_growth_rate.tab'
+metabol_df.to_csv(metabol_df_file, sep='\t')
+print '[INFO] [METABOLOMICS] Exported to: %s' % metabol_df_file
+
 
 def regress_out_growth_metabolite(metabolite):
     x, y = growth.ix[strains].values, metabol_df.ix[metabolite, strains].values
@@ -104,10 +85,6 @@ def regress_out_growth_metabolite(metabolite):
 
 metabol_df = DataFrame({metabolite: regress_out_growth_metabolite(metabolite) for metabolite in metabol_df.index}).T.dropna(axis=0, how='all')
 print '[INFO] Growth regressed out from the metabolites: ', metabol_df.shape
-
-# fc_thres, n_fc_thres = .8, 0
-# metabol_df = metabol_df[(metabol_df.abs() > fc_thres).sum(1) > n_fc_thres]
-# print '[INFO] [METABOLOMICS] drop metabolites with less than %d abs FC higher than %.2f : ' % (n_fc_thres, fc_thres), metabol_df.shape
 
 # Export processed data-set
 metabol_df_file = wd + 'tables/metabolomics_steady_state.tab'

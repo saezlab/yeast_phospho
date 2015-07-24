@@ -35,7 +35,7 @@ def calculate_activity(strain):
     x = x.loc[:, x.sum() != 0]
 
     best_model = (np.Inf, 0.0)
-    for train, test in KFold(len(x), 3):
+    for train, test in KFold(len(x), 5):
         lm = RidgeCV().fit(x.ix[train], y.ix[train])
         score = mean_squared_error(lm.predict(x.ix[test]), y.ix[test].values)
 
@@ -49,25 +49,24 @@ def calculate_activity(strain):
 k_activity = DataFrame({c: calculate_activity(c) for c in strains})
 print '[INFO] Kinase activity calculated: ', k_activity.shape
 
+k_activity_file = '%s/tables/kinase_activity_steady_state_with_growth.tab' % wd
+k_activity.to_csv(k_activity_file, sep='\t')
+print '[INFO] [KINASE ACTIVITY] Exported to: %s' % k_activity_file
+
 # Regress out growth
-
-
 def regress_out_growth(kinase):
     x, y = growth.ix[strains].values, k_activity.ix[kinase, strains].values
 
     mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
 
-    if sum(mask) > 3:
-        x, y = x[mask], y[mask]
+    x, y = x[mask], y[mask]
 
-        lm = LinearRegression().fit(np.mat(x).T, y)
+    lm = LinearRegression().fit(np.mat(x).T, y)
 
-        y_ = y - lm.coef_[0] * x - lm.intercept_
+    y_ = y - lm.coef_[0] * x - lm.intercept_
 
-        return dict(zip(np.array(strains)[mask], y_))
+    return dict(zip(np.array(strains)[mask], y_))
 
-    else:
-        return {}
 
 k_activity = DataFrame({kinase: regress_out_growth(kinase) for kinase in k_activity.index}).T.dropna(axis=0, how='all')
 print '[INFO] Growth regressed out from the Kinases activity scores: ', k_activity.shape
@@ -76,17 +75,6 @@ print '[INFO] Growth regressed out from the Kinases activity scores: ', k_activi
 k_activity_file = '%s/tables/kinase_activity_steady_state.tab' % wd
 k_activity.to_csv(k_activity_file, sep='\t')
 print '[INFO] [KINASE ACTIVITY] Exported to: %s' % k_activity_file
-
-# ---- Plot kinase cluster map
-plot_df_order = set(k_activity.index).intersection(k_activity.columns)
-plot_df = k_activity.copy().replace(np.NaN, 0).loc[plot_df_order, plot_df_order]
-plot_df.index = [acc_name.loc[i, 'gene'].split(';')[0] for i in plot_df.index]
-plot_df.columns = [acc_name.loc[i, 'gene'].split(';')[0] for i in plot_df.columns]
-plot_df.columns.name, plot_df.index.name = 'perturbations', 'kinases'
-sns.clustermap(plot_df, figsize=(20, 20), col_cluster=False, row_cluster=False)
-plt.savefig(wd + 'reports/kinase_activity_lm_diagonal.pdf', bbox_inches='tight')
-plt.close('all')
-print '[INFO] Clustemap done!'
 
 # ---- Import YeastGenome gene annotation
 gene_annotation = read_csv('%s/files/gene_association.txt' % wd, sep='\t', header=None).dropna(how='all', axis=1)
