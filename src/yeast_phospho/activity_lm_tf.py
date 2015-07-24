@@ -13,7 +13,14 @@ growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_
 name2id = read_csv(wd + 'tables/orf_name_dataframe.tab', sep='\t', index_col=1).to_dict()['orf']
 id2name = read_csv(wd + 'tables/orf_name_dataframe.tab', sep='\t', index_col=0).to_dict()['name']
 
-# Import gene-expression data-set
+# TF targets
+tf_targets = read_csv(wd + 'data/tf_network/tf_gene_network_chip_only.tab', sep='\t')
+tf_targets['tf'] = [name2id[i] if i in name2id else id2name[i] for i in tf_targets['tf']]
+tf_targets['interaction'] = 1
+tf_targets = pivot_table(tf_targets, values='interaction', index='target', columns='tf', fill_value=0)
+print '[INFO] TF targets calculated!'
+
+# ---- Steady-state: gene-expression data-set
 gexp = read_csv(wd + 'data/gene_expresion/tf_ko_gene_expression.tab', sep='\t', header=False)
 gexp = gexp[gexp['study'] == 'Kemmeren_2014']
 gexp['tf'] = [name2id[i] if i in name2id else id2name[i] for i in gexp['tf']]
@@ -25,19 +32,10 @@ strains = list(set(gexp.columns).intersection(growth.index))
 
 # Filter gene-expression to overlapping conditions
 gexp = gexp[strains]
-gexp = gexp[(gexp.abs() > 2).sum(1) > 1]
 
 # Export GEX
-gexp_file = '%s/data/steady_state_transcriptomics.tab' % wd
-gexp.to_csv(gexp_file, sep='\t')
-print '[INFO] Transcriptomics exported: %s' % gexp_file
-
-# TF targets
-tf_targets = read_csv(wd + 'data/tf_network/tf_gene_network_chip_only.tab', sep='\t')
-tf_targets['tf'] = [name2id[i] if i in name2id else id2name[i] for i in tf_targets['tf']]
-tf_targets['interaction'] = 1
-tf_targets = pivot_table(tf_targets, values='interaction', index='target', columns='tf', fill_value=0)
-print '[INFO] TF targets calculated!'
+gexp.to_csv('%s/data/steady_state_transcriptomics.tab' % wd, sep='\t')
+print '[INFO] Steady-state transcriptomics exported'
 
 
 def calculate_activity(strain):
@@ -59,11 +57,10 @@ def calculate_activity(strain):
     return dict(zip(*(x.columns, Ridge(alpha=best_model[0]).fit(x, y).coef_)))
 
 tf_activity = DataFrame({c: calculate_activity(c) for c in strains})
-print '[INFO] Kinase activity calculated: ', tf_activity.shape
+print '[INFO] TF activity calculated: ', tf_activity.shape
 
-tf_activity_file = '%s/tables/tf_activity_steady_state_with_growth.tab' % wd
-tf_activity.to_csv(tf_activity_file, sep='\t')
-print '[INFO] [TF ACTIVITY] Exported to: %s' % tf_activity_file
+tf_activity.to_csv('%s/tables/tf_activity_steady_state_with_growth.tab' % wd, sep='\t')
+print '[INFO] [TF ACTIVITY] Exported '
 
 # Regress out growth
 
@@ -89,6 +86,36 @@ tf_activity = DataFrame({kinase: regress_out_growth(kinase) for kinase in tf_act
 print '[INFO] Growth regressed out from the Kinases activity scores: ', tf_activity.shape
 
 # Export kinase activity matrix
-tf_activity_file = '%s/tables/tf_activity_steady_state.tab' % wd
-tf_activity.to_csv(tf_activity_file, sep='\t')
-print '[INFO] [TF ACTIVITY] Exported to: %s' % tf_activity_file
+tf_activity.to_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t')
+print '[INFO] [TF ACTIVITY] Exported'
+
+
+# ---- Dynamic: gene-expression data-set
+dyn_trans_df = read_csv('%s/tables/transcriptomics_dynamic.tab' % wd, sep='\t', index_col=0)
+
+conditions = list(dyn_trans_df.columns)
+
+
+def calculate_activity(condition):
+    y = dyn_trans_df.ix[tf_targets.index, condition].dropna()
+    x = tf_targets.ix[y.index]
+
+    x = x.loc[:, x.sum() != 0]
+
+    best_model = (np.Inf, 0.0)
+    for train, test in KFold(len(x), 5):
+        lm = RidgeCV().fit(x.ix[train], y.ix[train])
+        score = mean_squared_error(lm.predict(x.ix[test]), y.ix[test].values)
+
+        if score < best_model[0]:
+            best_model = (score, lm.alpha_, lm.coef_)
+
+    print '[INFO] %s, score: %.3f, alpha: %.2f' % (condition, best_model[0], best_model[1])
+
+    return dict(zip(*(x.columns, Ridge(alpha=best_model[0]).fit(x, y).coef_)))
+
+tf_activity = DataFrame({c: calculate_activity(c) for c in conditions})
+print '[INFO] TF activity calculated: ', tf_activity.shape
+
+tf_activity.to_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t')
+print '[INFO] [TF ACTIVITY] Exported '

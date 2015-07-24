@@ -1,24 +1,11 @@
 import re
 import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
 from pymist.reader.sbml_reader import read_sbml_model
-from sklearn.cross_validation import LeaveOneOut, KFold, Bootstrap, ShuffleSplit, StratifiedKFold, StratifiedShuffleSplit
-from sklearn.decomposition.pca import PCA
-from sklearn.manifold.t_sne import TSNE
-from sklearn.metrics.ranking import roc_auc_score
-from sklearn.metrics.regression import mean_squared_error
-from sklearn.svm import SVR, LinearSVC, SVC, LinearSVR
-from statsmodels.stats.multitest import multipletests
 from yeast_phospho import wd
-from yeast_phospho.utils import pearson, spearman
-from sklearn.linear_model import LinearRegression, RidgeCV, Lasso, LassoCV, Ridge, RidgeClassifierCV
-from pandas import DataFrame, Series, read_csv, Index, melt
-
-sns.set_style('ticks')
+from sklearn.linear_model import RidgeCV
+from pandas import DataFrame, read_csv, Index
 
 growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth']
-
 s_info = read_csv(wd + 'files/metabolomics/strain_info.tab', sep='\t', index_col=0)
 
 # ---- Import metabolic model
@@ -56,15 +43,15 @@ s_matrix = s_matrix[s_matrix.sum(1) != 0]
 
 # ---- Calculate steady-state reaction activity
 metabolomics = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0)
-metabolomics.index = Index(metabolomics.index, dtype=np.str)
+metabolomics.index = Index(metabolomics.index, dtype=str)
 
 metabolomics_growth = read_csv('%s/tables/metabolomics_steady_state_growth_rate.tab' % wd, sep='\t', index_col=0)
-metabolomics_growth.index = Index([str(i) for i in metabolomics_growth.index], dtype=str)
+metabolomics_growth.index = Index(metabolomics_growth.index, dtype=str)
 
 for xs, f in [(metabolomics.copy(), '%s/tables/reaction_activity_steady_state.tab' % wd), (metabolomics_growth.copy(), '%s/tables/reaction_activity_steady_state_with_growth.tab' % wd)]:
     # Import metabolites annotation
     model_met_map = read_csv(wd + 'files/metabolomics/metabolite_mz_map_dobson.txt', sep='\t', index_col='id')
-    model_met_map['mz'] = [str(i) for i in model_met_map['mz']]
+    model_met_map['mz'] = ['%.2f' % i for i in model_met_map['mz']]
     model_met_map = model_met_map.drop_duplicates('mz')['mz'].to_dict()
     model_met_map = {k: model_met_map[k] for k in model_met_map if model_met_map[k] in xs.index}
 

@@ -1,105 +1,90 @@
 import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 from sklearn.cross_validation import LeaveOneOut
 from statsmodels.stats.multitest import multipletests
 from yeast_phospho import wd
 from yeast_phospho.utils import pearson
-from sklearn.linear_model import LinearRegression
-from pandas import DataFrame, read_csv
+from sklearn.linear_model import LinearRegression, Ridge, RidgeCV
+from pandas import DataFrame, read_csv, Index
+
+# ---- Import
+# Steady-state
+r_activity = read_csv('%s/tables/reaction_activity_steady_state.tab' % wd, sep='\t', index_col=0)
+k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
+tf_activity = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0)
+
+r_activity_g = read_csv('%s/tables/reaction_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0)
+k_activity_g = read_csv('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0)
+tf_activity_g = read_csv('%s/tables/tf_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0)
+
+# Dynamic
+r_activity_dyn = read_csv('%s/tables/reaction_activity_dynamic.tab' % wd, sep='\t', index_col=0)
+k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0)
+t_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0)
 
 
+# ---- Machine learning setup
 lm = LinearRegression()
 
-r_activity = read_csv('%s/tables/reaction_activity_steady_state.tab' % wd, sep='\t', index_col=0)
-r_activity_growth = read_csv('%s/tables/reaction_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0)
+# ---- Perform predictions
+# Steady-state comparisons
+steady_state = [
+    (k_activity, r_activity, 'steady-state', 'kinase', 'no growth'),
+    (tf_activity, r_activity, 'steady-state', 'tf', 'no growth'),
+    (k_activity_g, r_activity_g, 'steady-state', 'kinase', 'with growth'),
+    (tf_activity_g, r_activity_g, 'steady-state', 'tf', 'with growth')
+]
+
+# Dynamic comparisons
+dynamic = [
+    ((k_activity, r_activity), (k_activity_dyn, r_activity_dyn), 'dynamic', 'kinase', 'no growth'),
+    ((tf_activity, r_activity), (t_activity_dyn, r_activity_dyn), 'dynamic', 'tf', 'no growth'),
+    ((k_activity_g, r_activity_g), (k_activity_dyn, r_activity_dyn), 'dynamic', 'kinase', 'with growth'),
+    ((tf_activity_g, r_activity_g), (t_activity_dyn, r_activity_dyn), 'dynamic', 'tf', 'with growth'),
+]
 
 
-# ---- Steady-state: predict reaction activity
-print '[INFO] Steady-state reaction activity predictions with Kinase activities'
+lm_res = []
 
-k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
-k_activity_growth = read_csv('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0)
+for xs, ys, condition, feature, growth in steady_state:
+    x_features, y_features, samples = list(xs.index), list(ys.index), list(set(xs.columns).intersection(ys.columns))
 
-strains, kinases, reactions = list(k_activity.columns), list(k_activity.index), list(r_activity.index)
-for xs, ys in [(k_activity, r_activity), (k_activity_growth, r_activity_growth)]:
-    x, y = xs.loc[kinases, strains].replace(np.NaN, 0.0).T, ys.loc[reactions, strains].T
+    x, y = xs.ix[x_features, samples].replace(np.NaN, 0.0).T, ys.ix[y_features, samples].T
 
-    r_predicted = DataFrame({strains[test]: dict(zip(*(reactions, lm.fit(x.ix[train], y.ix[train, reactions]).predict(x.ix[test])[0]))) for train, test in LeaveOneOut(len(x))})
+    y_pred = DataFrame({samples[test]: dict(zip(*(y_features, lm.fit(x.ix[train], y.ix[train, y_features]).predict(x.ix[test])[0]))) for train, test in LeaveOneOut(len(samples))})
 
-    # Plot predicted prediction scores
-    r_score = [(r, pearson(ys.ix[r, strains], r_predicted.ix[r, strains])) for r in reactions]
-    r_score = DataFrame([(m, c, p, n) for m, (c, p, n) in r_score], columns=['reaction', 'correlation', 'pvalue', 'n_meas'])
-    r_score['adjpvalue'] = multipletests(r_score['pvalue'], method='fdr_bh')[1]
-    r_score = r_score.sort('correlation', ascending=False)
-    print 'Mean correlation metabolites: ', r_score['correlation'].mean()
+    lm_res.extend([(condition, feature, growth, f, 'features', pearson(ys.ix[f, samples], y_pred.ix[f, samples])[0]) for f in y_features])
+    lm_res.extend([(condition, feature, growth, f, 'samples', pearson(ys.ix[y_features, s], y_pred.ix[y_features, s])[0]) for s in samples])
 
-    s_score = [(s, pearson(ys.ix[reactions, s], r_predicted.ix[reactions, s])) for s in strains]
-    s_score = DataFrame([(m, c, p, n) for m, (c, p, n) in s_score], columns=['strain', 'correlation', 'pvalue', 'n_meas'])
-    s_score['adjpvalue'] = multipletests(s_score['pvalue'], method='fdr_bh')[1]
-    s_score = s_score.sort('correlation', ascending=False)
-    print 'Mean correlation samples: ', s_score['correlation'].mean()
+    print '[INFO] %s, %s, %s' % (condition, feature, growth)
+    print '[INFO] x_features: %d, y_features: %d, samples: %d' % (len(x_features), len(y_features), len(samples))
 
 
-# ---- Steady-state: predict metabolites FC with TF activity
-print '[INFO] Steady-state reaction activity predictions with TF activities'
+for (xs_train, ys_train), (xs_test, ys_test), condition, feature, growth in dynamic:
+    x_features, y_features = list(set(xs_train.index).intersection(xs_test.index)), list(set(ys_train.index).intersection(ys_test.index))
+    train_samples, test_samples = list(set(xs_train.columns).intersection(ys_train.columns)), list(set(xs_test.columns).intersection(ys_test.columns))
 
-tf_activity = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0)
-tf_activity_growth = read_csv('%s/tables/tf_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0)
+    x_train, y_train = xs_train.ix[x_features, train_samples].replace(np.NaN, 0.0).T, ys_train.ix[y_features, train_samples].T
+    x_test, y_test = xs_test.ix[x_features, test_samples].replace(np.NaN, 0.0).T, ys_test.ix[y_features, test_samples].T
 
-strains, tfs, reactions = list(set(tf_activity.columns).intersection(k_activity.columns)), list(tf_activity.index), list(r_activity.index)
-for xs, ys in [(tf_activity, r_activity), (tf_activity_growth, r_activity_growth)]:
-    x, y = xs.loc[:, strains].dropna().T, ys.loc[reactions, strains].T
+    y_pred = DataFrame(lm.fit(x_train, y_train).predict(x_test).T, index=y_features, columns=test_samples)
 
-    r_predicted = DataFrame({strains[test]: dict(zip(*(reactions, lm.fit(x.ix[train], y.ix[train, reactions]).predict(x.ix[test])[0]))) for train, test in LeaveOneOut(len(x))})
+    lm_res.extend([(condition, feature, growth, f, 'features', pearson(ys_test.ix[f, test_samples], y_pred.ix[f, test_samples])[0]) for f in y_features])
+    lm_res.extend([(condition, feature, growth, f, 'samples', pearson(ys_test.ix[y_features, s], y_pred.ix[y_features, s])[0]) for s in test_samples])
 
-    # Plot predicted prediction scores
-    r_score = [(r, pearson(ys.ix[r, strains], r_predicted.ix[r, strains])) for r in reactions]
-    r_score = DataFrame([(m, c, p, n) for m, (c, p, n) in r_score], columns=['reaction', 'correlation', 'pvalue', 'n_meas'])
-    r_score = r_score.set_index('reaction')
-    r_score['adjpvalue'] = multipletests(r_score['pvalue'], method='fdr_bh')[1]
-    r_score['signif'] = ['FDR < 5%' if i < 0.05 else ' FDR >= 5%' for i in r_score['adjpvalue']]
-    r_score = r_score.sort('correlation', ascending=False)
-    print 'Mean correlation metabolites: ', r_score['correlation'].mean()
+    print '[INFO] %s, %s, %s' % (condition, feature, growth)
+    print '[INFO] x_features: %d, y_features: %d, train_samples: %d, test_samples: %d' % (len(x_features), len(y_features), len(train_samples), len(test_samples))
 
-    s_score = [(s, pearson(ys.ix[reactions, s], r_predicted.ix[reactions, s])) for s in strains]
-    s_score = DataFrame([(m, c, p, n) for m, (c, p, n) in s_score], columns=['strain', 'correlation', 'pvalue', 'n_meas'])
-    s_score = s_score.set_index('strain')
-    s_score['adjpvalue'] = multipletests(s_score['pvalue'], method='fdr_bh')[1]
-    s_score['signif'] = ['FDR < 5%' if i < 0.05 else ' FDR >= 5%' for i in s_score['adjpvalue']]
-    s_score = s_score.sort('correlation', ascending=False)
-    print 'Mean correlation samples: ', s_score['correlation'].mean()
+lm_res = DataFrame(lm_res, columns=['condition', 'feature', 'growth', 'name', 'type_cor', 'cor'])
+lm_res['type'] = lm_res['condition'] + '_' + lm_res['feature'] + '_' + lm_res['type_cor']
 
 
-# ---- Dynamic: predict metabolites FC with kinases
-print '[INFO] Dynamic reaction activity predictions with Kinase activities'
+# ---- Plot predictions correlations
+sns.set_style('ticks')
 
-k_activity_dyn = read_csv(wd + 'tables/kinase_activity_dynamic.tab', sep='\t', index_col=0)
-r_activity_dyn = read_csv('%s/tables/reaction_activity_dynamic.tab' % wd, sep='\t', index_col=0)
-
-for xs, ys in [(k_activity, r_activity), (k_activity_growth, r_activity_growth)]:
-    # Compute overlaps
-    kinases_dyn = list(set(k_activity_dyn.index).intersection(xs.index))
-    conditions_dyn = list(k_activity_dyn.columns)
-    reactions_dyn = list(set(r_activity_dyn.index).intersection(ys.index))
-
-    # Fit linear regression model
-    x_train, y_train = xs.ix[kinases_dyn, strains].replace(np.NaN, 0.0).T, ys.ix[reactions_dyn, strains].T
-    x_test, y_test = k_activity_dyn.ix[kinases_dyn, conditions_dyn].replace(np.NaN, 0.0).T, r_activity_dyn.ix[reactions_dyn, conditions_dyn].T
-
-    y_pred = DataFrame(lm.fit(x_train, y_train).predict(x_test), index=conditions_dyn, columns=reactions_dyn)
-
-    # Plot predicted prediction scores
-    r_score_dyn = [(r, pearson(y_test.ix[conditions_dyn, r], y_pred.ix[conditions_dyn, r])) for r in reactions_dyn]
-    r_score_dyn = DataFrame([(m, c, p, n) for m, (c, p, n) in r_score_dyn], columns=['reaction', 'correlation', 'pvalue', 'n_meas']).dropna()
-    r_score_dyn = r_score_dyn.set_index('reaction')
-    r_score_dyn['adjpvalue'] = multipletests(r_score_dyn['pvalue'], method='fdr_bh')[1]
-    r_score_dyn['signif'] = ['FDR < 5%' if x < 0.05 else ' FDR >= 5%' for x in r_score_dyn['adjpvalue']]
-    r_score_dyn = r_score_dyn.sort('correlation', ascending=False)
-    print 'Mean correlation metabolites: ', r_score_dyn['correlation'].mean()
-
-    s_score_dyn = [(s, pearson(y_test.ix[s, reactions_dyn], y_pred.ix[s, reactions_dyn])) for s in conditions_dyn]
-    s_score_dyn = DataFrame([(m, c, p, n) for m, (c, p, n) in s_score_dyn], columns=['condition', 'correlation', 'pvalue', 'n_meas']).dropna()
-    s_score_dyn = s_score_dyn.set_index('condition')
-    s_score_dyn['adjpvalue'] = multipletests(s_score_dyn['pvalue'], method='fdr_bh')[1]
-    s_score_dyn['signif'] = ['FDR < 5%' if x < 0.05 else ' FDR >= 5%' for x in s_score_dyn['adjpvalue']]
-    s_score_dyn = s_score_dyn.sort('correlation', ascending=False)
-    print 'Mean correlation samples: ', s_score_dyn['correlation'].mean()
+sns.violinplot(y='type', x='cor', data=lm_res, hue='growth', palette='Paired', orient='h', notch=True)
+sns.despine(offset=10, trim=True)
+plt.xlabel('pearson correlation')
+plt.savefig(wd + 'reports/lm_boxplot_correlations_reactions.pdf', bbox_inches='tight')
+plt.close('all')
