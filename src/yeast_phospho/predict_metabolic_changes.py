@@ -5,30 +5,30 @@ from yeast_phospho import wd
 from yeast_phospho.utils import pearson
 from pandas import DataFrame, read_csv, Index
 from sklearn.cross_validation import LeaveOneOut
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, Ridge
 
 
 m_signif = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0)
-m_signif = list(m_signif[(m_signif.abs() > 0.8).sum(1) > 5].index)
+m_signif = list(m_signif[(m_signif.abs() > 0.8).sum(1) > 0].index)
 
 # ---- Import
 # Steady-state
 metabolomics = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0).ix[m_signif]
-k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
-tf_activity = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0)
+k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0).dropna()
+tf_activity = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0).dropna()
 
 metabolomics_g = read_csv('%s/tables/metabolomics_steady_state_growth_rate.tab' % wd, sep='\t', index_col=0).ix[m_signif]
-k_activity_g = read_csv('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0)
-tf_activity_g = read_csv('%s/tables/tf_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0)
+k_activity_g = read_csv('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).dropna()
+tf_activity_g = read_csv('%s/tables/tf_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).dropna()
 
 # Dynamic
 metabolomics_dyn = read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', index_col=0)
-k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0)
-t_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0)
+k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0).dropna()
+t_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0).dropna()
 
 
 # ---- Machine learning setup
-lm = LinearRegression()
+lm = Ridge()
 
 
 # ---- Perform predictions
@@ -86,8 +86,12 @@ lm_res['type'] = lm_res['condition'] + '_' + lm_res['feature'] + '_' + lm_res['t
 
 # ---- Plot predictions correlations
 sns.set(style='ticks', palette='pastel', color_codes=True)
-sns.violinplot(y='type', x='cor', data=lm_res, hue='growth', orient='h', split=True, inner='quart', palette={'no growth': 'b', 'with growth': 'y'})
-sns.despine(offset=10, trim=True)
+x_order = list(lm_res[lm_res['growth'] == 'no growth'].groupby('type').median().sort('cor', ascending=False).index)
+sns.boxplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', palette={'no growth': 'b', 'with growth': 'y'})
+sns.despine(trim=True)
+plt.axvline(0.0, lw=.3, c='gray', alpha=0.3)
 plt.xlabel('pearson correlation')
+plt.ylabel('comparisons')
+plt.title('Predict metabolic fold-changes')
 plt.savefig(wd + 'reports/lm_boxplot_correlations_metabolites.pdf', bbox_inches='tight')
 plt.close('all')

@@ -2,7 +2,6 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.cross_validation import LeaveOneOut
-from statsmodels.stats.multitest import multipletests
 from yeast_phospho import wd
 from yeast_phospho.utils import pearson
 from sklearn.linear_model import LinearRegression, Ridge, RidgeCV
@@ -11,21 +10,21 @@ from pandas import DataFrame, read_csv, Index
 # ---- Import
 # Steady-state
 r_activity = read_csv('%s/tables/reaction_activity_steady_state.tab' % wd, sep='\t', index_col=0)
-k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
-tf_activity = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0)
+k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0).dropna()
+tf_activity = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0).dropna()
 
 r_activity_g = read_csv('%s/tables/reaction_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0)
-k_activity_g = read_csv('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0)
-tf_activity_g = read_csv('%s/tables/tf_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0)
+k_activity_g = read_csv('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).dropna()
+tf_activity_g = read_csv('%s/tables/tf_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).dropna()
 
 # Dynamic
 r_activity_dyn = read_csv('%s/tables/reaction_activity_dynamic.tab' % wd, sep='\t', index_col=0)
-k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0)
-t_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0)
+k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0).dropna()
+t_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0).dropna()
 
 
 # ---- Machine learning setup
-lm = LinearRegression()
+lm = Ridge()
 
 # ---- Perform predictions
 # Steady-state comparisons
@@ -81,10 +80,13 @@ lm_res['type'] = lm_res['condition'] + '_' + lm_res['feature'] + '_' + lm_res['t
 
 
 # ---- Plot predictions correlations
-sns.set_style('ticks')
-
-sns.violinplot(y='type', x='cor', data=lm_res, hue='growth', palette='Paired', orient='h', notch=True)
-sns.despine(offset=10, trim=True)
+sns.set(style='ticks', palette='pastel', color_codes=True)
+x_order = list(lm_res[lm_res['growth'] == 'no growth'].groupby('type').median().sort('cor', ascending=False).index)
+sns.boxplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', palette={'no growth': 'b', 'with growth': 'y'})
+sns.despine(trim=True)
+plt.axvline(0.0, lw=.3, c='gray', alpha=0.3)
 plt.xlabel('pearson correlation')
+plt.ylabel('comparisons')
+plt.title('Predict metabolic reactions activity')
 plt.savefig(wd + 'reports/lm_boxplot_correlations_reactions.pdf', bbox_inches='tight')
 plt.close('all')
