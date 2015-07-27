@@ -82,7 +82,8 @@ lm_res['type'] = lm_res['condition'] + '_' + lm_res['feature'] + '_' + lm_res['t
 # ---- Plot predictions correlations
 sns.set(style='ticks', palette='pastel', color_codes=True)
 x_order = list(lm_res[lm_res['growth'] == 'no growth'].groupby('type').median().sort('cor', ascending=False).index)
-sns.boxplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', palette={'no growth': 'b', 'with growth': 'y'})
+sns.boxplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', palette='Paired')
+sns.stripplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', size=3, jitter=True, palette='Paired')
 sns.despine(trim=True)
 plt.axvline(0.0, lw=.3, c='gray', alpha=0.3)
 plt.xlabel('pearson correlation')

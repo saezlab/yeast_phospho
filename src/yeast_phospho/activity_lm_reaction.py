@@ -1,11 +1,12 @@
 import re
 import numpy as np
 from pymist.reader.sbml_reader import read_sbml_model
+from sklearn.cross_validation import KFold
+from sklearn.metrics.regression import mean_squared_error
 from yeast_phospho import wd
-from sklearn.linear_model import RidgeCV
+from sklearn.linear_model import RidgeCV, Ridge
 from pandas import DataFrame, read_csv, Index
 
-growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth']
 s_info = read_csv(wd + 'files/strain_info.tab', sep='\t', index_col=0)
 
 # ---- Import metabolic model
@@ -66,8 +67,27 @@ for xs, f in [(metabolomics.copy(), '%s/tables/reaction_activity_steady_state.ta
     r_metabolites = r_metabolites.loc[:, r_metabolites.sum() != 0]
     r_metabolites = r_metabolites[r_metabolites.sum(1) != 0]
 
+    def calculate_activity(strain):
+        y = xs.ix[metabolites, strain].dropna()
+        x = r_metabolites.ix[y.index]
+
+        x = x.loc[:, x.sum() != 0]
+
+        best_model = (np.Inf, 0.0)
+        for train, test in KFold(len(x), 5):
+            lm = RidgeCV().fit(x.ix[train], y.ix[train])
+            score = mean_squared_error(lm.predict(x.ix[test]), y.ix[test].values)
+
+            if score < best_model[0]:
+                best_model = (score, lm.alpha_, lm.coef_)
+
+        print '[INFO] %s, score: %.3f, alpha: %.2f' % (strain, best_model[0], best_model[1])
+
+        return dict(zip(*(x.columns, Ridge(alpha=best_model[0]).fit(x, y).coef_)))
+
     metabolites, strains, reactions = list(r_metabolites.index), list(xs.columns), list(r_metabolites.columns)
-    r_activity = DataFrame({s: dict(zip(*(reactions, RidgeCV().fit(r_metabolites.ix[metabolites, reactions], xs.ix[metabolites, s]).coef_))) for s in strains})
+    r_activity = DataFrame({c: calculate_activity(c) for c in strains})
+    print '[INFO] Kinase activity calculated: ', r_activity.shape
 
     r_activity.to_csv(f, sep='\t')
     print '[INFO] [REACTION ACTIVITY] Exported to: %s' % f
@@ -75,7 +95,7 @@ for xs, f in [(metabolomics.copy(), '%s/tables/reaction_activity_steady_state.ta
 
 # ---- Calculate dynamic reaction activity
 # Import metabolomics
-metabolomics_dyn = read_csv(wd + 'tables/dynamic_metabolomics.tab', sep='\t', index_col=0)
+metabolomics_dyn = read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', index_col=0)
 metabolomics_dyn.index = Index([str(i) for i in metabolomics_dyn.index], dtype=str)
 
 # Import metabolites map
@@ -95,10 +115,30 @@ r_metabolites_dyn = r_metabolites_dyn.loc[:, r_metabolites_dyn.sum() > 1]
 r_metabolites_dyn = r_metabolites_dyn.loc[:, r_metabolites_dyn.sum() != 0]
 r_metabolites_dyn = r_metabolites_dyn[r_metabolites_dyn.sum(1) != 0]
 
-metabolites_dyn, conditions_dyn, reactions_dyn = list(r_metabolites_dyn.index), list(metabolomics_dyn.columns), list(r_metabolites_dyn.columns)
-
 # Calculate reaction activity
-r_activity_dyn = DataFrame({c: dict(zip(*(reactions_dyn, RidgeCV().fit(r_metabolites_dyn.ix[metabolites_dyn, reactions_dyn], metabolomics_dyn.ix[metabolites_dyn, c]).coef_))) for c in conditions_dyn})
+
+
+def calculate_activity(condition):
+    y = metabolomics_dyn.ix[metabolites_dyn, condition].dropna()
+    x = r_metabolites_dyn.ix[y.index]
+
+    x = x.loc[:, x.sum() != 0]
+
+    best_model = (np.Inf, 0.0)
+    for train, test in KFold(len(x), 3):
+        lm = RidgeCV().fit(x.ix[train], y.ix[train])
+        score = mean_squared_error(lm.predict(x.ix[test]), y.ix[test].values)
+
+        if score < best_model[0]:
+            best_model = (score, lm.alpha_, lm.coef_)
+
+    print '[INFO] %s, score: %.3f, alpha: %.2f' % (condition, best_model[0], best_model[1])
+
+    return dict(zip(*(x.columns, Ridge(alpha=best_model[0]).fit(x, y).coef_)))
+
+metabolites_dyn, conditions_dyn, reactions_dyn = list(r_metabolites_dyn.index), list(metabolomics_dyn.columns), list(r_metabolites_dyn.columns)
+r_activity_dyn = DataFrame({c: calculate_activity(c) for c in conditions_dyn})
+print '[INFO] Kinase activity calculated: ', r_activity_dyn.shape
 
 # Export reaction activities
 r_activity_file = '%s/tables/reaction_activity_dynamic.tab' % wd

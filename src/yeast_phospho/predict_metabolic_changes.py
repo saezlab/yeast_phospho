@@ -2,14 +2,14 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from yeast_phospho import wd
-from yeast_phospho.utils import pearson
+from yeast_phospho.utils import pearson, spearman
 from pandas import DataFrame, read_csv, Index
 from sklearn.cross_validation import LeaveOneOut
 from sklearn.linear_model import LinearRegression, Ridge
 
 
 m_signif = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0)
-m_signif = list(m_signif[(m_signif.abs() > 0.8).sum(1) > 0].index)
+m_signif = list(m_signif[(m_signif.abs() > .8).sum(1) > 0].index)
 
 # ---- Import
 # Steady-state
@@ -87,7 +87,8 @@ lm_res['type'] = lm_res['condition'] + '_' + lm_res['feature'] + '_' + lm_res['t
 # ---- Plot predictions correlations
 sns.set(style='ticks', palette='pastel', color_codes=True)
 x_order = list(lm_res[lm_res['growth'] == 'no growth'].groupby('type').median().sort('cor', ascending=False).index)
-sns.boxplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', palette={'no growth': 'b', 'with growth': 'y'})
+sns.boxplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', palette='Paired')
+sns.stripplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', size=3, jitter=True, palette='Paired')
 sns.despine(trim=True)
 plt.axvline(0.0, lw=.3, c='gray', alpha=0.3)
 plt.xlabel('pearson correlation')

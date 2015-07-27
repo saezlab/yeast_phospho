@@ -5,7 +5,7 @@ from yeast_phospho import wd
 from pandas import read_csv
 
 # Import id maps
-acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)
+acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)['gene'].to_dict()
 
 # ---- Metabolomics heatmaps
 metabolomics_growth = read_csv('%s/tables/metabolomics_steady_state_growth_rate.tab' % wd, sep='\t', index_col=0)
@@ -15,7 +15,7 @@ metabolites, strains = list(metabolomics.index), list(metabolomics.columns)
 metabolomics, metabolomics_growth = metabolomics.ix[metabolites, strains], metabolomics_growth.ix[metabolites, strains]
 
 plot_df = metabolomics.copy()
-plot_df.columns = [acc_name.loc[i, 'gene'].split(';')[0] for i in plot_df.columns]
+plot_df.columns = [acc_name[i].split(';')[0] for i in plot_df.columns]
 plot_df.columns.name, plot_df.index.name = 'perturbations', 'metabolites'
 sns.clustermap(plot_df, figsize=(25, 20), yticklabels=False, linewidths=0)
 plt.savefig(wd + 'reports/heatmap_metabolomics_steady_state.png', bbox_inches='tight')
