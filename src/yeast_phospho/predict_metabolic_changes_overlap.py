@@ -44,7 +44,7 @@ k_tf_activity_dyn = k_activity_dyn.append(tf_activity_dyn)
 
 
 # ---- Machine learning setup
-lm = Ridge()
+lm = Ridge(normalize=True)
 
 
 # ---- Perform predictions
