@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 from sklearn.cross_validation import LeaveOneOut
 from yeast_phospho import wd
 from yeast_phospho.utils import pearson
-from sklearn.linear_model import LinearRegression, Ridge, RidgeCV
-from pandas import DataFrame, read_csv, Index
+from sklearn.linear_model import Ridge
+from pandas import DataFrame, read_csv
 
 # ---- Import
 # Steady-state

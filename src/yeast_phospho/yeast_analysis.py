@@ -4,10 +4,11 @@ import numpy as np
 import seaborn as sns
 import networkx as nx
 import matplotlib.pyplot as plt
-from statsmodels.stats.multitest import multipletests
 from yeast_phospho import wd
+from statsmodels.stats.multitest import multipletests
+from scipy.spatial.distance import correlation
 from yeast_phospho.utils import pearson, metric, spearman
-from sklearn.metrics.pairwise import euclidean_distances, linear_kernel
+from sklearn.metrics.pairwise import euclidean_distances, linear_kernel, manhattan_distances, cosine_distances
 from sklearn.metrics import roc_curve, auc
 from pandas import DataFrame, read_csv
 from pandas.core.index import Index
@@ -147,8 +148,7 @@ for k_file, m_file, growth in datasets_files:
     info_table = [(m, k, pearson(r_activity.loc[m, strains], k_activity.loc[k, strains])) for m in r_activity.index for k in k_activity.index]
     info_table = DataFrame([(m, k, c, p, n) for m, k, (c, p, n) in info_table], columns=['reaction', 'kinase', 'cor', 'pvalue', 'n_meas']).dropna()
 
-    info_table = info_table[info_table['n_meas'] > 30]
-
+    info_table['abs_cor'] = [np.abs(i) for i in info_table['cor']]
     info_table['inv_abs_cor'] = [1 - np.abs(i) for i in info_table['cor']]
 
     info_table['log_pvalue'] = [-np.log10(i) for i in info_table['pvalue']]
@@ -165,6 +165,7 @@ for k_file, m_file, growth in datasets_files:
 
     # Other metrics
     info_table['euclidean'] = [metric(euclidean_distances, r_activity.ix[m, strains], k_activity.ix[k, strains])[0][0] for k, m in zip(info_table['kinase'], info_table['reaction'])]
+    info_table['manhattan'] = [metric(manhattan_distances, r_activity.ix[m, strains], k_activity.ix[k, strains])[0][0] for k, m in zip(info_table['kinase'], info_table['reaction'])]
 
     info_table['linear_kernel'] = [metric(linear_kernel, r_activity.ix[m, strains], k_activity.ix[k, strains])[0][0] for k, m in zip(info_table['kinase'], info_table['reaction'])]
     info_table['linear_kernel_abs'] = info_table['linear_kernel'].abs()
@@ -233,7 +234,7 @@ for k_file, m_file, growth in datasets_files:
 
     # ROC plot analysis
     ax = enrichemnt_plot[2]
-    for roc_metric in ['inv_abs_cor', 'euclidean', 'linear_kernel_abs']:
+    for roc_metric in ['inv_abs_cor', 'euclidean', 'linear_kernel_abs', 'manhattan']:
         curve_fpr, curve_tpr, _ = roc_curve(info_table['TP'], info_table[roc_metric])
         curve_auc = auc(curve_fpr, curve_tpr)
 
