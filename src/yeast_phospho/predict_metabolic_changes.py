@@ -5,10 +5,11 @@ from yeast_phospho import wd
 from yeast_phospho.utils import pearson, spearman
 from pandas import DataFrame, read_csv, Index
 from sklearn.cross_validation import LeaveOneOut
-from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.linear_model import LinearRegression, Ridge, Lasso
 
 
 m_signif = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0)
+m_signif = m_signif[m_signif.std(1) > .4]
 m_signif = list(m_signif[(m_signif.abs() > .8).sum(1) > 0].index)
 
 # ---- Import
@@ -28,7 +29,7 @@ t_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', in
 
 
 # ---- Machine learning setup
-lm = Ridge()
+lm = Lasso(alpha=.01)
 
 
 # ---- Perform predictions
@@ -59,7 +60,7 @@ for xs, ys, condition, feature, growth in steady_state:
     y_pred = DataFrame({samples[test]: dict(zip(*(y_features, lm.fit(x.ix[train], y.ix[train, y_features]).predict(x.ix[test])[0]))) for train, test in LeaveOneOut(len(samples))})
 
     lm_res.extend([(condition, feature, growth, f, 'features', pearson(ys.ix[f, samples], y_pred.ix[f, samples])[0]) for f in y_features])
-    lm_res.extend([(condition, feature, growth, f, 'samples', pearson(ys.ix[y_features, s], y_pred.ix[y_features, s])[0]) for s in samples])
+    lm_res.extend([(condition, feature, growth, s, 'samples', pearson(ys.ix[y_features, s], y_pred.ix[y_features, s])[0]) for s in samples])
 
     print '[INFO] %s, %s, %s' % (condition, feature, growth)
     print '[INFO] x_features: %d, y_features: %d, samples: %d' % (len(x_features), len(y_features), len(samples))
@@ -75,7 +76,7 @@ for (xs_train, ys_train), (xs_test, ys_test), condition, feature, growth in dyna
     y_pred = DataFrame(lm.fit(x_train, y_train).predict(x_test).T, index=y_features, columns=test_samples)
 
     lm_res.extend([(condition, feature, growth, f, 'features', pearson(ys_test.ix[f, test_samples], y_pred.ix[f, test_samples])[0]) for f in y_features])
-    lm_res.extend([(condition, feature, growth, f, 'samples', pearson(ys_test.ix[y_features, s], y_pred.ix[y_features, s])[0]) for s in test_samples])
+    lm_res.extend([(condition, feature, growth, s, 'samples', pearson(ys_test.ix[y_features, s], y_pred.ix[y_features, s])[0]) for s in test_samples])
 
     print '[INFO] %s, %s, %s' % (condition, feature, growth)
     print '[INFO] x_features: %d, y_features: %d, train_samples: %d, test_samples: %d' % (len(x_features), len(y_features), len(train_samples), len(test_samples))
