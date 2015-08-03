@@ -1,6 +1,12 @@
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+from pandas import DataFrame, Series, read_csv
+
+
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 from pandas.stats.misc import zscore
 from sklearn.grid_search import GridSearchCV
 from sklearn.metrics.regression import r2_score, mean_squared_error, mean_absolute_error
@@ -67,16 +73,6 @@ steady_state = [
     (k_tf_activity_dyn.copy(), metabolomics_dyn.copy(), 'LOO', 'overlap', 'dynamic')
 ]
 
-no_test = [
-    (k_activity.copy(), metabolomics.copy(), 'No Test', 'kinase', 'no growth'),
-    (tf_activity.copy(), metabolomics.copy(), 'No Test', 'tf', 'no growth'),
-    (k_tf_activity.copy(), metabolomics.copy(), 'No Test', 'overlap', 'no growth'),
-
-    (k_activity_g.copy(), metabolomics_g.copy(), 'No Test', 'kinase', 'with growth'),
-    (tf_activity_g.copy(), metabolomics_g.copy(), 'No Test', 'tf', 'with growth'),
-    (k_tf_activity_g.copy(), metabolomics_g.copy(), 'No Test', 'overlap', 'with growth'),
-]
-
 # Dynamic comparisons
 dynamic = [
     ((k_activity.copy(), metabolomics.copy()), (k_activity_dyn.copy(), metabolomics_dyn.copy()), 'dynamic', 'kinase', 'no growth'),
@@ -88,67 +84,18 @@ dynamic = [
     ((k_tf_activity_g.copy(), metabolomics_g.copy()), (k_tf_activity_dyn.copy(), metabolomics_dyn.copy()), 'dynamic', 'overlap', 'with growth')
 ]
 
-lm, lm_res = Lasso(alpha=.01), []
+m = 604.07
 
+lm = Lasso(alpha=.01).fit(tf_activity[strains].T, metabolomics.ix[m, strains].T)
+features = Series(lm.coef_, index=tf_activity.index).abs().sort(inplace=False)
 
-for xs, ys, condition, feature, growth in steady_state:
-    x_features, y_features, samples = list(xs.index), list(ys.index), list(set(xs.columns).intersection(ys.columns))
-
-    x, y = xs.ix[x_features, samples].replace(np.NaN, 0.0).T, ys.ix[y_features, samples].T
-
-    cv = LeaveOneOut(len(samples))
-    y_pred = DataFrame({samples[test]: {y_feature: lm.fit(x.ix[train], y.ix[train, y_feature]).predict(x.ix[test])[0] for y_feature in y_features} for train, test in cv})
-
-    lm_res.extend([(condition, feature, growth, f, 'features', pearson(ys.ix[f, samples], y_pred.ix[f, samples])[0]) for f in y_features])
-    lm_res.extend([(condition, feature, growth, s, 'samples', pearson(ys.ix[y_features, s], y_pred.ix[y_features, s])[0]) for s in samples])
-
-    print '[INFO] %s, %s, %s' % (condition, feature, growth)
-    print '[INFO] x_features: %d, y_features: %d, samples: %d' % (len(x_features), len(y_features), len(samples))
-
-
-for xs, ys, condition, feature, growth in no_test:
-    x_features, y_features, samples = list(xs.index), list(ys.index), list(set(xs.columns).intersection(ys.columns))
-
-    x, y = xs.ix[x_features, samples].replace(np.NaN, 0.0).T, ys.ix[y_features, samples].T
-
-    y_pred = DataFrame({y_feature: lm.fit(x, y[y_feature]).predict(x) for y_feature in y_features}, index=samples).T
-
-    lm_res.extend([(condition, feature, growth, f, 'features', pearson(ys.ix[f, samples], y_pred.ix[f, samples])[0]) for f in y_features])
-    lm_res.extend([(condition, feature, growth, s, 'samples', pearson(ys.ix[y_features, s], y_pred.ix[y_features, s])[0]) for s in samples])
-
-    print '[INFO] %s, %s, %s' % (condition, feature, growth)
-    print '[INFO] x_features: %d, y_features: %d, samples: %d' % (len(x_features), len(y_features), len(samples))
-
-
-for (xs_train, ys_train), (xs_test, ys_test), condition, feature, growth in dynamic:
-    x_features, y_features = list(set(xs_train.index).intersection(xs_test.index)), list(set(ys_train.index).intersection(ys_test.index))
-    train_samples, test_samples = list(set(xs_train.columns).intersection(ys_train.columns)), list(set(xs_test.columns).intersection(ys_test.columns))
-
-    x_train, y_train = xs_train.ix[x_features, train_samples].replace(np.NaN, 0.0).T, ys_train.ix[y_features, train_samples].T
-    x_test, y_test = xs_test.ix[x_features, test_samples].replace(np.NaN, 0.0).T, ys_test.ix[y_features, test_samples].T
-
-    y_pred = DataFrame({y_feature: dict(zip(*(test_samples, lm.fit(x_train, y_train[y_feature]).predict(x_test)))) for y_feature in y_features}).T
-
-    lm_res.extend([(condition, feature, growth, f, 'features', pearson(ys_test.ix[f, test_samples], y_pred.ix[f, test_samples])[0]) for f in y_features])
-    lm_res.extend([(condition, feature, growth, s, 'samples', pearson(ys_test.ix[y_features, s], y_pred.ix[y_features, s])[0]) for s in test_samples])
-
-    print '[INFO] %s, %s, %s' % (condition, feature, growth)
-    print '[INFO] x_features: %d, y_features: %d, train_samples: %d, test_samples: %d' % (len(x_features), len(y_features), len(train_samples), len(test_samples))
-
-lm_res = DataFrame(lm_res, columns=['condition', 'feature', 'growth', 'name', 'type_cor', 'cor'])
-lm_res['type'] = lm_res['condition'] + '_' + lm_res['feature'] + '_' + lm_res['type_cor']
-
-
-# ---- Plot predictions correlations
 sns.set(style='ticks', palette='pastel', color_codes=True)
-x_order = list(lm_res[lm_res['growth'] == 'no growth'].groupby('type').median().sort('cor', ascending=False).index)
-sns.boxplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', palette='Paired')
-sns.stripplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', size=3, jitter=True, palette='Paired')
-# sns.violinplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', palette='Paired', split=True, inner='quart')
-sns.despine(trim=True)
-plt.axvline(0.0, lw=.3, c='gray', alpha=0.3)
-plt.xlabel('pearson correlation')
-plt.ylabel('comparisons')
-plt.title('Predict metabolic fold-changes')
-plt.savefig(wd + 'reports/lm_boxplot_correlations_metabolites_overlap.pdf', bbox_inches='tight')
+
+plot_df = [(x, y, k, m, 'dynamic') for k in features.tail(3).index for x, y in zip(metabolomics_dyn.ix[m, conditions], tf_activity_dyn.ix[k, conditions])]
+plot_df.extend([(x, y, k, m, 'steady-state') for k in features.tail(3).index for x, y in zip(metabolomics.ix[m, strains], tf_activity.ix[k, strains])])
+plot_df = DataFrame(plot_df, columns=['x', 'y', 'kinase', 'metabolite', 'data-set'])
+
+g = sns.lmplot(x='x', y='y', data=plot_df, col='kinase', row='data-set', sharex=False, sharey=False)
+g.set_axis_labels('fold-change (ion %.2f)' % m, 'kinase activity')
+plt.savefig(wd + 'reports/lm_test_case.pdf', bbox_inches='tight')
 plt.close('all')
