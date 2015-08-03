@@ -28,7 +28,7 @@ k_activity_g = read_csv('%s/tables/kinase_activity_steady_state_with_growth.tab'
 tf_activity_g = read_csv('%s/tables/tf_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).dropna()
 
 # Dynamic
-metabolomics_dyn = read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', index_col=0)
+metabolomics_dyn = read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', index_col=0).ix[m_signif].dropna()
 k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0).dropna()
 tf_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0).dropna()
 
@@ -58,7 +58,11 @@ steady_state = [
 
     (k_activity_g.copy(), metabolomics_g.copy(), 'steady-state', 'kinase', 'with growth'),
     (tf_activity_g.copy(), metabolomics_g.copy(), 'steady-state', 'tf', 'with growth'),
-    (k_tf_activity_g.copy(), metabolomics_g.copy(), 'steady-state', 'overlap', 'with growth')
+    (k_tf_activity_g.copy(), metabolomics_g.copy(), 'steady-state', 'overlap', 'with growth'),
+
+    (k_activity_dyn.copy(), metabolomics_dyn.copy(), 'steady-state', 'kinase', 'dynamic'),
+    (tf_activity_dyn.copy(), metabolomics_dyn.copy(), 'steady-state', 'tf', 'dynamic'),
+    (k_tf_activity_dyn.copy(), metabolomics_dyn.copy(), 'steady-state', 'overlap', 'dynamic')
 ]
 
 # Dynamic comparisons
@@ -120,5 +124,5 @@ plt.axvline(0.0, lw=.3, c='gray', alpha=0.3)
 plt.xlabel('pearson correlation')
 plt.ylabel('comparisons')
 plt.title('Predict metabolic fold-changes')
-plt.savefig(wd + 'reports/lm_boxplot_correlations_metabolites_overlap_violin.pdf', bbox_inches='tight')
+plt.savefig(wd + 'reports/lm_boxplot_correlations_metabolites_overlap.pdf', bbox_inches='tight')
 plt.close('all')

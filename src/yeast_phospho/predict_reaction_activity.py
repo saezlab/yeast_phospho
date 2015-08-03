@@ -7,6 +7,7 @@ from yeast_phospho.utils import pearson
 from sklearn.linear_model import Ridge
 from pandas import DataFrame, read_csv
 
+
 # ---- Import
 # Steady-state
 r_activity = read_csv('%s/tables/reaction_activity_steady_state.tab' % wd, sep='\t', index_col=0)
@@ -31,6 +32,10 @@ lm = Ridge()
 steady_state = [
     (k_activity, r_activity, 'steady-state', 'kinase', 'no growth'),
     (tf_activity, r_activity, 'steady-state', 'tf', 'no growth'),
+
+    (k_activity_g, r_activity_g, 'steady-state', 'kinase', 'with growth'),
+    (tf_activity_g, r_activity_g, 'steady-state', 'tf', 'with growth'),
+
     (k_activity_g, r_activity_g, 'steady-state', 'kinase', 'with growth'),
     (tf_activity_g, r_activity_g, 'steady-state', 'tf', 'with growth')
 ]

@@ -15,7 +15,9 @@ from pandas.core.index import Index
 from scipy.stats.distributions import hypergeom
 from pymist.reader.sbml_reader import read_sbml_model
 
+
 sns.set(style='ticks', palette='pastel', color_codes=True)
+
 
 # Import id maps
 acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)
@@ -30,7 +32,7 @@ m_map = m_map.groupby('mz')['name'].apply(lambda i: '; '.join(i)).to_dict()
 # ---- Calculate metabolite distances
 # Import metabolic model mapping
 model_met_map = read_csv(wd + 'files/metabolite_mz_map_dobson.txt', sep='\t', index_col='id')
-model_met_map['mz'] = ['%.2f' % i for i in model_met_map['mz']]
+model_met_map['mz'] = [float('%.2f' % i) for i in model_met_map['mz']]
 model_met_map = model_met_map.drop_duplicates('mz')['mz'].to_dict()
 
 # Import metabolic model
@@ -112,24 +114,23 @@ for bkg_type in ['string', 'phosphogrid']:
     db = {(s, r) for s, t in db for r in gene_reactions[t] if r in s_matrix.columns}
     print '[INFO] %s, only enzymatic reactions: %d' % (bkg_type, len(db))
 
-    # db = {(s, m) for s, r in db if r in s_matrix.columns for m in set((s_matrix[s_matrix[r] != 0]).index)}
-    # print '[INFO] %s, only enzymatic reactions metabolites: %d' % (bkg_type, len(db))
-    #
-    # db = {(s, model_met_map[m]) for s, m in db if m in model_met_map}
-    # print '[INFO] %s, only measured enzymatic reactions metabolites: %d' % (bkg_type, len(db))
+    db = {(s, m) for s, r in db if r in s_matrix.columns for m in set((s_matrix[s_matrix[r] != 0]).index)}
+    print '[INFO] %s, only enzymatic reactions metabolites: %d' % (bkg_type, len(db))
+
+    db = {(s, model_met_map[m]) for s, m in db if m in model_met_map}
+    print '[INFO] %s, only measured enzymatic reactions metabolites: %d' % (bkg_type, len(db))
 
     dbs[bkg_type] = db
 
 db = dbs['string'].union(dbs['phosphogrid'])
-
 print '[INFO] Kinase/Enzymes interactions data-bases imported'
 
 
 # ---- Import data-sets
 datasets_files = [
-    ('%s/tables/kinase_activity_steady_state.tab' % wd, '%s/tables/reaction_activity_steady_state.tab' % wd, 'no_growth'),
-    ('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, '%s/tables/reaction_activity_steady_state_with_growth.tab' % wd, 'with_growth'),
-    ('%s/tables/kinase_activity_dynamic.tab' % wd, '%s/tables/reaction_activity_dynamic.tab' % wd, 'dynamic')
+    ('%s/tables/kinase_activity_steady_state.tab' % wd, '%s/tables/metabolomics_steady_state.tab' % wd, 'no_growth'),
+    ('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, '%s/tables/metabolomics_steady_state_growth_rate.tab' % wd, 'with_growth'),
+    ('%s/tables/kinase_activity_dynamic.tab' % wd, '%s/tables/metabolomics_dynamic.tab' % wd, 'dynamic')
 ]
 
 for k_file, m_file, growth in datasets_files:
@@ -138,6 +139,8 @@ for k_file, m_file, growth in datasets_files:
 
     # Import metabolomics
     r_activity = read_csv(m_file, sep='\t', index_col=0)
+    r_activity = r_activity[r_activity.std(1) > .4]
+    r_activity = r_activity[(r_activity.abs() > .8).sum(1) > 0]
 
     # Overlapping kinases/phosphatases knockout
     strains = list(set(k_activity.columns).intersection(set(r_activity.columns)))
@@ -244,9 +247,9 @@ for k_file, m_file, growth in datasets_files:
     ax.set_ylabel('True Positive Rate')
     ax.legend(loc='lower right')
 
-    plt.savefig('%s/reports/kinase_enzyme_enrichment_%s.pdf' % (wd, growth), bbox_inches='tight')
+    plt.savefig('%s/reports/kinase_enzyme_enrichment_metabolomics_%s.pdf' % (wd, growth), bbox_inches='tight')
     plt.close('all')
-    print '[INFO] Plotting done: %s/reports/kinase_enzyme_enrichment_%s.pdf' % (wd, growth)
+    print '[INFO] Plotting done: %s/reports/kinase_enzyme_enrichment_metabolomics_%s.pdf' % (wd, growth)
 
 # ---- Correlate metabolites with distances
 

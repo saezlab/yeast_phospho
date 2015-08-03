@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from yeast_phospho import wd
 from yeast_phospho.utils import pearson, spearman
 from pandas import DataFrame, read_csv, Index
-from sklearn.cross_validation import LeaveOneOut
+from sklearn.cross_validation import LeaveOneOut, ShuffleSplit
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
 
 
