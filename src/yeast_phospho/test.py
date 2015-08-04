@@ -141,3 +141,4 @@ plt.savefig(wd + 'reports/test_case/lm_test_case_betas_scatter.pdf', bbox_inches
 plt.close('all')
 print 'Done'
 
+

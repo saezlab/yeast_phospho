@@ -1,50 +1,61 @@
+from __future__ import division
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from yeast_phospho import wd
-from yeast_phospho.utils import pearson, spearman
-from pandas import DataFrame, read_csv, Index
+from yeast_phospho.utils import pearson
+from pandas import DataFrame, read_csv
 from sklearn.cross_validation import LeaveOneOut, ShuffleSplit
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
 
 
+# ---- Define filters
 m_signif = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0)
 m_signif = m_signif[m_signif.std(1) > .4]
 m_signif = list(m_signif[(m_signif.abs() > .8).sum(1) > 0].index)
 
+k_signif = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
+k_signif = list(k_signif[(k_signif.count(1) / k_signif.shape[1]) > .75].index)
+
+
 # ---- Import
 # Steady-state
 metabolomics = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0).ix[m_signif]
-k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0).dropna()
+k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0).ix[k_signif].replace(np.NaN, 0.0)
 tf_activity = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0).dropna()
 
 metabolomics_g = read_csv('%s/tables/metabolomics_steady_state_growth_rate.tab' % wd, sep='\t', index_col=0).ix[m_signif]
-k_activity_g = read_csv('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).dropna()
+k_activity_g = read_csv('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).ix[k_signif].replace(np.NaN, 0.0)
 tf_activity_g = read_csv('%s/tables/tf_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).dropna()
 
 # Dynamic
 metabolomics_dyn = read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', index_col=0)
-k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0).dropna()
+k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0).ix[k_signif].dropna(how='all').replace(np.NaN, 0.0)
 t_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0).dropna()
 
 
 # ---- Machine learning setup
-lm = Lasso(alpha=.01)
+lm = Lasso(alpha=.01, max_iter=2000)
 
 
 # ---- Perform predictions
 # Steady-state comparisons
 steady_state = [
-    (k_activity, metabolomics, 'steady-state', 'kinase', 'no growth'),
-    (tf_activity, metabolomics, 'steady-state', 'tf', 'no growth'),
-    (k_activity_g, metabolomics_g, 'steady-state', 'kinase', 'with growth'),
-    (tf_activity_g, metabolomics_g, 'steady-state', 'tf', 'with growth')
+    (k_activity, metabolomics, 'LOO', 'kinase', 'no growth'),
+    (tf_activity, metabolomics, 'LOO', 'tf', 'no growth'),
+
+    (k_activity_g, metabolomics_g, 'LOO', 'kinase', 'with growth'),
+    (tf_activity_g, metabolomics_g, 'LOO', 'tf', 'with growth'),
+
+    (k_activity_dyn.copy(), metabolomics_dyn.copy(), 'LOO', 'kinase', 'dynamic'),
+    (t_activity_dyn.copy(), metabolomics_dyn.copy(), 'LOO', 'tf', 'dynamic')
 ]
 
 # Dynamic comparisons
 dynamic = [
     ((k_activity, metabolomics), (k_activity_dyn, metabolomics_dyn), 'dynamic', 'kinase', 'no growth'),
     ((tf_activity, metabolomics), (t_activity_dyn, metabolomics_dyn), 'dynamic', 'tf', 'no growth'),
+
     ((k_activity_g, metabolomics_g), (k_activity_dyn, metabolomics_dyn), 'dynamic', 'kinase', 'with growth'),
     ((tf_activity_g, metabolomics_g), (t_activity_dyn, metabolomics_dyn), 'dynamic', 'tf', 'with growth'),
 ]
@@ -88,8 +99,7 @@ lm_res['type'] = lm_res['condition'] + '_' + lm_res['feature'] + '_' + lm_res['t
 # ---- Plot predictions correlations
 sns.set(style='ticks', palette='pastel', color_codes=True)
 x_order = list(lm_res[lm_res['growth'] == 'no growth'].groupby('type').median().sort('cor', ascending=False).index)
-sns.boxplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', palette='Paired')
-sns.stripplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', size=3, jitter=True, palette='Paired')
+sns.factorplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', kind='box', palette='Paired', legend_out=True, size=3.5, aspect=2)
 sns.despine(trim=True)
 plt.axvline(0.0, lw=.3, c='gray', alpha=0.3)
 plt.xlabel('pearson correlation')
