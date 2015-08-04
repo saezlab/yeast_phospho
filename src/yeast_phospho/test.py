@@ -1,12 +1,6 @@
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-from pandas import DataFrame, Series, read_csv
-
-
-import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
 from pandas.stats.misc import zscore
 from sklearn.grid_search import GridSearchCV
 from sklearn.metrics.regression import r2_score, mean_squared_error, mean_absolute_error
@@ -86,7 +80,8 @@ dynamic = [
 
 m = 604.07
 
-lm = Lasso(alpha=.01).fit(tf_activity[strains].T, metabolomics.ix[m, strains].T)
+x, y = tf_activity[strains].T, metabolomics.ix[m, strains].T
+lm = Lasso(alpha=.01).fit(x, y)
 features = Series(lm.coef_, index=tf_activity.index).abs().sort(inplace=False)
 
 sns.set(style='ticks', palette='pastel', color_codes=True)
@@ -97,5 +92,52 @@ plot_df = DataFrame(plot_df, columns=['x', 'y', 'kinase', 'metabolite', 'data-se
 
 g = sns.lmplot(x='x', y='y', data=plot_df, col='kinase', row='data-set', sharex=False, sharey=False)
 g.set_axis_labels('fold-change (ion %.2f)' % m, 'kinase activity')
-plt.savefig(wd + 'reports/lm_test_case.pdf', bbox_inches='tight')
+plt.savefig(wd + 'reports/test_case/lm_test_case.pdf', bbox_inches='tight')
 plt.close('all')
+
+
+m = 604.07
+x, y = tf_activity.loc[tfs, strains].T, metabolomics.ix[m, strains].T
+tf_betas = DataFrame({strains[test]: dict(zip(*(tfs, Lasso(alpha=.01).fit(x.ix[train], y.ix[train]).coef_))) for train, test in LeaveOneOut(len(x))})
+tf_betas = tf_betas.ix[tf_betas.std(1).sort(inplace=False, ascending=False).index]
+
+f, ax = plt.subplots(figsize=(20, 6))
+g = sns.boxplot(tf_betas.T, ax=ax)
+g.set_xticklabels(tf_betas.index, rotation=70)
+sns.despine(trim=True, ax=ax)
+ax.set_ylabel('TF beta')
+plt.savefig(wd + 'reports/test_case/lm_test_case_betas_boxplot.pdf', bbox_inches='tight')
+plt.close('all')
+
+
+x, y = tf_activity.loc[tfs, strains].T, metabolomics[strains].T
+res = [(t, p, s, strains[test], m) for train, test in LeaveOneOut(len(x)) for m in metabolites for s, t, p in zip(strains, y.ix[strains], Lasso(alpha=.01).fit(x.ix[train], y.ix[train, m]).predict(x.ix[strains]))]
+res = DataFrame(res, columns=['y_true', 'y_pred', 'strain', 'strain_loo', 'met'])
+res['type'] = ['predicted' if s1 == s2 else 'trained' for s1, s2 in res[['strain', 'strain_loo']].values]
+
+sns.set(style='ticks', palette='pastel', color_codes=True)
+sns.lmplot(x='y_true', y='y_pred', data=res, col='type', row='met', hue='type', palette='Set1', ci=None, sharey=False, sharex=True, scatter_kws={'s': 80, 'alpha': 1})
+plt.savefig(wd + 'reports/test_case/lm_test_case_betas_scatter.pdf', bbox_inches='tight')
+plt.close('all')
+print 'Done'
+
+
+x, y = tf_activity.loc[tfs, strains].T, metabolomics[strains].T
+
+lm, cv = Lasso(alpha=.01), LeaveOneOut(len(x))
+
+res_predicted = [(y.ix[test, m].values[0], lm.fit(x.ix[train], y.ix[train, m]).predict(x.ix[test])[0], strains[test], m, 'predicted') for train, test in cv for m in metabolites]
+res_trained = [(y.ix[test, m].values[0], lm.fit(x, y[m]).predict(x.ix[test])[0], strains[test], m, 'trained') for train, test in cv for m in metabolites]
+res_all = [(t, p, s, m, 'all') for train, test in cv for m in metabolites for t, p, s in zip(*(y[m], lm.fit(x.ix[train], y.ix[train, m]).predict(x), strains))]
+
+res_predicted.extend(res_trained)
+res_predicted.extend(res_all)
+
+res = DataFrame(res_predicted, columns=['y_true', 'y_pred', 'strain', 'met', 'type'])
+
+sns.set(style='ticks', palette='pastel', color_codes=True)
+g = sns.lmplot(x='y_true', y='y_pred', data=res, col='type', row='met', hue='type', palette='Set1', ci=None, sharey=False, sharex=False, scatter_kws={'s': 80, 'alpha': 1})
+plt.savefig(wd + 'reports/test_case/lm_test_case_betas_scatter.pdf', bbox_inches='tight')
+plt.close('all')
+print 'Done'
+

@@ -88,7 +88,7 @@ dynamic = [
     ((k_tf_activity_g.copy(), metabolomics_g.copy()), (k_tf_activity_dyn.copy(), metabolomics_dyn.copy()), 'dynamic', 'overlap', 'with growth')
 ]
 
-lm, lm_res = Lasso(alpha=.01), []
+lm, lm_res = Lasso(alpha=0.01), []
 
 
 for xs, ys, condition, feature, growth in steady_state:
@@ -143,7 +143,7 @@ lm_res['type'] = lm_res['condition'] + '_' + lm_res['feature'] + '_' + lm_res['t
 sns.set(style='ticks', palette='pastel', color_codes=True)
 x_order = list(lm_res[lm_res['growth'] == 'no growth'].groupby('type').median().sort('cor', ascending=False).index)
 sns.boxplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', palette='Paired')
-sns.stripplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', size=3, jitter=True, palette='Paired')
+# sns.stripplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', size=3, jitter=True, palette='Paired')
 # sns.violinplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', palette='Paired', split=True, inner='quart')
 sns.despine(trim=True)
 plt.axvline(0.0, lw=.3, c='gray', alpha=0.3)
