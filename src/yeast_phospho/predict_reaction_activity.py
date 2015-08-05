@@ -4,40 +4,45 @@ import matplotlib.pyplot as plt
 from sklearn.cross_validation import LeaveOneOut
 from yeast_phospho import wd
 from yeast_phospho.utils import pearson
-from sklearn.linear_model import Ridge
+from sklearn.linear_model import Ridge, Lasso
 from pandas import DataFrame, read_csv
+
+
+# ---- Define filters
+k_signif = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
+k_signif = list(k_signif[(k_signif.count(1) / k_signif.shape[1]) > .75].index)
 
 
 # ---- Import
 # Steady-state
 r_activity = read_csv('%s/tables/reaction_activity_steady_state.tab' % wd, sep='\t', index_col=0)
-k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0).dropna()
+k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0).ix[k_signif].replace(np.NaN, 0.0)
 tf_activity = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0).dropna()
 
 r_activity_g = read_csv('%s/tables/reaction_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0)
-k_activity_g = read_csv('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).dropna()
+k_activity_g = read_csv('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).ix[k_signif].replace(np.NaN, 0.0)
 tf_activity_g = read_csv('%s/tables/tf_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).dropna()
 
 # Dynamic
 r_activity_dyn = read_csv('%s/tables/reaction_activity_dynamic.tab' % wd, sep='\t', index_col=0)
-k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0).dropna()
+k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0).ix[k_signif].dropna(how='all').replace(np.NaN, 0.0)
 t_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0).dropna()
 
 
 # ---- Machine learning setup
-lm = Ridge()
+lm = Lasso(alpha=.01)
 
 # ---- Perform predictions
 # Steady-state comparisons
 steady_state = [
-    (k_activity, r_activity, 'steady-state', 'kinase', 'no growth'),
-    (tf_activity, r_activity, 'steady-state', 'tf', 'no growth'),
+    (k_activity, r_activity, 'LOO', 'kinase', 'no growth'),
+    (tf_activity, r_activity, 'LOO', 'tf', 'no growth'),
 
-    (k_activity_g, r_activity_g, 'steady-state', 'kinase', 'with growth'),
-    (tf_activity_g, r_activity_g, 'steady-state', 'tf', 'with growth'),
+    (k_activity_g, r_activity_g, 'LOO', 'kinase', 'with growth'),
+    (tf_activity_g, r_activity_g, 'LOO', 'tf', 'with growth'),
 
-    (k_activity_g, r_activity_g, 'steady-state', 'kinase', 'with growth'),
-    (tf_activity_g, r_activity_g, 'steady-state', 'tf', 'with growth')
+    (k_activity_g, r_activity_g, 'LOO', 'kinase', 'with growth'),
+    (tf_activity_g, r_activity_g, 'LOO', 'tf', 'with growth')
 ]
 
 # Dynamic comparisons
@@ -87,8 +92,7 @@ lm_res['type'] = lm_res['condition'] + '_' + lm_res['feature'] + '_' + lm_res['t
 # ---- Plot predictions correlations
 sns.set(style='ticks', palette='pastel', color_codes=True)
 x_order = list(lm_res[lm_res['growth'] == 'no growth'].groupby('type').median().sort('cor', ascending=False).index)
-sns.boxplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', palette='Paired')
-sns.stripplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', size=3, jitter=True, palette='Paired')
+sns.factorplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', kind='box', palette='Paired', legend_out=True, size=3.5, aspect=2)
 sns.despine(trim=True)
 plt.axvline(0.0, lw=.3, c='gray', alpha=0.3)
 plt.xlabel('pearson correlation')

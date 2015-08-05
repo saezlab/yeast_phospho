@@ -43,13 +43,12 @@ s_matrix = s_matrix.loc[:, s_matrix.sum() != 0]
 s_matrix = s_matrix[s_matrix.sum(1) != 0]
 
 # ---- Calculate steady-state reaction activity
-metabolomics = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0)
-metabolomics.index = Index(metabolomics.index, dtype=str)
+for xs_f, f in [('%s/tables/metabolomics_steady_state.tab' % wd, '%s/tables/reaction_activity_steady_state.tab' % wd), ('%s/tables/metabolomics_steady_state_growth_rate.tab' % wd, '%s/tables/reaction_activity_steady_state_with_growth.tab' % wd)]:
+    # Import metabolites fold-changes
+    xs = read_csv(xs_f, sep='\t', index_col=0)
+    xs.index = Index(xs.index, dtype=str)
+    xs = xs[(xs.abs() > .8).sum(1) > 1]
 
-metabolomics_growth = read_csv('%s/tables/metabolomics_steady_state_growth_rate.tab' % wd, sep='\t', index_col=0)
-metabolomics_growth.index = Index(metabolomics_growth.index, dtype=str)
-
-for xs, f in [(metabolomics.copy(), '%s/tables/reaction_activity_steady_state.tab' % wd), (metabolomics_growth.copy(), '%s/tables/reaction_activity_steady_state_with_growth.tab' % wd)]:
     # Import metabolites annotation
     model_met_map = read_csv(wd + 'files/metabolite_mz_map_dobson.txt', sep='\t', index_col='id')
     model_met_map['mz'] = ['%.2f' % i for i in model_met_map['mz']]
