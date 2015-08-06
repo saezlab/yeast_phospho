@@ -140,7 +140,7 @@ lm_betas['type2'] = lm_betas['condition'] + '_' + lm_betas['growth'] + '_' + lm_
 # ---- Plot predictions correlations
 sns.set(style='ticks', palette='pastel', color_codes=True)
 x_order = list(lm_res[lm_res['growth'] == 'no growth'].groupby('type').median().sort('cor', ascending=False).index)
-sns.factorplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', kind='box', palette='Paired', legend_out=True, size=4.5, aspect=2)
+sns.factorplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', kind='box', palette='Paired', legend_out=True, size=7, aspect=1.5)
 sns.despine(trim=True)
 plt.axvline(0.0, lw=.3, c='gray', alpha=0.3)
 plt.xlabel('pearson correlation')
@@ -174,6 +174,8 @@ for condition in conditions:
 
     plot_df.index = ['%s (cor: %.2f)' % (m_map[i], ions_cor.ix[i]) for i in plot_df.index]
     plot_df.columns = [acc_name[i] for i in plot_df.columns]
+
+    plot_df.to_csv('%s/tables/lm_feature_selection_%s.txt' % (wd, condition), sep='\t')
 
     sns.set(style='ticks', palette='pastel', color_codes=True)
     sns.clustermap(plot_df, row_cluster=True, annot=True, fmt='.1f', figsize=(25, int(len(plot_df) * .45)), annot_kws={'size': 8})

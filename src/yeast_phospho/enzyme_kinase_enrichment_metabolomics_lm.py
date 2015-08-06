@@ -66,7 +66,7 @@ for bkg_type in ['string', 'phosphogrid']:
 
     elif bkg_type == 'string':
         db = read_csv(wd + 'files/4932.protein.links.v9.1.txt', sep=' ')
-        db_threshold = db['combined_score'].max() * 0.6
+        db_threshold = db['combined_score'].max() * 0.5
         db = db[db['combined_score'] > db_threshold]
         db = {(source.split('.')[1], target.split('.')[1]) for source, target in zip(db['protein1'], db['protein2'])}
 
@@ -90,6 +90,15 @@ for bkg_type in ['string', 'phosphogrid']:
 db = dbs['string'].union(dbs['phosphogrid'])
 print '[INFO] Kinase/Enzymes interactions data-bases imported'
 
+# ---- Import metabolites map
+m_map = read_csv('%s/files/metabolite_mz_map_kegg.txt' % wd, sep='\t')
+m_map['mz'] = [float('%.2f' % i) for i in m_map['mz']]
+m_map = m_map.drop_duplicates('mz').drop_duplicates('formula')
+m_map = m_map.groupby('mz')['name'].apply(lambda i: '; '.join(i)).to_dict()
+
+# ---- Import YORF names
+acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)['gene'].to_dict()
+acc_name = {k: acc_name[k].split(';')[0] for k in acc_name}
 
 # ---- Import data-sets
 datasets_files = [
@@ -123,6 +132,9 @@ for k_file, m_file, growth in datasets_files:
 
     info_table['kinase_count'] = [k_activity.ix[k].count() for k in info_table['kinase']]
 
+    info_table['metabolite_name'] = [m_map[m] if m in m_map else str(m) for m in info_table['metabolite']]
+    info_table['kinase_name'] = [acc_name[k] if k in acc_name else str(k) for k in info_table['kinase']]
+
     # Kinase/Enzyme interactions via metabolite correlations
     info_table['TP'] = [int(i in db) for i in zip(info_table['kinase'], info_table['metabolite'])]
 
@@ -131,6 +143,8 @@ for k_file, m_file, growth in datasets_files:
     info_table['manhattan'] = [metric(manhattan_distances, metabolomics.ix[m, strains], k_activity.ix[k, strains])[0][0] for k, m in zip(info_table['kinase'], info_table['metabolite'])]
 
     info_table = info_table.dropna()
+
+    info_table.to_csv('%s/tables/kinase_enzyme_enrichment_metabolomics_lm_%s.txt' % (wd, growth), sep='\t')
     print '[INFO] Correaltion between metabolites and kinases done'
 
     # ---- Kinase/Enzyme enrichment
