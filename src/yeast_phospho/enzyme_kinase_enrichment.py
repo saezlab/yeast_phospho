@@ -2,15 +2,13 @@ import re
 import copy
 import numpy as np
 import seaborn as sns
-import networkx as nx
 import matplotlib.pyplot as plt
 from yeast_phospho import wd
 from statsmodels.stats.multitest import multipletests
-from scipy.spatial.distance import correlation
-from yeast_phospho.utils import pearson, metric, spearman
-from sklearn.metrics.pairwise import euclidean_distances, linear_kernel, manhattan_distances, cosine_distances
+from yeast_phospho.utils import pearson, metric
+from sklearn.metrics.pairwise import euclidean_distances, manhattan_distances
 from sklearn.metrics import roc_curve, auc
-from pandas import DataFrame, read_csv
+from pandas import DataFrame, read_csv, pivot_table
 from pandas.core.index import Index
 from scipy.stats.distributions import hypergeom
 from pymist.reader.sbml_reader import read_sbml_model
@@ -112,32 +110,31 @@ for bkg_type in ['string', 'phosphogrid']:
     db = {(s, r) for s, t in db for r in gene_reactions[t] if r in s_matrix.columns}
     print '[INFO] %s, only enzymatic reactions: %d' % (bkg_type, len(db))
 
-    # db = {(s, m) for s, r in db if r in s_matrix.columns for m in set((s_matrix[s_matrix[r] != 0]).index)}
-    # print '[INFO] %s, only enzymatic reactions metabolites: %d' % (bkg_type, len(db))
-    #
-    # db = {(s, model_met_map[m]) for s, m in db if m in model_met_map}
-    # print '[INFO] %s, only measured enzymatic reactions metabolites: %d' % (bkg_type, len(db))
-
     dbs[bkg_type] = db
 
 db = dbs['string'].union(dbs['phosphogrid'])
-
 print '[INFO] Kinase/Enzymes interactions data-bases imported'
 
+# ---- Protein - Metabolite connectivity map
+cmap = DataFrame(list(db), columns=['kinase', 'metabolite'])
+cmap['value'] = 1
+cmap = pivot_table(cmap, values='value', index='kinase', columns='metabolite', fill_value=0)
 
 # ---- Import data-sets
 datasets_files = [
     ('%s/tables/kinase_activity_steady_state.tab' % wd, '%s/tables/reaction_activity_steady_state.tab' % wd, 'no_growth'),
-    ('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, '%s/tables/reaction_activity_steady_state_with_growth.tab' % wd, 'with_growth'),
+    # ('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, '%s/tables/reaction_activity_steady_state_with_growth.tab' % wd, 'with_growth'),
     ('%s/tables/kinase_activity_dynamic.tab' % wd, '%s/tables/reaction_activity_dynamic.tab' % wd, 'dynamic')
 ]
 
 for k_file, m_file, growth in datasets_files:
     # Import kinase activity
-    k_activity = read_csv(k_file, sep='\t', index_col=0)
+    k_activity = read_csv(k_file, sep='\t', index_col=0).ix[cmap.index]
+    k_activity = k_activity[(k_activity.count(1) / k_activity.shape[1]) > .75].replace(np.NaN, 0.0)
 
     # Import metabolomics
-    r_activity = read_csv(m_file, sep='\t', index_col=0)
+    r_activity = read_csv(m_file, sep='\t', index_col=0).ix[cmap.columns].dropna()
+    r_activity = r_activity[r_activity.std(1) > .3]
 
     # Overlapping kinases/phosphatases knockout
     strains = list(set(k_activity.columns).intersection(set(r_activity.columns)))
@@ -165,9 +162,6 @@ for k_file, m_file, growth in datasets_files:
     # Other metrics
     info_table['euclidean'] = [metric(euclidean_distances, r_activity.ix[m, strains], k_activity.ix[k, strains])[0][0] for k, m in zip(info_table['kinase'], info_table['reaction'])]
     info_table['manhattan'] = [metric(manhattan_distances, r_activity.ix[m, strains], k_activity.ix[k, strains])[0][0] for k, m in zip(info_table['kinase'], info_table['reaction'])]
-
-    info_table['linear_kernel'] = [metric(linear_kernel, r_activity.ix[m, strains], k_activity.ix[k, strains])[0][0] for k, m in zip(info_table['kinase'], info_table['reaction'])]
-    info_table['linear_kernel_abs'] = info_table['linear_kernel'].abs()
 
     info_table = info_table.dropna()
     print '[INFO] Correaltion between metabolites and kinases done'
@@ -233,7 +227,7 @@ for k_file, m_file, growth in datasets_files:
 
     # ROC plot analysis
     ax = enrichemnt_plot[2]
-    for roc_metric in ['inv_abs_cor', 'euclidean', 'linear_kernel_abs', 'manhattan']:
+    for roc_metric in ['inv_abs_cor', 'euclidean', 'manhattan']:
         curve_fpr, curve_tpr, _ = roc_curve(info_table['TP'], info_table[roc_metric])
         curve_auc = auc(curve_fpr, curve_tpr)
 
@@ -247,7 +241,3 @@ for k_file, m_file, growth in datasets_files:
     plt.savefig('%s/reports/kinase_enzyme_enrichment_%s.pdf' % (wd, growth), bbox_inches='tight')
     plt.close('all')
     print '[INFO] Plotting done: %s/reports/kinase_enzyme_enrichment_%s.pdf' % (wd, growth)
-
-# ---- Correlate metabolites with distances
-
-

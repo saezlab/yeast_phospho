@@ -1,28 +1,24 @@
 import numpy as np
 from yeast_phospho import wd
-from sklearn.cross_validation import KFold
-from sklearn.linear_model import RidgeCV, Ridge, LinearRegression
-from sklearn.metrics.regression import mean_squared_error
+from sklearn.linear_model import Ridge, LinearRegression
 from pandas import DataFrame, read_csv, pivot_table
 
-
 # Import growth rates
-growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth']
+growth = read_csv('%s/files/strain_relative_growth_rate.txt' % wd, sep='\t', index_col=0)['relative_growth']
 
 # Import conversion table
-name2id = read_csv(wd + 'tables/orf_name_dataframe.tab', sep='\t', index_col=1).to_dict()['orf']
-id2name = read_csv(wd + 'tables/orf_name_dataframe.tab', sep='\t', index_col=0).to_dict()['name']
+name2id = read_csv('%s/files/orf_name_dataframe.tab' % wd, sep='\t', index_col=1).to_dict()['orf']
+id2name = read_csv('%s/files/orf_name_dataframe.tab' % wd, sep='\t', index_col=0).to_dict()['name']
 
 # TF targets
-tf_targets = read_csv(wd + 'data/tf_network/tf_gene_network_chip_only.tab', sep='\t')
+tf_targets = read_csv('%s/files/tf_gene_network_chip_only.tab' % wd, sep='\t')
 tf_targets['tf'] = [name2id[i] if i in name2id else id2name[i] for i in tf_targets['tf']]
 tf_targets['interaction'] = 1
 tf_targets = pivot_table(tf_targets, values='interaction', index='target', columns='tf', fill_value=0)
 print '[INFO] TF targets calculated!'
 
 # ---- Steady-state: gene-expression data-set
-gexp = read_csv(wd + 'data/gene_expresion/tf_ko_gene_expression.tab', sep='\t', header=False)
-gexp = gexp[gexp['study'] == 'Kemmeren_2014']
+gexp = read_csv('%s/data/Kemmeren_2014_zscores_parsed_filtered.tab' % wd, sep='\t', header=False)
 gexp['tf'] = [name2id[i] if i in name2id else id2name[i] for i in gexp['tf']]
 gexp = pivot_table(gexp, values='value', index='target', columns='tf')
 print '[INFO] Gene-expression imported!'
@@ -39,22 +35,12 @@ print '[INFO] Steady-state transcriptomics exported'
 
 
 def calculate_activity(strain):
-    y = gexp.ix[tf_targets.index, strain].dropna()
-    x = tf_targets.ix[y.index]
+    y = gexp[strain].dropna()
+    x = tf_targets.ix[y.index].replace(np.NaN, 0.0)
 
     x = x.loc[:, x.sum() != 0]
 
-    best_model = (np.Inf, 0.0)
-    for train, test in KFold(len(x), 5):
-        lm = RidgeCV().fit(x.ix[train], y.ix[train])
-        score = mean_squared_error(lm.predict(x.ix[test]), y.ix[test].values)
-
-        if score < best_model[0]:
-            best_model = (score, lm.alpha_, lm.coef_)
-
-    print '[INFO] %s, score: %.3f, alpha: %.2f' % (strain, best_model[0], best_model[1])
-
-    return dict(zip(*(x.columns, Ridge(alpha=best_model[0]).fit(x, y).coef_)))
+    return dict(zip(*(x.columns, Ridge(alpha=.1).fit(x, y).coef_)))
 
 tf_activity = DataFrame({c: calculate_activity(c) for c in strains})
 print '[INFO] TF activity calculated: ', tf_activity.shape
@@ -70,17 +56,13 @@ def regress_out_growth(kinase):
 
     mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
 
-    if sum(mask) > 3:
-        x, y = x[mask], y[mask]
+    x, y = x[mask], y[mask]
 
-        lm = LinearRegression().fit(np.mat(x).T, y)
+    lm = LinearRegression().fit(np.mat(x).T, y)
 
-        y_ = y - lm.coef_[0] * x - lm.intercept_
+    y_ = y - lm.coef_[0] * x - lm.intercept_
 
-        return dict(zip(np.array(strains)[mask], y_))
-
-    else:
-        return {}
+    return dict(zip(np.array(strains)[mask], y_))
 
 tf_activity = DataFrame({kinase: regress_out_growth(kinase) for kinase in tf_activity.index}).T.dropna(axis=0, how='all')
 print '[INFO] Growth regressed out from the Kinases activity scores: ', tf_activity.shape
@@ -97,22 +79,12 @@ conditions = list(dyn_trans_df.columns)
 
 
 def calculate_activity(condition):
-    y = dyn_trans_df.ix[tf_targets.index, condition].dropna()
-    x = tf_targets.ix[y.index]
+    y = dyn_trans_df[condition].dropna()
+    x = tf_targets.ix[y.index].replace(np.NaN, 0)
 
     x = x.loc[:, x.sum() != 0]
 
-    best_model = (np.Inf, 0.0)
-    for train, test in KFold(len(x), 5):
-        lm = RidgeCV().fit(x.ix[train], y.ix[train])
-        score = mean_squared_error(lm.predict(x.ix[test]), y.ix[test].values)
-
-        if score < best_model[0]:
-            best_model = (score, lm.alpha_, lm.coef_)
-
-    print '[INFO] %s, score: %.3f, alpha: %.2f' % (condition, best_model[0], best_model[1])
-
-    return dict(zip(*(x.columns, Ridge(alpha=best_model[0]).fit(x, y).coef_)))
+    return dict(zip(*(x.columns, Ridge(alpha=.1).fit(x, y).coef_)))
 
 tf_activity = DataFrame({c: calculate_activity(c) for c in conditions})
 print '[INFO] TF activity calculated: ', tf_activity.shape

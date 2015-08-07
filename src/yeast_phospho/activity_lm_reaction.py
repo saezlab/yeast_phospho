@@ -1,10 +1,8 @@
 import re
 import numpy as np
 from pymist.reader.sbml_reader import read_sbml_model
-from sklearn.cross_validation import KFold
-from sklearn.metrics.regression import mean_squared_error
 from yeast_phospho import wd
-from sklearn.linear_model import RidgeCV, Ridge
+from sklearn.linear_model import Ridge
 from pandas import DataFrame, read_csv, Index
 
 s_info = read_csv(wd + 'files/strain_info.tab', sep='\t', index_col=0)
@@ -43,11 +41,13 @@ s_matrix = s_matrix.loc[:, s_matrix.sum() != 0]
 s_matrix = s_matrix[s_matrix.sum(1) != 0]
 
 # ---- Calculate steady-state reaction activity
-for xs_f, f in [('%s/tables/metabolomics_steady_state.tab' % wd, '%s/tables/reaction_activity_steady_state.tab' % wd), ('%s/tables/metabolomics_steady_state_growth_rate.tab' % wd, '%s/tables/reaction_activity_steady_state_with_growth.tab' % wd)]:
+for xs_f, f in [
+    ('%s/tables/metabolomics_steady_state.tab' % wd, '%s/tables/reaction_activity_steady_state.tab' % wd),
+    ('%s/tables/metabolomics_steady_state_growth_rate.tab' % wd, '%s/tables/reaction_activity_steady_state_with_growth.tab' % wd)
+]:
     # Import metabolites fold-changes
     xs = read_csv(xs_f, sep='\t', index_col=0)
     xs.index = Index(xs.index, dtype=str)
-    xs = xs[(xs.abs() > .8).sum(1) > 1]
 
     # Import metabolites annotation
     model_met_map = read_csv(wd + 'files/metabolite_mz_map_dobson.txt', sep='\t', index_col='id')
@@ -67,22 +67,12 @@ for xs_f, f in [('%s/tables/metabolomics_steady_state.tab' % wd, '%s/tables/reac
     r_metabolites = r_metabolites[r_metabolites.sum(1) != 0]
 
     def calculate_activity(strain):
-        y = xs.ix[metabolites, strain].dropna()
-        x = r_metabolites.ix[y.index]
+        y = xs[strain].dropna()
+        x = r_metabolites.ix[y.index].replace(np.NaN, 0.0)
 
         x = x.loc[:, x.sum() != 0]
 
-        best_model = (np.Inf, 0.0)
-        for train, test in KFold(len(x), 5):
-            lm = RidgeCV().fit(x.ix[train], y.ix[train])
-            score = mean_squared_error(lm.predict(x.ix[test]), y.ix[test].values)
-
-            if score < best_model[0]:
-                best_model = (score, lm.alpha_, lm.coef_)
-
-        print '[INFO] %s, score: %.3f, alpha: %.2f' % (strain, best_model[0], best_model[1])
-
-        return dict(zip(*(x.columns, Ridge(alpha=best_model[0]).fit(x, y).coef_)))
+        return dict(zip(*(x.columns, Ridge(alpha=.1).fit(x, y).coef_)))
 
     metabolites, strains, reactions = list(r_metabolites.index), list(xs.columns), list(r_metabolites.columns)
     r_activity = DataFrame({c: calculate_activity(c) for c in strains})
@@ -118,22 +108,12 @@ r_metabolites_dyn = r_metabolites_dyn[r_metabolites_dyn.sum(1) != 0]
 
 
 def calculate_activity(condition):
-    y = metabolomics_dyn.ix[metabolites_dyn, condition].dropna()
-    x = r_metabolites_dyn.ix[y.index]
+    y = metabolomics_dyn[condition].dropna()
+    x = r_metabolites_dyn.ix[y.index].replace(np.NaN, 0.0)
 
     x = x.loc[:, x.sum() != 0]
 
-    best_model = (np.Inf, 0.0)
-    for train, test in KFold(len(x), 3):
-        lm = RidgeCV().fit(x.ix[train], y.ix[train])
-        score = mean_squared_error(lm.predict(x.ix[test]), y.ix[test].values)
-
-        if score < best_model[0]:
-            best_model = (score, lm.alpha_, lm.coef_)
-
-    print '[INFO] %s, score: %.3f, alpha: %.2f' % (condition, best_model[0], best_model[1])
-
-    return dict(zip(*(x.columns, Ridge(alpha=best_model[0]).fit(x, y).coef_)))
+    return dict(zip(*(x.columns, Ridge(alpha=.1).fit(x, y).coef_)))
 
 metabolites_dyn, conditions_dyn, reactions_dyn = list(r_metabolites_dyn.index), list(metabolomics_dyn.columns), list(r_metabolites_dyn.columns)
 r_activity_dyn = DataFrame({c: calculate_activity(c) for c in conditions_dyn})

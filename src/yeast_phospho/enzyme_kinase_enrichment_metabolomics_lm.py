@@ -3,11 +3,12 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from yeast_phospho import wd
-from yeast_phospho.utils import metric
-from sklearn.metrics.pairwise import euclidean_distances, manhattan_distances
+from yeast_phospho.utils import metric, pearson
+from sklearn.metrics.pairwise import euclidean_distances, manhattan_distances, linear_kernel
 from sklearn.metrics import roc_curve, auc
-from sklearn.linear_model import Lasso
-from pandas import DataFrame, read_csv, melt
+from sklearn.linear_model import Lasso, Ridge, RidgeCV, LinearRegression
+from sklearn.cross_validation import ShuffleSplit
+from pandas import DataFrame, read_csv, melt, pivot_table
 from scipy.stats.distributions import hypergeom
 from pymist.reader.sbml_reader import read_sbml_model
 
@@ -45,6 +46,10 @@ r_products = {r: set(s_matrix[s_matrix[r] > 0].index) for r in s_matrix.columns}
 
 # Swap stoichiometric values with ones
 s_matrix = (s_matrix != 0) + 0
+
+# Remove metabolites highly connected
+s_matrix = s_matrix[s_matrix.sum(1) < 10]
+s_matrix = s_matrix.loc[:, s_matrix.sum() < 10]
 
 # Remove un-used metabolites and reactions
 s_matrix = s_matrix.loc[:, s_matrix.sum() != 0]
@@ -90,38 +95,58 @@ for bkg_type in ['string', 'phosphogrid']:
 db = dbs['string'].union(dbs['phosphogrid'])
 print '[INFO] Kinase/Enzymes interactions data-bases imported'
 
+
+# ---- Protein - Metabolite connectivity map
+cmap = DataFrame(list(db), columns=['kinase', 'metabolite'])
+cmap['value'] = 1
+cmap = pivot_table(cmap, values='value', index='kinase', columns='metabolite', fill_value=0)
+
+
 # ---- Import metabolites map
 m_map = read_csv('%s/files/metabolite_mz_map_kegg.txt' % wd, sep='\t')
 m_map['mz'] = [float('%.2f' % i) for i in m_map['mz']]
 m_map = m_map.drop_duplicates('mz').drop_duplicates('formula')
 m_map = m_map.groupby('mz')['name'].apply(lambda i: '; '.join(i)).to_dict()
 
+
 # ---- Import YORF names
 acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)['gene'].to_dict()
 acc_name = {k: acc_name[k].split(';')[0] for k in acc_name}
 
+
 # ---- Import data-sets
+# Steady-state
+metabolomics_std = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0).ix[cmap.columns].dropna()
+metabolomics_std = metabolomics_std[(metabolomics_std.std(1) / metabolomics_std.mean(1)).abs() > 10]
+
+k_activity_std = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0).ix[cmap.index].dropna()
+k_activity_std = k_activity_std[(k_activity_std.count(1) / k_activity_std.shape[1]) > .75].replace(np.NaN, 0.0)
+
+tf_activity_std = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0).ix[cmap.index].dropna()
+tf_activity_std = tf_activity_std[(tf_activity_std.std(1) / tf_activity_std.mean(1)).abs() > 10]
+
+# Dynamic
+metabolomics_dyn = read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', index_col=0).ix[cmap.columns].dropna()
+metabolomics_dyn = metabolomics_dyn[(metabolomics_dyn.std(1) / metabolomics_dyn.mean(1)).abs() > 1]
+
+k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0).ix[cmap.index]
+k_activity_dyn = k_activity_dyn[(k_activity_dyn.count(1) / k_activity_dyn.shape[1]) > .75].replace(np.NaN, 0.0)
+
+tf_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0).ix[cmap.index].dropna()
+tf_activity_dyn = tf_activity_dyn[(tf_activity_dyn.std(1) / tf_activity_dyn.mean(1)).abs() > 1]
+
 datasets_files = [
-    ('%s/tables/kinase_activity_steady_state.tab' % wd, '%s/tables/metabolomics_steady_state.tab' % wd, 'no_growth'),
-    ('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, '%s/tables/metabolomics_steady_state_growth_rate.tab' % wd, 'with_growth'),
-    ('%s/tables/kinase_activity_dynamic.tab' % wd, '%s/tables/metabolomics_dynamic.tab' % wd, 'dynamic')
+    (tf_activity_dyn, metabolomics_dyn, 'tf_dynamic'),
+    (k_activity_dyn, metabolomics_dyn, 'k_dynamic'),
 ]
 
-for k_file, m_file, growth in datasets_files:
-    # Import kinase activity
-    k_activity = read_csv(k_file, sep='\t', index_col=0)
-    k_activity = k_activity[(k_activity.count(1) / k_activity.shape[1]) > .75].replace(np.NaN, 0.0)
-
-    # Import metabolomics
-    metabolomics = read_csv(m_file, sep='\t', index_col=0).dropna()
-    metabolomics = metabolomics[metabolomics.std(1) > .4]
-
+for k_activity, metabolomics, growth in datasets_files:
     # Overlapping kinases/phosphatases knockout
     strains = list(set(k_activity.columns).intersection(set(metabolomics.columns)))
     k_activity, metabolomics = k_activity[strains], metabolomics[strains]
 
     # ---- Correlate metabolic fold-changes with kinase activities
-    lm = Lasso(alpha=.01).fit(k_activity.T, metabolomics.T)
+    lm = Lasso(alpha=.01, positive=True).fit(k_activity.T, metabolomics.T)
 
     info_table = DataFrame(lm.coef_, index=metabolomics.index, columns=k_activity.index)
     info_table['metabolite'] = info_table.index
@@ -138,21 +163,26 @@ for k_file, m_file, growth in datasets_files:
     # Kinase/Enzyme interactions via metabolite correlations
     info_table['TP'] = [int(i in db) for i in zip(info_table['kinase'], info_table['metabolite'])]
 
+    # Correlation
+    cor = [pearson(metabolomics.loc[m, strains], k_activity.loc[k, strains]) for m, k in info_table[['metabolite', 'kinase']].values]
+    info_table['pearson'], info_table['pearson_pvalue'] = zip(*cor)[:2]
+    info_table['pearson_abs'] = info_table['pearson'].abs()
+    info_table['pearson_abs_inv'] = 1 - info_table['pearson'].abs()
+    info_table['pearson_pvalue_log10'] = np.log10(info_table['pearson_pvalue'])
+
     # Other metrics
     info_table['euclidean'] = [metric(euclidean_distances, metabolomics.ix[m, strains], k_activity.ix[k, strains])[0][0] for k, m in zip(info_table['kinase'], info_table['metabolite'])]
     info_table['manhattan'] = [metric(manhattan_distances, metabolomics.ix[m, strains], k_activity.ix[k, strains])[0][0] for k, m in zip(info_table['kinase'], info_table['metabolite'])]
+    info_table['linear_kernel'] = [metric(linear_kernel, metabolomics.ix[m, strains], k_activity.ix[k, strains])[0][0] for k, m in zip(info_table['kinase'], info_table['metabolite'])]
+    info_table['linear_kernel_abs'] = info_table['linear_kernel'].abs()
 
     info_table = info_table.dropna()
-
-    info_table.to_csv('%s/tables/kinase_enzyme_enrichment_metabolomics_lm_%s.txt' % (wd, growth), sep='\t')
-    print '[INFO] Correaltion between metabolites and kinases done'
+    print '[INFO] TP (%s): %d / %d' % (growth, info_table['TP'].sum(), info_table.shape[0])
 
     # ---- Kinase/Enzyme enrichment
-    int_enrichment, db_proteins = [], {c for i in db for c in i}
+    int_enrichment, thresholds = [], roc_curve(info_table['TP'], info_table['score'])[2]
 
-    thresholds = roc_curve(info_table['TP'], info_table['score'])[2]
-
-    M = {(k, m) for k, m in set(zip(info_table['kinase'], info_table['metabolite'])) if k in db_proteins}
+    M = set(zip(info_table['kinase'], info_table['metabolite']))
     n = M.intersection(db)
 
     for threshold in thresholds:
@@ -166,6 +196,8 @@ for k_file, m_file, growth in datasets_files:
 
         int_enrichment.append((threshold, fraction, p_value, len(M), len(n), len(N), len(x)))
 
+        print threshold, fraction, p_value, len(M), len(n), len(N), len(x)
+
     int_enrichment = DataFrame(int_enrichment, columns=['thres', 'fraction', 'pvalue', 'M', 'n', 'N', 'x']).dropna()
     print '[INFO] Kinase/Enzyme enrichment ready'
 
@@ -176,7 +208,7 @@ for k_file, m_file, growth in datasets_files:
     # ROC plot analysis
     ax = enrichemnt_plot[0]
 
-    for roc_metric in ['euclidean', 'manhattan', 'score']:
+    for roc_metric in ['score', 'coef']:
         curve_fpr, curve_tpr, thresholds = roc_curve(info_table['TP'], info_table[roc_metric])
         curve_auc = auc(curve_fpr, curve_tpr)
 
@@ -193,12 +225,13 @@ for k_file, m_file, growth in datasets_files:
 
     plot_df = int_enrichment[['thres', 'fraction']].copy()
     plot_df = plot_df[plot_df['fraction'] != 0]
+    plot_df['fraction'] *= 100
 
     ax.plot(plot_df['thres'], plot_df['fraction'], c='gray')
     ax.set_xlim(plot_df['thres'].min(), plot_df['thres'].max())
     ax.set_ylim(plot_df['fraction'].min(), plot_df['fraction'].max())
     ax.set_xlabel('Threshold')
-    ax.set_ylabel('Fraction')
+    ax.set_ylabel('Fraction (%)')
     sns.despine(ax=ax)
 
     plt.savefig('%s/reports/kinase_enzyme_enrichment_metabolomics_lm_%s.pdf' % (wd, growth), bbox_inches='tight')

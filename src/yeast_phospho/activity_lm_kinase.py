@@ -1,17 +1,10 @@
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-from sklearn.linear_model.base import LinearRegression
-from sklearn.metrics.regression import mean_squared_error
 from yeast_phospho import wd
 from pandas import DataFrame, read_csv, melt
-from sklearn.cross_validation import KFold
-from sklearn.linear_model import RidgeCV, Ridge
+from sklearn.linear_model import Ridge, LinearRegression
 
-sns.set_style('ticks')
-
-# Import id maps
-acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)
 
 # Import growth rates
 growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth']
@@ -20,38 +13,32 @@ growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_
 
 # Import phospho FC
 phospho_df = read_csv('%s/tables/pproteomics_steady_state.tab' % wd, sep='\t', index_col=0)
-strains = list(set(phospho_df.columns))
+strains = list(set(phospho_df.columns).intersection(growth.index))
 
 # Import kinase targets matrix
 k_targets = read_csv('%s/tables/kinases_targets_phosphogrid.tab' % wd, sep='\t', index_col=0)
 k_targets = k_targets.ix[set(k_targets.index).intersection(phospho_df.index)]
 k_targets = k_targets.loc[:, k_targets.sum() != 0]
 
-
-def calculate_activity(strain):
-    y = phospho_df.ix[k_targets.index, strain].dropna()
-    x = k_targets.ix[y.index]
+k_activity, k_ntargets = {}, {}
+for strain in strains:
+    y = phospho_df[strain].dropna()
+    x = k_targets.ix[y.index].replace(np.NaN, 0.0)
 
     x = x.loc[:, x.sum() != 0]
 
-    best_model = (np.Inf, 0.0)
-    for train, test in KFold(len(x), 5):
-        lm = RidgeCV().fit(x.ix[train], y.ix[train])
-        score = mean_squared_error(lm.predict(x.ix[test]), y.ix[test].values)
+    k_ntargets[strain] = dict(zip(*(x.columns, x.sum())))
+    k_activity[strain] = dict(zip(*(x.columns, Ridge(alpha=.1).fit(x, y).coef_)))
 
-        if score < best_model[0]:
-            best_model = (score, lm.alpha_, lm.coef_)
 
-    print '[INFO] %s, score: %.3f, alpha: %.2f' % (strain, best_model[0], best_model[1])
-
-    return dict(zip(*(x.columns, Ridge(alpha=best_model[0]).fit(x, y).coef_)))
-
-k_activity = DataFrame({c: calculate_activity(c) for c in strains})
+k_activity, k_ntargets = DataFrame(k_activity), DataFrame(k_ntargets).replace(np.NaN, 0)
 print '[INFO] Kinase activity calculated: ', k_activity.shape
 
-k_activity_file = '%s/tables/kinase_activity_steady_state_with_growth.tab' % wd
-k_activity.to_csv(k_activity_file, sep='\t')
-print '[INFO] [KINASE ACTIVITY] Exported to: %s' % k_activity_file
+k_activity.to_csv('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, sep='\t')
+print '[INFO] [KINASE ACTIVITY] Exported to'
+
+k_ntargets.to_csv('%s/tables/kinase_activity_steady_state_ntargets.tab' % wd, sep='\t')
+print '[INFO] [KINASE # TARGETS] Exported'
 
 # Regress out growth
 
@@ -87,17 +74,27 @@ kinases_type = DataFrame([(i, gene_annotation.ix[i, 9]) for i in k_activity.inde
 kinases_type['type'] = ['Kinase' if 'kinase' in i.lower() else 'Phosphatase' if 'phosphatase' in i.lower() else 'ND' for i in kinases_type['info']]
 kinases_type = kinases_type.set_index('name')
 
+
 plot_df = k_activity.copy()
 plot_df.columns.name = 'strain'
 plot_df['kinase'] = plot_df.index
-plot_df = melt(plot_df, id_vars='kinase')
+plot_df = melt(plot_df, id_vars='kinase', value_name='activity').dropna()
 plot_df['type'] = [kinases_type.ix[i, 'type'] for i in plot_df['kinase']]
 plot_df['diagonal'] = ['Diagonal' if k == s else 'Off-diagonal' for k, s in plot_df[['kinase', 'strain']].values]
+plot_df['#targets'] = [k_targets[k].sum() for k in plot_df['kinase']]
+plot_df['#targets'] = [str(k) if k <= 10 else '> 10' for k in plot_df['#targets']]
 
-sns.boxplot(x='type', y='value', hue='diagonal', data=plot_df, palette='Paired', orient='v')
-sns.stripplot(x='type', y='value', hue='diagonal', data=plot_df, size=8, jitter=True, edgecolor='white', palette='Paired')
-sns.despine(offset=10, trim=True)
-plt.savefig(wd + 'reports/kinase_activity_lm_diagonal_boxplot.pdf', bbox_inches='tight')
+
+sns.set(style='ticks', palette='pastel', color_codes=True)
+col_order, x_order, hue_order = [str(i) if i <= 10 else '> 10' for i in xrange(12) if i not in [0, 7]], ['Kinase', 'Phosphatase', 'ND'], ['Diagonal', 'Off-diagonal']
+g = sns.FacetGrid(data=plot_df, col='#targets', col_order=col_order, col_wrap=5, legend_out=True, sharey=False, size=4, aspect=.7)
+g.map(plt.axhline, y=0, ls=':', c='.5')
+g.map(sns.boxplot, 'type', 'activity', 'diagonal', palette={'Diagonal': '#e74c3c', 'Off-diagonal': '#95a5a6'}, hue_order=hue_order, sym='')
+g.map(sns.stripplot, 'type', 'activity', 'diagonal', palette={'Diagonal': '#e74c3c', 'Off-diagonal': '#95a5a6'}, hue_order=hue_order, jitter=True, size=5)
+g.add_legend()
+g.set_axis_labels('', 'betas')
+sns.despine(trim=True)
+plt.savefig('%s/reports/kinase_activity_lm_diagonal_boxplot.pdf' % wd, bbox_inches='tight')
 plt.close('all')
 
 
@@ -110,30 +107,26 @@ conditions = list(phospho_df_dyn.columns)
 k_targets = read_csv('%s/tables/kinases_targets_phosphogrid.tab' % wd, sep='\t', index_col=0)
 k_targets = k_targets.ix[set(k_targets.index).intersection(phospho_df_dyn.index)]
 k_targets = k_targets.loc[:, k_targets.sum() != 0]
+k_targets = k_targets[k_targets.sum(1) != 0]
 
 
-def calculate_activity_dynamic(condition):
+k_activity_dyn, k_dyn_ntargets = {}, {}
+for condition in conditions:
     y = phospho_df_dyn.ix[k_targets.index, condition].dropna()
     x = k_targets.ix[y.index]
 
     x = x.loc[:, x.sum() != 0]
 
-    best_model = (np.Inf, 0.0)
-    for train, test in KFold(len(x), 3):
-        lm = RidgeCV().fit(x.ix[train], y.ix[train])
-        score = mean_squared_error(lm.predict(x.ix[test]), y.ix[test].values)
+    k_dyn_ntargets[condition] = dict(zip(*(x.columns, x.sum())))
+    k_activity_dyn[condition] = dict(zip(*(x.columns, Ridge(alpha=.1).fit(x, y).coef_)))
 
-        if score < best_model[0]:
-            best_model = (score, lm.alpha_, lm.coef_)
-
-    print '[INFO] %s, score: %.3f, alpha: %.2f' % (condition, best_model[0], best_model[1])
-
-    return dict(zip(*(x.columns, Ridge(alpha=best_model[0]).fit(x, y).coef_)))
-
-k_activity_dyn = DataFrame({c: calculate_activity_dynamic(c) for c in conditions})
+k_activity_dyn, k_dyn_ntargets = DataFrame(k_activity_dyn), DataFrame(k_dyn_ntargets).replace(np.NaN, 0)
 print '[INFO] Kinase activity calculated: ', k_activity_dyn.shape
 
 # Export kinase activity matrix
-k_activity_dyn_file = '%s/tables/kinase_activity_dynamic.tab' % wd
-k_activity_dyn.to_csv(k_activity_dyn_file, sep='\t')
-print '[INFO] [KINASE ACTIVITY] Exported to: %s' % k_activity_dyn_file
+k_dyn_ntargets.to_csv('%s/tables/kinase_activity_dynamic_ntargets.tab' % wd, sep='\t')
+print '[INFO] [KINASE # TARGETS] Exported'
+
+# Export kinase activity matrix
+k_activity_dyn.to_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t')
+print '[INFO] [KINASE ACTIVITY] Exported'

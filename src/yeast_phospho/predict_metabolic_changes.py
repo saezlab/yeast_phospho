@@ -45,10 +45,7 @@ steady_state = [
     (tf_activity, metabolomics, 'LOO', 'tf', 'no growth'),
 
     (k_activity_g, metabolomics_g, 'LOO', 'kinase', 'with growth'),
-    (tf_activity_g, metabolomics_g, 'LOO', 'tf', 'with growth'),
-
-    (k_activity_dyn, metabolomics_dyn, 'LOO', 'kinase', 'dynamic'),
-    (t_activity_dyn, metabolomics_dyn, 'LOO', 'tf', 'dynamic')
+    (tf_activity_g, metabolomics_g, 'LOO', 'tf', 'with growth')
 ]
 
 # Dynamic comparisons
@@ -57,10 +54,7 @@ dynamic = [
     ((tf_activity, metabolomics), (t_activity_dyn, metabolomics_dyn), 'dynamic', 'tf', 'no growth'),
 
     ((k_activity_g, metabolomics_g), (k_activity_dyn, metabolomics_dyn), 'dynamic', 'kinase', 'with growth'),
-    ((tf_activity_g, metabolomics_g), (t_activity_dyn, metabolomics_dyn), 'dynamic', 'tf', 'with growth'),
-
-    ((k_activity_dyn, metabolomics_dyn), (k_activity_dyn, metabolomics_dyn), 'dynamic', 'kinase', 'all'),
-    ((t_activity_dyn, metabolomics_dyn), (t_activity_dyn, metabolomics_dyn), 'dynamic', 'tf', 'all')
+    ((tf_activity_g, metabolomics_g), (t_activity_dyn, metabolomics_dyn), 'dynamic', 'tf', 'with growth')
 ]
 
 # Dynamic comparisons
@@ -130,22 +124,21 @@ for (xs_train, ys_train), (xs_test, ys_test), condition, feature, growth in test
 
 
 lm_res = DataFrame(lm_res, columns=['condition', 'feature', 'growth', 'name', 'type_cor', 'cor'])
-lm_res['type'] = lm_res['condition'] + '_' + lm_res['feature'] + '_' + lm_res['type_cor']
-lm_res['type2'] = lm_res['condition'] + '_' + lm_res['growth'] + '_' + lm_res['feature']
+lm_res['type'] = lm_res['condition'] + '_' + lm_res['growth'] + '_' + lm_res['feature']
 
 lm_betas = DataFrame(lm_betas, columns=['condition', 'feature', 'growth', 'ion', 'feature_name', 'beta'])
-lm_betas['type2'] = lm_betas['condition'] + '_' + lm_betas['growth'] + '_' + lm_betas['feature']
+lm_betas['type'] = lm_betas['condition'] + '_' + lm_betas['growth'] + '_' + lm_betas['feature']
 
 
 # ---- Plot predictions correlations
 sns.set(style='ticks', palette='pastel', color_codes=True)
-x_order = list(lm_res[lm_res['growth'] == 'no growth'].groupby('type').median().sort('cor', ascending=False).index)
-sns.factorplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', kind='box', palette='Paired', legend_out=True, size=7, aspect=1.5)
+g = sns.FacetGrid(data=lm_res, col='condition', row='feature', legend_out=True, sharey=True, size=4, aspect=.7, ylim=(-1, 1))
+g.map(plt.axhline, y=0, ls=':', c='.5')
+g.map(sns.boxplot, 'type_cor', 'cor', 'growth', palette={'with growth': '#95a5a6', 'no growth': '#2ecc71'}, sym='')
+g.map(sns.stripplot, 'type_cor', 'cor', 'growth', palette={'with growth': '#95a5a6', 'no growth': '#2ecc71'}, jitter=True, size=5)
+g.add_legend(title='Growth rate:')
+g.set_axis_labels('', 'Correlation (pearson)')
 sns.despine(trim=True)
-plt.axvline(0.0, lw=.3, c='gray', alpha=0.3)
-plt.xlabel('pearson correlation')
-plt.ylabel('comparisons')
-plt.title('Predict metabolic fold-changes')
 plt.savefig('%s/reports/lm_boxplot_correlations_metabolites.pdf' % wd, bbox_inches='tight')
 plt.close('all')
 
@@ -156,18 +149,20 @@ m_map['mz'] = [float('%.2f' % i) for i in m_map['mz']]
 m_map = m_map.drop_duplicates('mz').drop_duplicates('formula')
 m_map = m_map.groupby('mz')['name'].apply(lambda i: '; '.join(i)).to_dict()
 
+
 # ---- Import YORF names
 acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)['gene'].to_dict()
 acc_name = {k: acc_name[k].split(';')[0] for k in acc_name}
+
 
 # ---- Feature selection
 conditions = ['_'.join(['dynamic', 'no growth', 'tf']), '_'.join(['dynamic', 'no growth', 'kinase']), '_'.join(['dynamic', 'all', 'tf']), '_'.join(['dynamic', 'all', 'kinase'])]
 
 for condition in conditions:
-    plot_df = pivot_table(lm_betas[lm_betas['type2'] == condition], values='beta', columns='feature_name', index='ion', aggfunc=np.median)
+    plot_df = pivot_table(lm_betas[lm_betas['type'] == condition], values='beta', columns='feature_name', index='ion', aggfunc=np.median)
     plot_df = plot_df.loc[:, (plot_df != 0).sum() != 0]
 
-    ions_cor = lm_res[np.bitwise_and(lm_res['type2'] == condition, lm_res['type_cor'] == 'features')].sort('cor', ascending=False).set_index('name')['cor']
+    ions_cor = lm_res[np.bitwise_and(lm_res['type'] == condition, lm_res['type_cor'] == 'features')].sort('cor', ascending=False).set_index('name')['cor']
     plot_df = plot_df.ix[list(ions_cor.index)]
 
     plot_df = plot_df[[i in m_map for i in plot_df.index]]
