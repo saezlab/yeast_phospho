@@ -1,43 +1,39 @@
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-from pandas.stats.misc import zscore
-from sklearn.grid_search import GridSearchCV
-from sklearn.metrics.regression import r2_score, mean_squared_error, mean_absolute_error
-from sklearn.metrics.scorer import mean_squared_error_scorer
-from sklearn.svm import SVR, LinearSVR
 from yeast_phospho import wd
 from yeast_phospho.utils import pearson
-from pandas import DataFrame, read_csv, Series
-from sklearn.cross_validation import LeaveOneOut, KFold, ShuffleSplit, StratifiedShuffleSplit
-from sklearn.linear_model import Ridge, Lasso, ElasticNet, ElasticNetCV, RidgeCV, LassoCV, LinearRegression
+from pandas import DataFrame, read_csv
+from sklearn.cross_validation import LeaveOneOut
+from sklearn.linear_model import Lasso
 
 
 m_signif = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0)
 m_signif = m_signif[m_signif.std(1) > .4]
 m_signif = list(m_signif[(m_signif.abs() > .8).sum(1) > 0].index)
 
-s_info = read_csv('%s/files/strain_info.tab' % wd, sep='\t', index_col=0)
-# s_info = s_info[[i not in ['silent'] for i in s_info['impact']]]
+k_signif = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
+k_signif = list(k_signif[(k_signif.count(1) / k_signif.shape[1]) > .75].index)
+
 
 # ---- Import
 # Steady-state
 metabolomics = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0).ix[m_signif]
-k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0).dropna()
+k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0).ix[k_signif].replace(np.NaN, 0.0)
 tf_activity = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0).dropna()
 
 metabolomics_g = read_csv('%s/tables/metabolomics_steady_state_growth_rate.tab' % wd, sep='\t', index_col=0).ix[m_signif]
-k_activity_g = read_csv('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).dropna()
+k_activity_g = read_csv('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).ix[k_signif].replace(np.NaN, 0.0)
 tf_activity_g = read_csv('%s/tables/tf_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).dropna()
 
 # Dynamic
 metabolomics_dyn = read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', index_col=0).ix[m_signif].dropna()
-k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0).dropna()
+k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0).ix[k_signif].dropna(how='all').replace(np.NaN, 0.0)
 tf_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0).dropna()
 
 
 # ---- Overlap
-strains = list(set(metabolomics.columns).intersection(k_activity.columns).intersection(tf_activity.columns).intersection(s_info.index))
+strains = list(set(metabolomics.columns).intersection(k_activity.columns).intersection(tf_activity.columns))
 conditions = list(set(metabolomics_dyn.columns).intersection(k_activity_dyn.columns).intersection(tf_activity_dyn.columns))
 metabolites = list(set(metabolomics.index).intersection(metabolomics_dyn.index))
 kinases = list(set(k_activity.index).intersection(k_activity_dyn.index))
@@ -136,19 +132,16 @@ for (xs_train, ys_train), (xs_test, ys_test), condition, feature, growth in dyna
     print '[INFO] x_features: %d, y_features: %d, train_samples: %d, test_samples: %d' % (len(x_features), len(y_features), len(train_samples), len(test_samples))
 
 lm_res = DataFrame(lm_res, columns=['condition', 'feature', 'growth', 'name', 'type_cor', 'cor'])
-lm_res['type'] = lm_res['condition'] + '_' + lm_res['feature'] + '_' + lm_res['type_cor']
 
 
 # ---- Plot predictions correlations
 sns.set(style='ticks', palette='pastel', color_codes=True)
-x_order = list(lm_res[lm_res['growth'] == 'no growth'].groupby('type').median().sort('cor', ascending=False).index)
-sns.boxplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', palette='Paired')
-# sns.stripplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', size=3, jitter=True, palette='Paired')
-# sns.violinplot(y='type', x='cor', data=lm_res, order=x_order, hue='growth', orient='h', palette='Paired', split=True, inner='quart')
+g = sns.FacetGrid(data=lm_res, col='condition', row='feature', legend_out=True, sharey=True, ylim=(-1, 1), col_order=['LOO', 'dynamic', 'No Test'])
+g.map(plt.axhline, y=0, ls=':', c='.5')
+g.map(sns.boxplot, 'type_cor', 'cor', 'growth', palette={'with growth': '#95a5a6', 'no growth': '#2ecc71', 'dynamic': '#e74c3c'}, sym='')
+g.map(sns.stripplot, 'type_cor', 'cor', 'growth', palette={'with growth': '#95a5a6', 'no growth': '#2ecc71', 'dynamic': '#e74c3c'}, jitter=True, size=5)
+g.add_legend(title='Growth rate:')
+g.set_axis_labels('', 'Correlation (pearson)')
 sns.despine(trim=True)
-plt.axvline(0.0, lw=.3, c='gray', alpha=0.3)
-plt.xlabel('pearson correlation')
-plt.ylabel('comparisons')
-plt.title('Predict metabolic fold-changes')
-plt.savefig(wd + 'reports/lm_boxplot_correlations_metabolites_overlap.pdf', bbox_inches='tight')
+plt.savefig('%s/reports/lm_boxplot_correlations_metabolites_overlap.pdf' % wd, bbox_inches='tight')
 plt.close('all')
