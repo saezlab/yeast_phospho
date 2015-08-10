@@ -12,7 +12,6 @@ from sklearn.linear_model import Lasso
 # ---- Define filters
 m_signif = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0)
 m_signif = m_signif[m_signif.std(1) > .4]
-m_signif = list(m_signif[(m_signif.abs() > .8).sum(1) > 0].index)
 
 k_signif = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
 k_signif = list(k_signif[(k_signif.count(1) / k_signif.shape[1]) > .75].index)
