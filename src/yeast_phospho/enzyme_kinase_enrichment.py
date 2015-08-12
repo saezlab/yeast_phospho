@@ -72,8 +72,8 @@ for bkg_type in ['string']:
     elif bkg_type == 'string':
         db = read_csv(wd + 'files/4932.protein.links.v9.1.txt', sep=' ')
 
-        lb = db['combined_score'].max() * .35
-        ub = db['combined_score'].max() * 1.0
+        lb = db['combined_score'].max() * .4
+        ub = db['combined_score'].max() * 1.
 
         db = db[db['combined_score'] > lb]
         db = db[db['combined_score'] < ub]
