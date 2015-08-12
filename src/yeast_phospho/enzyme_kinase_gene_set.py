@@ -2,13 +2,11 @@ import re
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-from pylab import rcParams
 from yeast_phospho import wd
 from bioservices import KEGG, KEGGParser, QuickGO
 from pymist.enrichment.gsea import gsea
 from sklearn.linear_model import Lasso
 from pandas import DataFrame, read_csv
-from scipy.stats.distributions import hypergeom
 
 
 # ---- Set-up KEGG bioservice
@@ -48,30 +46,32 @@ acc_name = {k: acc_name[k].split(';')[0] for k in acc_name}
 # ---- Import data-sets
 # Steady-state
 metabolomics_std = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0).dropna()
-metabolomics_std = metabolomics_std[metabolomics_std.std(1) > .2]
+metabolomics_std = metabolomics_std[metabolomics_std.std(1) > .4]
 
 k_activity_std = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
-k_activity_std = k_activity_std[(k_activity_std.count(1) / k_activity_std.shape[1]) > .6].replace(np.NaN, 0.0)
+k_activity_std = k_activity_std[(k_activity_std.count(1) / k_activity_std.shape[1]) > .75].replace(np.NaN, 0.0)
 
 tf_activity_std = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0).dropna()
+tf_activity_std = tf_activity_std[tf_activity_std.std(1) > .2]
 
 # Steady-state with growth
 metabolomics_std_g = read_csv('%s/tables/metabolomics_steady_state_growth_rate.tab' % wd, sep='\t', index_col=0).dropna()
-metabolomics_std_g = metabolomics_std_g[metabolomics_std_g.std(1) > .2]
+metabolomics_std_g = metabolomics_std_g[metabolomics_std_g.std(1) > .4]
 
 k_activity_std_g = read_csv('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0)
-k_activity_std_g = k_activity_std_g[(k_activity_std_g.count(1) / k_activity_std_g.shape[1]) > .6].replace(np.NaN, 0.0)
+k_activity_std_g = k_activity_std_g[(k_activity_std_g.count(1) / k_activity_std_g.shape[1]) > .75].replace(np.NaN, 0.0)
 
 tf_activity_std_g = read_csv('%s/tables/tf_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).dropna()
+tf_activity_std_g = tf_activity_std_g[tf_activity_std_g.std(1) > .2]
 
 # Dynamic
 metabolomics_dyn = read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', index_col=0).dropna()
-metabolomics_dyn = metabolomics_dyn[metabolomics_dyn.std(1) > .2]
 
 k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0)
-k_activity_dyn = k_activity_dyn[(k_activity_dyn.count(1) / k_activity_dyn.shape[1]) > .6].replace(np.NaN, 0.0)
+k_activity_dyn = k_activity_dyn[(k_activity_dyn.count(1) / k_activity_dyn.shape[1]) > .75].replace(np.NaN, 0.0)
 
 tf_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0).dropna()
+tf_activity_dyn = tf_activity_dyn[tf_activity_dyn.std(1) > .2]
 
 # ---- Overlap
 strains = list(set(metabolomics_std.columns).intersection(k_activity_std.columns).intersection(tf_activity_std.columns))
@@ -130,4 +130,4 @@ for xs, ys, condition in datasets_files:
     plt.savefig('%s/reports/kinase_enzyme_enrichment_gsea_%s.pdf' % (wd, condition), bbox_inches='tight')
     plt.close('all')
 
-    print '[INFO] Enrichment plotted'
+    print '[INFO] %s: %.2f' % (condition, plot_df['intersection'].median())

@@ -3,33 +3,34 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from yeast_phospho import wd
 from yeast_phospho.utils import pearson
-from pandas import DataFrame, read_csv
 from sklearn.cross_validation import LeaveOneOut
 from sklearn.linear_model import Lasso
+from pandas import DataFrame, read_csv, melt
 
 
 m_signif = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0)
-m_signif = m_signif[m_signif.std(1) > .4]
-m_signif = list(m_signif[(m_signif.abs() > .8).sum(1) > 0].index)
+m_signif = list(m_signif[m_signif.std(1) > .4].index)
 
 k_signif = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
 k_signif = list(k_signif[(k_signif.count(1) / k_signif.shape[1]) > .75].index)
 
+tf_signif = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0).dropna()
+tf_signif = list(tf_signif[tf_signif.std(1) > .3].index)
 
 # ---- Import
 # Steady-state
 metabolomics = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0).ix[m_signif]
 k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0).ix[k_signif].replace(np.NaN, 0.0)
-tf_activity = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0).dropna()
+tf_activity = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0).ix[tf_signif].dropna()
 
 metabolomics_g = read_csv('%s/tables/metabolomics_steady_state_growth_rate.tab' % wd, sep='\t', index_col=0).ix[m_signif]
 k_activity_g = read_csv('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).ix[k_signif].replace(np.NaN, 0.0)
-tf_activity_g = read_csv('%s/tables/tf_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).dropna()
+tf_activity_g = read_csv('%s/tables/tf_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).ix[tf_signif].dropna()
 
 # Dynamic
 metabolomics_dyn = read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', index_col=0).ix[m_signif].dropna()
 k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0).ix[k_signif].dropna(how='all').replace(np.NaN, 0.0)
-tf_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0).dropna()
+tf_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0).ix[tf_signif].dropna()
 
 
 # ---- Overlap
@@ -63,29 +64,30 @@ steady_state = [
     (k_tf_activity_dyn.copy(), metabolomics_dyn.copy(), 'LOO', 'overlap', 'dynamic')
 ]
 
-no_test = [
-    (k_activity.copy(), metabolomics.copy(), 'No Test', 'kinase', 'no growth'),
-    (tf_activity.copy(), metabolomics.copy(), 'No Test', 'tf', 'no growth'),
-    (k_tf_activity.copy(), metabolomics.copy(), 'No Test', 'overlap', 'no growth'),
+# Dynamic comparisons
+test_comparisons = [
+    ((k_activity, metabolomics), (k_activity_dyn, metabolomics_dyn), 'Test', 'kinase', 'no growth'),
+    ((tf_activity, metabolomics), (tf_activity_dyn, metabolomics_dyn), 'Test', 'tf', 'no growth'),
+    ((k_tf_activity, metabolomics), (k_tf_activity_dyn, metabolomics_dyn), 'Test', 'overlap', 'no growth'),
 
-    (k_activity_g.copy(), metabolomics_g.copy(), 'No Test', 'kinase', 'with growth'),
-    (tf_activity_g.copy(), metabolomics_g.copy(), 'No Test', 'tf', 'with growth'),
-    (k_tf_activity_g.copy(), metabolomics_g.copy(), 'No Test', 'overlap', 'with growth'),
+    ((k_activity_g, metabolomics_g), (k_activity_dyn, metabolomics_dyn), 'Test', 'kinase', 'with growth'),
+    ((tf_activity_g, metabolomics_g), (tf_activity_dyn, metabolomics_dyn), 'Test', 'tf', 'with growth'),
+    ((k_tf_activity_g, metabolomics_g), (k_tf_activity_dyn, metabolomics_dyn), 'Test', 'overlap', 'with growth')
 ]
 
 # Dynamic comparisons
 dynamic = [
-    ((k_activity.copy(), metabolomics.copy()), (k_activity_dyn.copy(), metabolomics_dyn.copy()), 'dynamic', 'kinase', 'no growth'),
-    ((tf_activity.copy(), metabolomics.copy()), (tf_activity_dyn.copy(), metabolomics_dyn.copy()), 'dynamic', 'tf', 'no growth'),
-    ((k_tf_activity.copy(), metabolomics.copy()), (k_tf_activity_dyn.copy(), metabolomics_dyn.copy()), 'dynamic', 'overlap', 'no growth'),
+    ((k_activity.copy(), metabolomics.copy()), (k_activity_dyn.copy(), metabolomics_dyn.copy()), 'Dynamic', 'kinase', 'no growth'),
+    ((tf_activity.copy(), metabolomics.copy()), (tf_activity_dyn.copy(), metabolomics_dyn.copy()), 'Dynamic', 'tf', 'no growth'),
+    ((k_tf_activity.copy(), metabolomics.copy()), (k_tf_activity_dyn.copy(), metabolomics_dyn.copy()), 'Dynamic', 'overlap', 'no growth'),
 
-    ((k_activity_g.copy(), metabolomics_g.copy()), (k_activity_dyn.copy(), metabolomics_dyn.copy()), 'dynamic', 'kinase', 'with growth'),
-    ((tf_activity_g.copy(), metabolomics_g.copy()), (tf_activity_dyn.copy(), metabolomics_dyn.copy()), 'dynamic', 'tf', 'with growth'),
-    ((k_tf_activity_g.copy(), metabolomics_g.copy()), (k_tf_activity_dyn.copy(), metabolomics_dyn.copy()), 'dynamic', 'overlap', 'with growth')
+    ((k_activity_g.copy(), metabolomics_g.copy()), (k_activity_dyn.copy(), metabolomics_dyn.copy()), 'Dynamic', 'kinase', 'with growth'),
+    ((tf_activity_g.copy(), metabolomics_g.copy()), (tf_activity_dyn.copy(), metabolomics_dyn.copy()), 'Dynamic', 'tf', 'with growth'),
+    ((k_tf_activity_g.copy(), metabolomics_g.copy()), (k_tf_activity_dyn.copy(), metabolomics_dyn.copy()), 'Dynamic', 'overlap', 'with growth')
 ]
 
-lm, lm_res = Lasso(alpha=0.01), []
 
+lm, lm_res = Lasso(alpha=0.01, max_iter=2000), []
 
 for xs, ys, condition, feature, growth in steady_state:
     x_features, y_features, samples = list(xs.index), list(ys.index), list(set(xs.columns).intersection(ys.columns))
@@ -94,20 +96,6 @@ for xs, ys, condition, feature, growth in steady_state:
 
     cv = LeaveOneOut(len(samples))
     y_pred = DataFrame({samples[test]: {y_feature: lm.fit(x.ix[train], y.ix[train, y_feature]).predict(x.ix[test])[0] for y_feature in y_features} for train, test in cv})
-
-    lm_res.extend([(condition, feature, growth, f, 'features', pearson(ys.ix[f, samples], y_pred.ix[f, samples])[0]) for f in y_features])
-    lm_res.extend([(condition, feature, growth, s, 'samples', pearson(ys.ix[y_features, s], y_pred.ix[y_features, s])[0]) for s in samples])
-
-    print '[INFO] %s, %s, %s' % (condition, feature, growth)
-    print '[INFO] x_features: %d, y_features: %d, samples: %d' % (len(x_features), len(y_features), len(samples))
-
-
-for xs, ys, condition, feature, growth in no_test:
-    x_features, y_features, samples = list(xs.index), list(ys.index), list(set(xs.columns).intersection(ys.columns))
-
-    x, y = xs.ix[x_features, samples].replace(np.NaN, 0.0).T, ys.ix[y_features, samples].T
-
-    y_pred = DataFrame({y_feature: lm.fit(x, y[y_feature]).predict(x) for y_feature in y_features}, index=samples).T
 
     lm_res.extend([(condition, feature, growth, f, 'features', pearson(ys.ix[f, samples], y_pred.ix[f, samples])[0]) for f in y_features])
     lm_res.extend([(condition, feature, growth, s, 'samples', pearson(ys.ix[y_features, s], y_pred.ix[y_features, s])[0]) for s in samples])
@@ -131,17 +119,121 @@ for (xs_train, ys_train), (xs_test, ys_test), condition, feature, growth in dyna
     print '[INFO] %s, %s, %s' % (condition, feature, growth)
     print '[INFO] x_features: %d, y_features: %d, train_samples: %d, test_samples: %d' % (len(x_features), len(y_features), len(train_samples), len(test_samples))
 
+
+for (xs_train, ys_train), (xs_test, ys_test), condition, feature, growth in test_comparisons:
+    x_features, y_features = list(set(xs_train.index).intersection(xs_test.index)), list(set(ys_train.index).intersection(ys_test.index))
+    train_samples, test_samples = list(set(xs_train.columns).intersection(ys_train.columns)), list(set(xs_test.columns).intersection(ys_test.columns))
+
+    x_train, y_train = xs_train.ix[x_features, train_samples].replace(np.NaN, 0.0).T, ys_train.ix[y_features, train_samples].T
+    x_test, y_test = xs_test.ix[x_features, test_samples].replace(np.NaN, 0.0).T, ys_test.ix[y_features, test_samples].T
+
+    y_pred = {}
+    for y_feature in y_features:
+        outlier = y_train[y_feature].abs().argmax()
+        y_pred[y_feature] = dict(zip(*(test_samples, lm.fit(x_train.drop(outlier), y_train[y_feature].drop(outlier)).predict(x_test))))
+
+    y_pred = DataFrame(y_pred).T
+
+    lm_res.extend([(condition, feature, growth, f, 'features', pearson(ys_test.ix[f, test_samples], y_pred.ix[f, test_samples])[0]) for f in y_features])
+    lm_res.extend([(condition, feature, growth, s, 'samples', pearson(ys_test.ix[y_features, s], y_pred.ix[y_features, s])[0]) for s in test_samples])
+
+    print '[INFO] %s, %s, %s' % (condition, feature, growth)
+    print '[INFO] x_features: %d, y_features: %d, train_samples: %d, test_samples: %d' % (len(x_features), len(y_features), len(train_samples), len(test_samples))
+
+
 lm_res = DataFrame(lm_res, columns=['condition', 'feature', 'growth', 'name', 'type_cor', 'cor'])
 
 
 # ---- Plot predictions correlations
-sns.set(style='ticks', palette='pastel', color_codes=True)
-g = sns.FacetGrid(data=lm_res, col='condition', row='feature', legend_out=True, sharey=True, ylim=(-1, 1), col_order=['LOO', 'dynamic', 'No Test'])
+sns.set(style='ticks', palette='pastel', color_codes=True, context='paper')
+g = sns.FacetGrid(data=lm_res, col='condition', row='feature', legend_out=True, sharey=True, ylim=(-1, 1), col_order=['LOO', 'Dynamic', 'Test'], size=2.4, aspect=.9)
+g.fig.subplots_adjust(wspace=.05, hspace=.05)
 g.map(plt.axhline, y=0, ls=':', c='.5')
 g.map(sns.boxplot, 'type_cor', 'cor', 'growth', palette={'with growth': '#95a5a6', 'no growth': '#2ecc71', 'dynamic': '#e74c3c'}, sym='')
 g.map(sns.stripplot, 'type_cor', 'cor', 'growth', palette={'with growth': '#95a5a6', 'no growth': '#2ecc71', 'dynamic': '#e74c3c'}, jitter=True, size=5)
 g.add_legend(title='Growth rate:')
 g.set_axis_labels('', 'Correlation (pearson)')
 sns.despine(trim=True)
-plt.savefig('%s/reports/lm_boxplot_correlations_metabolites_overlap.pdf' % wd, bbox_inches='tight')
+plt.savefig('%s/reports/lm_metabolites_overlap.pdf' % wd, bbox_inches='tight')
 plt.close('all')
+
+
+# ---- Metabolites predictions correlations
+m_map = read_csv('%s/files/metabolite_mz_map_kegg.txt' % wd, sep='\t')
+m_map['mz'] = [float('%.2f' % i) for i in m_map['mz']]
+m_map = m_map.drop_duplicates('mz').drop_duplicates('formula')
+m_map = m_map.groupby('mz')['name'].apply(lambda i: '; '.join(i)).to_dict()
+
+pred_met = lm_res[(lm_res['condition'] == 'LOO') & (lm_res['growth'] == 'dynamic') & (lm_res['type_cor'] == 'features') & (lm_res['feature'] != 'overlap')]
+pred_met['metabolite'] = [m_map[i] for i in pred_met['name']]
+pred_met = pred_met.sort('cor', ascending=False)
+
+acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)['gene'].to_dict()
+
+order = list(pred_met[pred_met['feature'] == 'tf'].sort('cor', ascending=False)['metabolite'])
+sns.set(style='ticks', palette='pastel', color_codes=True, context='paper')
+g = sns.FacetGrid(data=pred_met, legend_out=True, sharey=False, xlim=(-.3, 1), size=4, aspect=1)
+g.fig.subplots_adjust(wspace=.05, hspace=.05)
+g.map(plt.axvline, x=0, ls=':', c='.5')
+g.map(sns.barplot, 'cor', 'metabolite', 'feature', palette={'tf': '#34495e', 'kinase': '#3498db'}, ci=None, orient='h', lw=0, order=order)
+g.add_legend(title='Feature type:')
+g.set_axis_labels('Correlation (pearson)', 'Metabolite')
+sns.despine(trim=True)
+plt.savefig('%s/reports/lm_metabolites_overlap_list.pdf' % wd, bbox_inches='tight')
+plt.close('all')
+
+
+# ---- Dynamic associations
+dynamic_associations = [
+    (k_activity_dyn, metabolomics_dyn, 'kinase'),
+    (tf_activity_dyn, metabolomics_dyn, 'tf'),
+    (k_tf_activity_dyn, metabolomics_dyn, 'overlap')
+]
+
+lm_dyn_betas = DataFrame()
+for xs_test, ys_test, feature_type in dynamic_associations:
+    samples, x_features, y_features = list(set(xs_test).intersection(ys_test)), list(xs_test.index), list(ys_test.index)
+
+    x_train, y_train = xs_test[samples].T, ys_test[samples].T
+
+    lm_betas = DataFrame(lm.fit(x_train, y_train).coef_, index=y_features, columns=x_features)
+
+    sns.set(style='white', palette='pastel', color_codes=True, context='paper')
+    xticklabels = [acc_name[i].split(';')[0] for i in lm_betas.columns]
+    yticklabels = [m_map[i] for i in lm_betas.index]
+    sns.clustermap(lm_betas, figsize=(int(lm_betas.shape[1] * .3), 5), xticklabels=xticklabels, yticklabels=yticklabels)
+    plt.savefig('%s/reports/lm_metabolites_overlap_betas_%s.pdf' % (wd, feature_type), bbox_inches='tight')
+    plt.close('all')
+
+    lm_betas['metabolite'] = lm_betas.index
+    lm_betas = melt(lm_betas, id_vars='metabolite', value_name='beta', var_name='feature')
+    lm_betas = lm_betas[lm_betas['beta'] != 0]
+    lm_betas['type'] = feature_type
+
+    lm_dyn_betas = lm_dyn_betas.append(lm_betas, ignore_index=True)
+
+    print '[INFO] %s' % feature_type
+
+
+plot_df = []
+for m in set(pred_met.head()['name']):
+    best_k = lm_dyn_betas.ix[lm_dyn_betas[(lm_dyn_betas['metabolite'] == m) & (lm_dyn_betas['type'] == 'kinase')]['beta'].argmax(), 'feature']
+    best_t = lm_dyn_betas.ix[lm_dyn_betas[(lm_dyn_betas['metabolite'] == m) & (lm_dyn_betas['type'] == 'tf')]['beta'].argmax(), 'feature']
+
+    plot_df.extend([(x, y, c, m, best_k, 'kinase') for c in conditions for x, y in zip(*(metabolomics_dyn.ix[m, conditions], k_activity_dyn.ix[best_k, conditions]))])
+    plot_df.extend([(x, y, c, m, best_t, 'tf') for c in conditions for x, y in zip(*(metabolomics_dyn.ix[m, conditions], tf_activity_dyn.ix[best_t, conditions]))])
+
+    print '[INFO] %s' % m
+
+plot_df = DataFrame(plot_df, columns=['x', 'y', 'condition', 'metabolite', 'feature', 'feature_type'])
+plot_df['metabolite'] = [m_map[m] for m in plot_df['metabolite']]
+
+
+sns.set(style='ticks', palette='pastel', color_codes=True, context='paper')
+g = sns.lmplot(x='x', y='y', data=plot_df, row='metabolite', hue='feature_type', sharex=False, sharey=False, size=2.5, aspect=1, scatter_kws={'s': 50, 'alpha': .6}, palette={'tf': '#34495e', 'kinase': '#3498db'})
+g.despine(trim=True)
+g.set_xlabels('Metabolite (fold-change)')
+g.set_ylabels('Feature (activity)')
+plt.savefig('%s/reports/lm_metabolites_overlap_list_scatter.pdf' % wd, bbox_inches='tight')
+plt.close('all')
+

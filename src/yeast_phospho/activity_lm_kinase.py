@@ -85,16 +85,30 @@ plot_df['#targets'] = [k_targets[k].sum() for k in plot_df['kinase']]
 plot_df['#targets'] = [str(k) if k <= 10 else '> 10' for k in plot_df['#targets']]
 
 
-sns.set(style='ticks', palette='pastel', color_codes=True)
+sns.set(style='ticks', palette='pastel', color_codes=True, context='paper')
 col_order, x_order, hue_order = [str(i) if i <= 10 else '> 10' for i in xrange(12) if i not in [0, 7]], ['Kinase', 'Phosphatase', 'ND'], ['Diagonal', 'Off-diagonal']
-g = sns.FacetGrid(data=plot_df, col='#targets', col_order=col_order, col_wrap=5, legend_out=True, sharey=False, size=4, aspect=.7)
+g = sns.FacetGrid(data=plot_df, col='#targets', col_order=col_order, col_wrap=5, legend_out=True, sharey=False, size=2, aspect=1)
 g.map(plt.axhline, y=0, ls=':', c='.5')
-g.map(sns.boxplot, 'type', 'activity', 'diagonal', palette={'Diagonal': '#e74c3c', 'Off-diagonal': '#95a5a6'}, hue_order=hue_order, sym='')
+g.map(sns.boxplot, 'type', 'activity', 'diagonal', palette={'Diagonal': '#e74c3c', 'Off-diagonal': '#95a5a6'}, hue_order=hue_order, sym='', width=.5)
+g.map(sns.stripplot, 'type', 'activity', 'diagonal', palette={'Diagonal': '#e74c3c', 'Off-diagonal': '#95a5a6'}, hue_order=hue_order, jitter=True, size=5)
+g.add_legend()
+g.set_axis_labels('', 'betas')
+g.set_xticklabels(rotation=50)
+sns.despine(trim=True)
+plt.savefig('%s/reports/kinase_activity_lm_diagonal_boxplot.pdf' % wd, bbox_inches='tight')
+plt.close('all')
+
+sns.set(style='ticks', palette='pastel', color_codes=True, context='paper')
+x_order, hue_order = ['Kinase', 'Phosphatase', 'ND'], ['Diagonal', 'Off-diagonal']
+g = sns.FacetGrid(data=plot_df, legend_out=True, sharey=False, size=4, aspect=.7)
+g.map(plt.axhline, y=0, ls=':', c='.5')
+g.map(sns.boxplot, 'type', 'activity', 'diagonal', palette={'Diagonal': '#e74c3c', 'Off-diagonal': '#95a5a6'}, hue_order=hue_order, sym='', width=.5)
 g.map(sns.stripplot, 'type', 'activity', 'diagonal', palette={'Diagonal': '#e74c3c', 'Off-diagonal': '#95a5a6'}, hue_order=hue_order, jitter=True, size=5)
 g.add_legend()
 g.set_axis_labels('', 'betas')
 sns.despine(trim=True)
-plt.savefig('%s/reports/kinase_activity_lm_diagonal_boxplot.pdf' % wd, bbox_inches='tight')
+g.set_xticklabels(rotation=50)
+plt.savefig('%s/reports/kinase_activity_lm_diagonal_boxplot_all.pdf' % wd, bbox_inches='tight')
 plt.close('all')
 
 

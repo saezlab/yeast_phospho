@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.stats.stats import spearmanr, pearsonr
+from pandas import DataFrame
 
 
 def pearson(x, y):
@@ -22,3 +23,12 @@ def metric(func, x, y):
     mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
     res = func(x[mask], y[mask]) if np.sum(mask) > 5 else np.NaN
     return res if np.isfinite(res) else [[res]]
+
+
+def shuffle(df):
+    col, idx = df.columns, df.index
+    val = df.values
+    shape = val.shape
+    val_flat = val.flatten()
+    np.random.shuffle(val_flat)
+    return DataFrame(val_flat.reshape(shape), columns=col, index=idx)

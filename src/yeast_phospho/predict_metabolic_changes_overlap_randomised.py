@@ -1,28 +1,13 @@
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-from pandas.stats.misc import zscore
-from sklearn.grid_search import GridSearchCV
-from sklearn.metrics.regression import r2_score, mean_squared_error, mean_absolute_error
-from sklearn.metrics.scorer import mean_squared_error_scorer
-from sklearn.svm import SVR, LinearSVR
 from yeast_phospho import wd
-from yeast_phospho.utils import pearson
-from pandas import DataFrame, read_csv, Series
-from sklearn.cross_validation import LeaveOneOut, KFold, ShuffleSplit, StratifiedShuffleSplit
-from sklearn.linear_model import Ridge, Lasso, ElasticNet, ElasticNetCV, RidgeCV, LassoCV, LinearRegression
+from yeast_phospho.utils import pearson, shuffle
+from pandas import DataFrame, read_csv
+from sklearn.cross_validation import LeaveOneOut
+from sklearn.linear_model import Lasso
 
-
-def shuffle(df):
-    col, idx = df.columns, df.index
-    val = df.values
-    shape = val.shape
-    val_flat = val.flatten()
-    np.random.shuffle(val_flat)
-    return DataFrame(val_flat.reshape(shape), columns=col, index=idx)
-
-
-n_rand = 100
+n_rand = 1000
 
 lm_res = []
 for n_iter in xrange(n_rand):
@@ -33,7 +18,6 @@ for n_iter in xrange(n_rand):
     m_signif = list(m_signif[(m_signif.abs() > .8).sum(1) > 0].index)
 
     s_info = read_csv('%s/files/strain_info.tab' % wd, sep='\t', index_col=0)
-    # s_info = s_info[[i not in ['silent'] for i in s_info['impact']]]
 
     # ---- Import
     # Steady-state
@@ -88,7 +72,7 @@ for n_iter in xrange(n_rand):
         ((tf_activity_g.copy(), metabolomics_g.copy()), (tf_activity_dyn.copy(), metabolomics_dyn.copy()), 'dynamic', 'tf', 'with growth'),
     ]
 
-    lm = Lasso(alpha=.01)
+    lm = Lasso(alpha=.01, max_iter=2000)
 
     for xs, ys, condition, feature, growth in steady_state:
         x_features, y_features, samples = list(xs.index), list(ys.index), list(set(xs.columns).intersection(ys.columns))
