@@ -2,11 +2,12 @@ import re
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
 from yeast_phospho import wd
 from yeast_phospho.utils import metric, pearson
 from sklearn.metrics.pairwise import euclidean_distances, manhattan_distances, linear_kernel
 from sklearn.metrics import roc_curve, auc
-from sklearn.linear_model import Lasso
+from sklearn.linear_model import Lasso, Ridge, LinearRegression
 from pandas import DataFrame, read_csv, melt, pivot_table
 from scipy.stats.distributions import hypergeom
 from pymist.reader.sbml_reader import read_sbml_model
@@ -70,7 +71,7 @@ for bkg_type in ['biogrid', 'phosphogrid', 'string']:
 
     elif bkg_type == 'string':
         db = read_csv(wd + 'files/4932.protein.links.v9.1.txt', sep=' ')
-        db_threshold = db['combined_score'].max() * 0.5
+        db_threshold = db['combined_score'].max() * 0.35
         db = db[db['combined_score'] > db_threshold]
         db = {(source.split('.')[1], target.split('.')[1]) for source, target in db[['protein1', 'protein2']].values}
 
@@ -91,7 +92,7 @@ for bkg_type in ['biogrid', 'phosphogrid', 'string']:
 
     dbs[bkg_type] = db
 
-db = dbs['biogrid'].union(dbs['phosphogrid']).union(dbs['string'])
+db = dbs['string']
 print '[INFO] Kinase/Enzymes interactions data-bases imported'
 
 
@@ -122,7 +123,7 @@ k_activity_std = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep
 k_activity_std = k_activity_std[(k_activity_std.count(1) / k_activity_std.shape[1]) > .75].replace(np.NaN, 0.0)
 
 tf_activity_std = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0).ix[cmap.index].dropna()
-tf_activity_std = tf_activity_std[tf_activity_std.std(1) > .2]
+tf_activity_std = tf_activity_std[tf_activity_std.std(1) > .3]
 
 # Steady-state with growth
 metabolomics_std_g = read_csv('%s/tables/metabolomics_steady_state_growth_rate.tab' % wd, sep='\t', index_col=0).ix[cmap.columns].dropna()
@@ -132,7 +133,7 @@ k_activity_std_g = read_csv('%s/tables/kinase_activity_steady_state_with_growth.
 k_activity_std_g = k_activity_std_g[(k_activity_std_g.count(1) / k_activity_std_g.shape[1]) > .75].replace(np.NaN, 0.0)
 
 tf_activity_std_g = read_csv('%s/tables/tf_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).ix[cmap.index].dropna()
-tf_activity_std_g = tf_activity_std_g[tf_activity_std_g.std(1) > .2]
+tf_activity_std_g = tf_activity_std_g[tf_activity_std_g.std(1) > .3]
 
 # Dynamic
 metabolomics_dyn = read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', index_col=0).ix[cmap.columns].dropna()
@@ -142,9 +143,23 @@ k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t'
 k_activity_dyn = k_activity_dyn[(k_activity_dyn.count(1) / k_activity_dyn.shape[1]) > .75].replace(np.NaN, 0.0)
 
 tf_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0).ix[cmap.index].dropna()
-tf_activity_dyn = tf_activity_dyn[tf_activity_dyn.std(1) > .2]
+tf_activity_dyn = tf_activity_dyn[tf_activity_dyn.std(1) > .3]
 
-# Comparisons
+
+# ---- Overlap
+strains = list(set(metabolomics_std.columns).intersection(k_activity_std.columns).intersection(tf_activity_std.columns))
+conditions = list(set(metabolomics_dyn.columns).intersection(k_activity_dyn.columns).intersection(tf_activity_dyn.columns))
+metabolites = list(set(metabolomics_std.index).intersection(metabolomics_dyn.index))
+kinases = list(set(k_activity_std.index).intersection(k_activity_dyn.index))
+tfs = list(set(tf_activity_std.index).intersection(tf_activity_dyn.index))
+
+metabolomics_std, k_activity_std, tf_activity_std = metabolomics_std.ix[metabolites, strains], k_activity_std.ix[kinases, strains], tf_activity_std.ix[tfs, strains]
+metabolomics_std_g, k_activity_std_g, tf_activity_std_g = metabolomics_std_g.ix[metabolites, strains], k_activity_std_g.ix[kinases, strains], tf_activity_std_g.ix[tfs, strains]
+metabolomics_dyn, k_activity_dyn, tf_activity_dyn = metabolomics_dyn.ix[metabolites, conditions], k_activity_dyn.ix[kinases, conditions], tf_activity_dyn.ix[tfs, conditions]
+print '[INFO] Data-sets import and overlap calculated'
+
+
+# ---- Comparisons
 datasets_files = [
     (k_activity_std, metabolomics_std, 'Kinase steadystate'),
     (tf_activity_std, metabolomics_std, 'TF steadystate'),
@@ -156,8 +171,8 @@ datasets_files = [
     (tf_activity_dyn, metabolomics_dyn, 'TF dynamic'),
 ]
 
-sns.set(style='ticks', palette='pastel', color_codes=True)
-(f, plot), pos = plt.subplots(len(datasets_files), 2, figsize=(10, 7.5 * len(datasets_files))), 0
+sns.set(style='ticks', palette='pastel', color_codes=True, context='paper')
+(f, plot), pos = plt.subplots(len(datasets_files), 2, figsize=(7, 4. * len(datasets_files))), 0
 for k_activity, metabolomics, growth in datasets_files:
 
     # Overlapping kinases/phosphatases knockout
@@ -165,14 +180,14 @@ for k_activity, metabolomics, growth in datasets_files:
     k_activity, metabolomics = k_activity[strains], metabolomics[strains]
 
     # ---- Correlate metabolic fold-changes with kinase activities
-    lm = Lasso(alpha=.01).fit(k_activity.T, metabolomics.T)
+    lm = Ridge().fit(k_activity.T, metabolomics.T)
 
     info_table = DataFrame(lm.coef_, index=metabolomics.index, columns=k_activity.index)
     info_table['metabolite'] = info_table.index
     info_table = melt(info_table, id_vars='metabolite', value_name='coef', var_name='kinase')
     info_table = info_table[info_table['coef'] != 0.0]
 
-    info_table['score'] = info_table['coef'].abs()
+    info_table['score'] = info_table['coef'].abs().max() - info_table['coef'].abs()
 
     info_table['kinase_count'] = [k_activity.ix[k].count() for k in info_table['kinase']]
 
@@ -230,11 +245,9 @@ for k_activity, metabolomics, growth in datasets_files:
         ax.plot(curve_fpr, curve_tpr, label='%s (area = %0.2f)' % (roc_metric, curve_auc))
 
     ax.plot([0, 1], [0, 1], 'k--')
-    ax.set_xlabel('False Positive Rate')
-    ax.set_ylabel('True Positive Rate')
+    ax.set_ylabel(growth)
     sns.despine(trim=True, ax=ax)
     ax.legend(loc='lower right')
-    ax.set_title(growth)
 
     # Hypergeometric specific thresold analysis
     ax = plot[pos][1]
@@ -246,10 +259,9 @@ for k_activity, metabolomics, growth in datasets_files:
     ax.plot(plot_df['thres'], plot_df['fraction'], c='gray')
     ax.set_xlim(plot_df['thres'].min(), plot_df['thres'].max())
     ax.set_ylim(plot_df['fraction'].min(), plot_df['fraction'].max())
-    ax.set_xlabel('Threshold')
     ax.set_ylabel('Fraction (%)')
+    ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.0f%%'))
     sns.despine(ax=ax)
-    ax.set_title(growth)
 
     pos += 1
 
