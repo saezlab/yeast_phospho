@@ -60,7 +60,7 @@ gene_reactions = dict(model.get_reactions_by_genes(model.get_genes()).items())
 
 # ---- Read protein interactions dbs
 dbs = {}
-for bkg_type in ['biogrid', 'phosphogrid', 'string']:
+for bkg_type in ['string']:
     if bkg_type == 'phosphogrid':
         db = read_csv(wd + 'files/PhosphoGrid.txt', sep='\t')[['KINASES_ORFS', 'ORF_NAME']]
         db = {(k, r['ORF_NAME']) for i, r in db.iterrows() for k in r['KINASES_ORFS'].split('|') if k != '-'}
@@ -71,9 +71,16 @@ for bkg_type in ['biogrid', 'phosphogrid', 'string']:
 
     elif bkg_type == 'string':
         db = read_csv(wd + 'files/4932.protein.links.v9.1.txt', sep=' ')
-        db_threshold = db['combined_score'].max() * 0.35
-        db = db[db['combined_score'] > db_threshold]
+
+        lb = db['combined_score'].max() * .35
+        ub = db['combined_score'].max() * 1.0
+
+        db = db[db['combined_score'] > lb]
+        db = db[db['combined_score'] < ub]
+
         db = {(source.split('.')[1], target.split('.')[1]) for source, target in db[['protein1', 'protein2']].values}
+
+        print 'lb: %.2f; ub: %.2f' % (lb, ub)
 
     db = {(s, t) for s, t in db if s != t}
     print '[INFO] %s: %d' % (bkg_type, len(db))
@@ -84,7 +91,7 @@ for bkg_type in ['biogrid', 'phosphogrid', 'string']:
     db = {(s, r) for s, t in db for r in gene_reactions[t] if r in s_matrix.columns}
     print '[INFO] %s, only enzymatic reactions: %d' % (bkg_type, len(db))
 
-    db = {(s, m) for s, r in db if r in s_matrix.columns for m in set((s_matrix[s_matrix[r] != 0]).index)}
+    db = {(s, m) for s, r in db if r in s_matrix.columns for m in r_metabolites[r]}
     print '[INFO] %s, only enzymatic reactions metabolites: %d' % (bkg_type, len(db))
 
     db = {(s, model_met_map[m]) for s, m in db if m in model_met_map}
@@ -171,6 +178,8 @@ datasets_files = [
     (tf_activity_dyn, metabolomics_dyn, 'TF dynamic'),
 ]
 
+
+# ---- Perform kinase/enzyme enrichment
 sns.set(style='ticks', palette='pastel', color_codes=True, context='paper')
 (f, plot), pos = plt.subplots(len(datasets_files), 2, figsize=(7, 4. * len(datasets_files))), 0
 for k_activity, metabolomics, growth in datasets_files:
