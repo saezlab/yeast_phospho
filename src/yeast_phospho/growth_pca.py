@@ -41,49 +41,42 @@ metabolomics.index = Index(metabolomics.index, dtype=str)
 print '[INFO] Metabolomics data imported'
 
 
+# ---- Steady-state: phosphoproteomics data-set
+phosphoproteomics = read_csv('%s/tables/pproteomics_steady_state.tab' % wd, sep='\t', index_col=0)
+phosphoproteomics = phosphoproteomics[list(set(phosphoproteomics).intersection(growth.index))].replace(np.NaN, 0.0)
+
+
+# ---- Steady-state: TF acitivity
+tf_activity = read_csv('%s/tables/tf_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).dropna()
+
+
+# ---- Steady-state: TF acitivity
+k_activity = read_csv('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0)
+k_activity = k_activity.replace(np.NaN, 0.0)
+
+
 # ---- Run PCA
 n_components = 10
 
-pca_metabolomics = PCA(n_components=n_components).fit(metabolomics.T)
-pca_metabolomics_pc = DataFrame(pca_metabolomics.transform(metabolomics.T), columns=['PC%d' % i for i in range(1, n_components + 1)], index=metabolomics.columns)
+for df, df_type in [(metabolomics, 'metabolomics'), (gexp, 'gene_expression'), (phosphoproteomics, 'phosphoproteomics'), (tf_activity, 'tf_activity'), (k_activity, 'k_activity')]:
+    pca = PCA(n_components=n_components).fit(df.T)
+    pca_pc = DataFrame(pca.transform(df.T), columns=['PC%d' % i for i in range(1, n_components + 1)], index=df.columns)
 
-pca_gexp = PCA(n_components=n_components).fit(gexp.T)
-pca_gexp_pc = DataFrame(pca_gexp.transform(gexp.T), columns=['PC%d' % i for i in range(1, n_components + 1)], index=strains)
+    sns.set(style='ticks', palette='pastel', color_codes=True, context='paper')
+    g = sns.jointplot(growth[pca_pc.index], pca_pc['PC1'], kind='reg', color='gray')
+    plt.xlabel('Relative growth')
+    plt.ylabel('PC1 (%.1f%%)' % (pca.explained_variance_ratio_[0] * 100))
+    plt.savefig('%s/reports/pca_growth_%s.pdf' % (wd, df_type), bbox_inches='tight')
+    plt.close('all')
 
+    plot_df = DataFrame(zip(['PC%d' % i for i in range(1, n_components + 1)], pca.explained_variance_ratio_), columns=['PC', 'var'])
+    plot_df['var'] *= 100
+    sns.barplot('var', 'PC', data=plot_df, color='gray', linewidth=0)
+    plt.xlabel('Explained variance ratio')
+    plt.ylabel('Principal component')
+    sns.despine(trim=True)
+    plt.gca().xaxis.set_major_formatter(mtick.FormatStrFormatter('%.1f%%'))
+    plt.savefig('%s/reports/pca_growth_%s_pcs.pdf' % (wd, df_type), bbox_inches='tight')
+    plt.close('all')
 
-sns.set(style='ticks', palette='pastel', color_codes=True, context='paper')
-g = sns.jointplot(growth[pca_metabolomics_pc.index], pca_metabolomics_pc['PC1'], kind='reg', color='gray')
-plt.xlabel('Relative growth')
-plt.ylabel('PC1 (%.1f%%)' % (pca_metabolomics.explained_variance_ratio_[0] * 100))
-plt.savefig('%s/reports/pca_growth_metabolomics.pdf' % wd, bbox_inches='tight')
-plt.close('all')
-
-
-sns.set(style='ticks', palette='pastel', color_codes=True, context='paper')
-g = sns.jointplot(growth[pca_gexp_pc.index], pca_gexp_pc['PC1'], kind='reg', color='gray')
-plt.xlabel('Relative growth')
-plt.ylabel('PC1 (%.1f%%)' % (pca_gexp.explained_variance_ratio_[0] * 100))
-plt.savefig('%s/reports/pca_growth_gene_expression.pdf' % wd, bbox_inches='tight')
-plt.close('all')
-
-
-plot_df = DataFrame(zip(['PC%d' % i for i in range(1, n_components + 1)], pca_metabolomics.explained_variance_ratio_), columns=['PC', 'var'])
-plot_df['var'] *= 100
-sns.barplot('var', 'PC', data=plot_df, color='gray', linewidth=0)
-plt.xlabel('Explained variance ratio')
-plt.ylabel('Principal component')
-sns.despine(trim=True)
-plt.gca().xaxis.set_major_formatter(mtick.FormatStrFormatter('%.1f%%'))
-plt.savefig('%s/reports/pca_growth_metabolomics_pcs.pdf' % wd, bbox_inches='tight')
-plt.close('all')
-
-
-plot_df = DataFrame(zip(['PC%d' % i for i in range(1, n_components + 1)], pca_gexp.explained_variance_ratio_), columns=['PC', 'var'])
-plot_df['var'] *= 100
-sns.barplot('var', 'PC', data=plot_df, color='gray', linewidth=0)
-plt.xlabel('Explained variance ratio')
-plt.ylabel('Principal component')
-sns.despine(trim=True)
-plt.gca().xaxis.set_major_formatter(mtick.FormatStrFormatter('%.1f%%'))
-plt.savefig('%s/reports/pca_growth_gene_expression_pcs.pdf' % wd, bbox_inches='tight')
-plt.close('all')
+    print '[INFO] PCA analysis done: %s' % df_type
