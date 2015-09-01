@@ -32,3 +32,7 @@ def shuffle(df):
     val_flat = val.flatten()
     np.random.shuffle(val_flat)
     return DataFrame(val_flat.reshape(shape), columns=col, index=idx)
+
+
+def count_percentage(df):
+    return float(df.count().sum()) / np.prod(df.shape) * 100
