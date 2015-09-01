@@ -1,4 +1,5 @@
 import numpy as np
+from pandas.stats.misc import zscore
 import seaborn as sns
 import matplotlib.pyplot as plt
 from yeast_phospho import wd
@@ -28,7 +29,7 @@ for strain in strains:
     x = x.loc[:, x.sum() != 0]
 
     k_ntargets[strain] = dict(zip(*(x.columns, x.sum())))
-    k_activity[strain] = dict(zip(*(x.columns, Ridge(alpha=.1).fit(x, y).coef_)))
+    k_activity[strain] = dict(zip(*(x.columns, Ridge(alpha=.1).fit(x, zscore(y)).coef_)))
 
 
 k_activity, k_ntargets = DataFrame(k_activity), DataFrame(k_ntargets).replace(np.NaN, 0)
@@ -132,7 +133,7 @@ for condition in conditions:
     x = x.loc[:, x.sum() != 0]
 
     k_dyn_ntargets[condition] = dict(zip(*(x.columns, x.sum())))
-    k_activity_dyn[condition] = dict(zip(*(x.columns, Ridge(alpha=.1).fit(x, y).coef_)))
+    k_activity_dyn[condition] = dict(zip(*(x.columns, Ridge(alpha=.1).fit(x, zscore(y)).coef_)))
 
 k_activity_dyn, k_dyn_ntargets = DataFrame(k_activity_dyn), DataFrame(k_dyn_ntargets).replace(np.NaN, 0)
 print '[INFO] Kinase activity calculated: ', k_activity_dyn.shape

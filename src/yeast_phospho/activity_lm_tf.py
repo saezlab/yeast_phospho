@@ -1,4 +1,5 @@
 import numpy as np
+from pandas.stats.misc import zscore
 from yeast_phospho import wd
 from sklearn.linear_model import Ridge, LinearRegression
 from pandas import DataFrame, read_csv, pivot_table
@@ -40,7 +41,7 @@ def calculate_activity(strain):
 
     x = x.loc[:, x.sum() != 0]
 
-    return dict(zip(*(x.columns, Ridge(alpha=.1).fit(x, y).coef_)))
+    return dict(zip(*(x.columns, Ridge(alpha=.1).fit(x, zscore(y)).coef_)))
 
 tf_activity = DataFrame({c: calculate_activity(c) for c in strains})
 print '[INFO] TF activity calculated: ', tf_activity.shape
@@ -84,7 +85,7 @@ def calculate_activity(condition):
 
     x = x.loc[:, x.sum() != 0]
 
-    return dict(zip(*(x.columns, Ridge(alpha=.1).fit(x, y).coef_)))
+    return dict(zip(*(x.columns, Ridge(alpha=.1).fit(x, zscore(y)).coef_)))
 
 tf_activity = DataFrame({c: calculate_activity(c) for c in conditions})
 print '[INFO] TF activity calculated: ', tf_activity.shape
