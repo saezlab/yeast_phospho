@@ -1,8 +1,15 @@
 import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib.lines as mlines
+import matplotlib.patches as mpatches
 from pandas.stats.misc import zscore
 from yeast_phospho import wd
 from sklearn.linear_model import Ridge, LinearRegression
 from pandas import DataFrame, read_csv, pivot_table
+from yeast_phospho.utils import pearson
+
+ridge = Ridge(alpha=.1)
 
 # Import growth rates
 growth = read_csv('%s/files/strain_relative_growth_rate.txt' % wd, sep='\t', index_col=0)['relative_growth']
@@ -14,6 +21,7 @@ id2name = read_csv('%s/files/orf_name_dataframe.tab' % wd, sep='\t', index_col=0
 # TF targets
 tf_targets = read_csv('%s/files/tf_gene_network_chip_only.tab' % wd, sep='\t')
 tf_targets['tf'] = [name2id[i] if i in name2id else id2name[i] for i in tf_targets['tf']]
+tf_targets[tf_targets['tf'] != tf_targets['target']]
 tf_targets['interaction'] = 1
 tf_targets = pivot_table(tf_targets, values='interaction', index='target', columns='tf', fill_value=0)
 print '[INFO] TF targets calculated!'
@@ -41,7 +49,7 @@ def calculate_activity(strain):
 
     x = x.loc[:, x.sum() != 0]
 
-    return dict(zip(*(x.columns, Ridge(alpha=.1).fit(x, zscore(y)).coef_)))
+    return dict(zip(*(x.columns, ridge.fit(x, zscore(y)).coef_)))
 
 tf_activity = DataFrame({c: calculate_activity(c) for c in strains})
 print '[INFO] TF activity calculated: ', tf_activity.shape
@@ -72,6 +80,25 @@ print '[INFO] Growth regressed out from the Kinases activity scores: ', tf_activ
 tf_activity.to_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t')
 print '[INFO] [TF ACTIVITY] Exported'
 
+samples = set(tf_activity).intersection(gexp)
+plot_df = DataFrame([(i, s, tf_activity.ix[i, s], gexp.ix[i, s]) for i in tf_activity.index if i in gexp.index for s in samples], columns=['TF', 'sample', 'activity', 'expression'])
+plot_df = plot_df[[abs(e) >= 3 for e in plot_df['expression']]]
+plot_df['type'] = ['over' if e > 0 else 'under' for e in plot_df['expression']]
+
+palette = {'under': '#e74c3c', 'over': '#2ecc71'}
+sns.set(style='ticks', palette='pastel', color_codes=True, context='paper')
+g = sns.FacetGrid(data=plot_df, size=3, aspect=.6)
+g.map(plt.axhline, y=0, ls=':', c='.5')
+g.map(sns.boxplot, 'type', 'activity', 'type', palette=palette, hue_order=palette.keys(), sym='')
+g.map(sns.stripplot, 'type', 'activity', 'type', palette=palette, hue_order=palette.keys(), jitter=True, size=5)
+g.set_axis_labels('', 'betas')
+sns.despine(trim=True)
+
+handles = [mpatches.Circle((.5, .5), .25, facecolor=v, edgecolor='white', label=k) for k, v in palette.items()]
+plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), handles=handles)
+
+plt.savefig('%s/reports/tf_activity_expression_validation.pdf' % wd, bbox_inches='tight')
+plt.close('all')
 
 # ---- Dynamic: gene-expression data-set
 dyn_trans_df = read_csv('%s/tables/transcriptomics_dynamic.tab' % wd, sep='\t', index_col=0)
@@ -85,7 +112,7 @@ def calculate_activity(condition):
 
     x = x.loc[:, x.sum() != 0]
 
-    return dict(zip(*(x.columns, Ridge(alpha=.1).fit(x, zscore(y)).coef_)))
+    return dict(zip(*(x.columns, ridge.fit(x, zscore(y)).coef_)))
 
 tf_activity = DataFrame({c: calculate_activity(c) for c in conditions})
 print '[INFO] TF activity calculated: ', tf_activity.shape

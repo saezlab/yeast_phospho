@@ -13,10 +13,12 @@ m_signif = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', in
 m_signif = list(m_signif[m_signif.std(1) > .4].index)
 
 k_signif = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
-k_signif = list(k_signif[(k_signif.count(1) / k_signif.shape[1]) > .75].index)
+k_signif = k_signif[(k_signif.count(1) / k_signif.shape[1]) > .75]
+k_signif = list(k_signif[k_signif.std(1) > .3].index)
 
 tf_signif = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0).dropna()
 tf_signif = list(tf_signif[tf_signif.std(1) > .3].index)
+
 
 # ---- Import
 # Steady-state

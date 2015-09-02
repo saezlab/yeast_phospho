@@ -6,6 +6,8 @@ from yeast_phospho import wd
 from sklearn.linear_model import Ridge
 from pandas import DataFrame, read_csv, Index
 
+ridge = Ridge()
+
 s_info = read_csv(wd + 'files/strain_info.tab', sep='\t', index_col=0)
 
 # ---- Import metabolic model
@@ -73,7 +75,7 @@ for xs_f, f in [
 
         x = x.loc[:, x.sum() != 0]
 
-        return dict(zip(*(x.columns, Ridge(alpha=.01).fit(x, zscore(y)).coef_)))
+        return dict(zip(*(x.columns, ridge.fit(x, zscore(y)).coef_)))
 
     metabolites, strains, reactions = list(r_metabolites.index), list(xs.columns), list(r_metabolites.columns)
     r_activity = DataFrame({c: calculate_activity(c) for c in strains})
@@ -114,7 +116,7 @@ def calculate_activity(condition):
 
     x = x.loc[:, x.sum() != 0]
 
-    return dict(zip(*(x.columns, Ridge(alpha=.01).fit(x, zscore(y)).coef_)))
+    return dict(zip(*(x.columns, ridge.fit(x, zscore(y)).coef_)))
 
 metabolites_dyn, conditions_dyn, reactions_dyn = list(r_metabolites_dyn.index), list(metabolomics_dyn.columns), list(r_metabolites_dyn.columns)
 r_activity_dyn = DataFrame({c: calculate_activity(c) for c in conditions_dyn})
