@@ -21,7 +21,7 @@ id2name = read_csv('%s/files/orf_name_dataframe.tab' % wd, sep='\t', index_col=0
 # TF targets
 tf_targets = read_csv('%s/files/tf_gene_network_chip_only.tab' % wd, sep='\t')
 tf_targets['tf'] = [name2id[i] if i in name2id else id2name[i] for i in tf_targets['tf']]
-tf_targets[tf_targets['tf'] != tf_targets['target']]
+tf_targets = tf_targets[tf_targets['tf'] != tf_targets['target']]
 tf_targets['interaction'] = 1
 tf_targets = pivot_table(tf_targets, values='interaction', index='target', columns='tf', fill_value=0)
 print '[INFO] TF targets calculated!'
@@ -82,7 +82,7 @@ print '[INFO] [TF ACTIVITY] Exported'
 
 samples = set(tf_activity).intersection(gexp)
 plot_df = DataFrame([(i, s, tf_activity.ix[i, s], gexp.ix[i, s]) for i in tf_activity.index if i in gexp.index for s in samples], columns=['TF', 'sample', 'activity', 'expression'])
-plot_df = plot_df[[abs(e) >= 3 for e in plot_df['expression']]]
+plot_df = plot_df[[abs(e) >= 2.5 for e in plot_df['expression']]]
 plot_df['type'] = ['over' if e > 0 else 'under' for e in plot_df['expression']]
 
 palette = {'under': '#e74c3c', 'over': '#2ecc71'}
@@ -99,6 +99,17 @@ plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), handles=handles)
 
 plt.savefig('%s/reports/tf_activity_expression_validation.pdf' % wd, bbox_inches='tight')
 plt.close('all')
+
+
+samples = set(tf_activity).intersection(gexp)
+plot_df = DataFrame([(i, s, tf_activity.ix[i, s], gexp.ix[i, s]) for i in tf_activity.index if i in gexp.index for s in samples], columns=['TF', 'sample', 'activity', 'expression'])
+
+sns.set(style='ticks', color_codes=True, context='paper')
+sns.lmplot(data=plot_df, x='expression', y='activity', col='TF', col_wrap=5, scatter_kws={'s': 50}, sharey=False, sharex=False, palette='Set1', size=2, aspect=1)
+sns.despine(trim=True)
+plt.savefig('%s/reports/tf_activity_expression_validation_scatter.pdf' % wd, bbox_inches='tight')
+plt.close('all')
+
 
 # ---- Dynamic: gene-expression data-set
 dyn_trans_df = read_csv('%s/tables/transcriptomics_dynamic.tab' % wd, sep='\t', index_col=0)
