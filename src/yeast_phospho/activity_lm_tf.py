@@ -102,13 +102,15 @@ plt.close('all')
 
 
 samples = set(tf_activity).intersection(gexp)
-plot_df = DataFrame([(i, s, tf_activity.ix[i, s], gexp.ix[i, s]) for i in tf_activity.index if i in gexp.index for s in samples], columns=['TF', 'sample', 'activity', 'expression'])
+plot_df = DataFrame([(i, s, tf_activity.ix[i, s], gexp.ix[i, s]) for i in tf_activity.index if i in gexp.index and sum(gexp.ix[i].abs() > 3) > 2 for s in samples], columns=['TF', 'sample', 'activity', 'expression'])
 
 sns.set(style='ticks', color_codes=True, context='paper')
-sns.lmplot(data=plot_df, x='expression', y='activity', col='TF', col_wrap=5, scatter_kws={'s': 50}, sharey=False, sharex=False, palette='Set1', size=2, aspect=1)
+sns.lmplot(data=plot_df, x='expression', y='activity', scatter_kws={'s': 50}, sharey=False, sharex=False, palette='Set1', size=2, aspect=1)
 sns.despine(trim=True)
 plt.savefig('%s/reports/tf_activity_expression_validation_scatter.pdf' % wd, bbox_inches='tight')
 plt.close('all')
+
+
 
 
 # ---- Dynamic: gene-expression data-set
