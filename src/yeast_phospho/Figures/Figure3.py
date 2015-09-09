@@ -104,6 +104,7 @@ palette = {'tf': '#34495e', 'kinase': '#3498db'}
 sns.set(style='ticks')
 fig, gs = plt.figure(figsize=(10, 15)), GridSpec(5, 2, width_ratios=[1, 1], hspace=0.4)
 
+# Metabolites prediction plot
 # Barplot
 ax = plt.subplot(gs[:, 0])
 sns.barplot('cor', 'metabolite', 'feature', pred_met, palette=palette, ci=None, orient='h', lw=0, order=order, ax=ax)
@@ -134,6 +135,54 @@ for m in set(pred_met_bf['metabolite']):
 
 plt.savefig('%s/reports/Figure_3.pdf' % wd, bbox_inches='tight')
 plt.close('all')
+
+# Feature network plot
+beta_thres = 1.5
+
+network = lm_betas[lm_betas['beta'].abs() > beta_thres]
+network = network[[m in m_map for m in network['metabolite']]]
+network['metabolite'] = [str(m) for m in network['metabolite']]
+
+network_i = igraph.Graph(directed=False)
+network_i.add_vertices(list(set(network['metabolite']).union(network['feature'])))
+network_i.add_edges([(m, p) for m, p in network[['metabolite', 'feature']].values])
+network_i = network_i.simplify()
+print '[INFO] Network: ', network_i.summary()
+
+
+# Set nodes attributes
+node_name = lambda x: acc_name[x].split(';')[0] if x in k_activity_dyn.index or x in tf_activity_dyn.index else m_map[float(x)]
+network_i.vs['label'] = [node_name(v) for v in network_i.vs['name']]
+
+node_shape = lambda x: 'square' if (x not in k_activity_dyn.index) and (x not in tf_activity_dyn.index) else 'circle'
+network_i.vs['shape'] = [node_shape(v) for v in network_i.vs['name']]
+
+node_colour = lambda x: '#3498db' if x in k_activity_dyn.index else ('#34495e' if x in tf_activity_dyn.index else '#e74c3c')
+network_i.vs['color'] = [node_colour(v) for v in network_i.vs['name']]
+
+node_label_color = lambda x: 'white' if (x in k_activity_dyn.index) or (x in tf_activity_dyn.index) else 'black'
+network_i.vs['label_color'] = [node_label_color(v) for v in network_i.vs['name']]
+
+# Set edges attributes
+network_i.es['color'] = ['#e74c3c' if e < 0 else '#2ecc71' for e in network['beta']]
+
+# Calculate layout
+layout = network_i.layout_fruchterman_reingold(maxiter=10000, area=50 * (len(network_i.vs) ** 2))
+print '[INFO] Network layout created: ', network_i.summary()
+
+# Export network
+igraph.plot(
+    network_i,
+    layout=layout,
+    bbox=(0, 0, 360, 360),
+    vertex_label_size=5,
+    vertex_frame_width=0,
+    vertex_size=20,
+    edge_width=1.,
+    target='%s/reports/Figure_4.pdf' % wd
+)
+print '[INFO] Network exported: ', network_i.summary()
+
 
 # Supplementary materials figures
 plot_df = lm_betas_kinase.loc[:, [m in m_map for m in lm_betas_kinase]]
