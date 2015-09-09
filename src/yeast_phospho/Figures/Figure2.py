@@ -154,9 +154,12 @@ m_map = m_map.drop_duplicates('mz').drop_duplicates('formula')
 m_map = m_map.groupby('mz')['name'].apply(lambda i: '; '.join(i)).to_dict()
 
 # Figure 2
-dyn_xorder = ['N_downshift_5min', 'N_downshift_9min', 'N_downshift_15min', 'N_downshift_25min', 'N_downshift_44min', 'N_downshift_79min', 'N_upshift_5min', 'N_upshift_9min', 'N_upshift_15min', 'N_upshift_25min', 'N_upshift_44min', 'N_upshift_79min', 'Rapamycin_5min', 'Rapamycin_9min', 'Rapamycin_15min', 'Rapamycin_25min', 'Rapamycin_44min', 'Rapamycin_79min']
+dyn_xorder = [
+    'N_downshift_5min', 'N_downshift_9min', 'N_downshift_15min', 'N_downshift_25min', 'N_downshift_44min', 'N_downshift_79min',
+    'N_upshift_5min', 'N_upshift_9min', 'N_upshift_15min', 'N_upshift_25min', 'N_upshift_44min', 'N_upshift_79min',
+    'Rapamycin_5min', 'Rapamycin_9min', 'Rapamycin_15min', 'Rapamycin_25min', 'Rapamycin_44min', 'Rapamycin_79min'
+]
 palette = {'with growth': '#95a5a6', 'no growth': '#2ecc71', 'dynamic': '#e74c3c'}
-palette_feature = {'kinase': '#3498db', 'tf': '#34495e'}
 
 condition, growth = 'LOO', 'dynamic'
 plot_df = lm_res[lm_res['condition'] == condition]
