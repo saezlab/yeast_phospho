@@ -1,3 +1,7 @@
+# TO DO:
+	- Add Legend to Figure 1
+
+# Description
 - Preprocess data-sets
 	- Steady-state / Dynamic
 		- Transcriptomics

@@ -103,6 +103,6 @@ sns.despine(trim=True, ax=ax02)
 
 # Export figure
 fig.tight_layout()
-plt.savefig('%s/reports/Figure1.pdf' % wd, bbox_inches='tight')
+plt.savefig('%s/reports/Figure_1.pdf' % wd, bbox_inches='tight')
 plt.close('all')
 print '[INFO] Plot done'
