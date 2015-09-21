@@ -50,6 +50,7 @@ k_tf_activity = k_activity.append(tf_activity)
 k_tf_activity_g = k_activity_g.append(tf_activity_g)
 k_tf_activity_dyn = k_activity_dyn.append(tf_activity_dyn)
 
+
 # ---- Perform predictions
 # Steady-state comparisons
 steady_state = [

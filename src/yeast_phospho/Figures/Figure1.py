@@ -8,6 +8,7 @@ from pandas import read_csv, DataFrame, melt
 # Import id maps
 acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)['gene'].to_dict()
 
+
 # ---- Import
 # Steady-state
 k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
