@@ -190,7 +190,7 @@ plot_df.columns = [m_map[m] for m in plot_df]
 plot_df.index = [acc_name[i].split(';')[0] for i in plot_df.index]
 
 sns.set(style='white', palette='pastel')
-cmap, lw = sns.diverging_palette(220, 10, sep=80, n=9, as_cmap=True), .5
+cmap, lw = sns.diverging_palette(220, 10, n=9, as_cmap=True), .5
 sns.clustermap(plot_df.T, figsize=(15, 20), robust=True, cmap=cmap, linewidth=lw)
 plt.savefig('%s/reports/Figure_Supp_4_kinases_betas.pdf' % wd, bbox_inches='tight')
 plt.close('all')
@@ -202,7 +202,7 @@ plot_df.index = [acc_name[i].split(';')[0] for i in plot_df.index]
 plot_df = plot_df[plot_df.std(1) != 0]
 
 sns.set(style='white', palette='pastel')
-cmap, lw = sns.diverging_palette(220, 10, sep=80, n=9, as_cmap=True), .5
+cmap, lw = sns.diverging_palette(220, 10, n=9, as_cmap=True), .5
 sns.clustermap(plot_df.T, figsize=(15, 20), robust=True, cmap=cmap, linewidth=lw)
 plt.savefig('%s/reports/Figure_Supp_4_transcription_factors_betas.pdf' % wd, bbox_inches='tight')
 plt.close('all')
