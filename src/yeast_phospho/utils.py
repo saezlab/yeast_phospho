@@ -1,6 +1,7 @@
 import numpy as np
+from yeast_phospho import wd
 from scipy.stats.stats import spearmanr, pearsonr
-from pandas import DataFrame
+from pandas import DataFrame, read_csv, pivot_table
 
 
 def pearson(x, y):
@@ -36,3 +37,24 @@ def shuffle(df):
 
 def count_percentage(df):
     return float(df.count().sum()) / np.prod(df.shape) * 100
+
+
+def get_kinases_targets(studies_to_filter={'21177495'}):
+    k_targets = read_csv('%s/files/PhosphoGrid.txt' % wd, sep='\t')
+
+    k_targets = k_targets[[len(set(i.split('|')).intersection(studies_to_filter)) != len(set(i.split('|'))) for i in k_targets['KINASES_EVIDENCE_PUBMED']]]
+    k_targets = k_targets[[len(set(i.split('|')).intersection(studies_to_filter)) != len(set(i.split('|'))) for i in k_targets['PHOSPHATASES_EVIDENCE_PUBMED']]]
+
+    k_targets = k_targets.loc[(k_targets['KINASES_ORFS'] != '-') | (k_targets['PHOSPHATASES_ORFS'] != '-')]
+
+    k_targets['SOURCE'] = k_targets['KINASES_ORFS'] + '|' + k_targets['PHOSPHATASES_ORFS']
+    k_targets = [(k, t + '_' + site) for t, site, source in k_targets[['ORF_NAME', 'PHOSPHO_SITE', 'SOURCE']].values for k in source.split('|') if k != '-' and k != '']
+    k_targets = DataFrame(k_targets, columns=['kinase', 'site'])
+
+    k_targets['value'] = 1
+
+    k_targets = pivot_table(k_targets, values='value', index='site', columns='kinase', fill_value=0)
+
+    print '[INFO] [PHOSPHOGRID] Kinases targets: ', k_targets.shape
+
+    return k_targets

@@ -1,11 +1,13 @@
 import numpy as np
+import statsmodels
 import seaborn as sns
+import statsmodels.api as sm
 import matplotlib.pyplot as plt
 from yeast_phospho import wd
-from pandas import DataFrame, read_csv, melt
 from pandas.stats.misc import zscore
+from yeast_phospho.utils import get_kinases_targets
+from pandas import DataFrame, read_csv, melt, concat
 from sklearn.linear_model import Ridge, LinearRegression
-
 
 ridge = Ridge(alpha=.1)
 
@@ -19,9 +21,7 @@ phospho_df = read_csv('%s/tables/pproteomics_steady_state.tab' % wd, sep='\t', i
 strains = list(set(phospho_df.columns).intersection(growth.index))
 
 # Import kinase targets matrix
-k_targets = read_csv('%s/tables/targets_kinases.tab' % wd, sep='\t', index_col=0)
-k_targets = k_targets.ix[set(k_targets.index).intersection(phospho_df.index)]
-k_targets = k_targets.loc[:, k_targets.sum() != 0]
+k_targets = get_kinases_targets()
 
 k_activity, k_ntargets = {}, {}
 for strain in strains:
@@ -83,10 +83,10 @@ kinases_type = kinases_type.set_index('name')
 plot_df = k_activity.copy()
 plot_df.columns.name = 'strain'
 plot_df['kinase'] = plot_df.index
-plot_df = melt(plot_df, id_vars='kinase', value_name='activity').dropna()
+plot_df = melt(plot_df, id_vars='kinase', value_name='activity')
 plot_df['type'] = [kinases_type.ix[i, 'type'] for i in plot_df['kinase']]
 plot_df['diagonal'] = ['KO' if k == s else 'WT' for k, s in plot_df[['kinase', 'strain']].values]
-plot_df['#targets'] = [k_targets[k].sum() for k in plot_df['kinase']]
+plot_df['#targets'] = [len(set(k_targets[k_targets[k] == 1].index).intersection(phospho_df.index)) for k in plot_df['kinase']]
 plot_df['#targets'] = [str(k) if k <= 10 else '> 10' for k in plot_df['#targets']]
 
 

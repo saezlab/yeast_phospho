@@ -189,7 +189,7 @@ for k_activity, metabolomics, growth in datasets_files:
     k_activity, metabolomics = k_activity[strains], metabolomics[strains]
 
     # ---- Correlate metabolic fold-changes with kinase activities
-    lm = Ridge().fit(k_activity.T, metabolomics.T)
+    lm = Lasso(alpha=0.01, max_iter=2000).fit(k_activity.T, metabolomics.T)
 
     info_table = DataFrame(lm.coef_, index=metabolomics.index, columns=k_activity.index)
     info_table['metabolite'] = info_table.index

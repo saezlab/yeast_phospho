@@ -3,7 +3,11 @@ from yeast_phospho import wd
 from pandas import DataFrame, read_csv, pivot_table
 
 # Import kinases targets dictionary
-k_targets = read_csv('%s/files/PhosphoGrid.txt' % wd, sep='\t').loc[:, ['ORF_NAME', 'PHOSPHO_SITE', 'KINASES_ORFS', 'PHOSPHATASES_ORFS', 'SEQUENCE']]
+k_targets = read_csv('%s/files/PhosphoGrid.txt' % wd, sep='\t')
+
+k_targets = k_targets[k_targets['KINASES_EVIDENCE_PUBMED'] != '21177495']
+k_targets = k_targets[k_targets['PHOSPHATASES_EVIDENCE_PUBMED'] != '21177495']
+
 k_targets = k_targets.loc[np.bitwise_or(k_targets['KINASES_ORFS'] != '-', k_targets['PHOSPHATASES_ORFS'] != '-')]
 k_targets['SOURCE'] = k_targets['KINASES_ORFS'] + '|' + k_targets['PHOSPHATASES_ORFS']
 k_targets = [(k, t + '_' + site) for t, site, source in k_targets[['ORF_NAME', 'PHOSPHO_SITE', 'SOURCE']].values for k in source.split('|') if k != '-' and k != '']
