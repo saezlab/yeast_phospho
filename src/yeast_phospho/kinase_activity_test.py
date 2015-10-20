@@ -1,3 +1,4 @@
+from __future__ import division
 import numpy as np
 import seaborn as sns
 import statsmodels.api as sm
@@ -6,34 +7,49 @@ import matplotlib.pyplot as plt
 from yeast_phospho import wd
 from pandas.stats.misc import zscore
 from sklearn.linear_model import Ridge
-from pandas import DataFrame, Series, read_csv, melt
-from yeast_phospho.utils import get_kinases_targets
+from pandas import DataFrame, Series, read_csv, melt, pivot_table
+from yeast_phospho.estimate_activity import get_kinases_targets
 
+
+acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=0)
+acc_name.index = [i.split(';')[0] for i in acc_name.index]
+acc_name = acc_name['oln'].to_dict()
 
 # ---- Import data
 # data = read_csv('%s/tables/pproteomics_dynamic.tab' % wd, sep='\t', index_col=0)
-# data = data[(data.abs() > 1).sum(1) > 1]
 
 data = read_csv('%s/tables/pproteomics_steady_state.tab' % wd, sep='\t', index_col=0)
-data = data[(data.abs() > 1).sum(1) > 0]
 
 
 # ---- Import kinase targets matrix
-k_targets = get_kinases_targets()
+k_targets_phosphogrid = get_kinases_targets({})
+k_targets_phosphogrid_filtered = get_kinases_targets({'19779198', '21177495'})
+
+k_targets = read_csv('%s/tables/similarity_score_df.csv' % wd, sep='\t').dropna()
+k_targets['Target'] = [site.split('_')[0] + '_' + seq[7] + site.split('_')[1] for site, seq in k_targets[['Target', 'Sequence']].values]
+k_targets['Regulator'] = [acc_name[i] for i in k_targets['Regulator']]
+k_targets = pivot_table(k_targets, values='SS', index='Target', columns='Regulator', fill_value=0.0)
 
 
-# ---- Calculate kinase activity with Sklearn
-def k_activity_with_sklearn(x, y):
-    ys = y.ix[x.index].dropna()
-    xs = x.ix[ys.index]
+for k in k_targets:
+    l1 = set(k_targets.loc[k_targets[k] != 0, k].index)
+    l2 = set(k_targets_phosphogrid.loc[k_targets_phosphogrid[k] != 0, k].index)
 
-    xs = xs.loc[:, xs.sum() != 0]
+    print k, len(l1.intersection(l2)) / len(l1)
 
-    lm = Ridge().fit(xs, zscore(ys))
 
-    return dict(zip(*(xs.columns, lm.coef_)))
-
-k_activity_sklearn = DataFrame({c: k_activity_with_sklearn(k_targets, data[c]) for c in data})
+# # ---- Calculate kinase activity with Sklearn
+# def k_activity_with_sklearn(x, y):
+#     ys = y.ix[x.index].dropna()
+#     xs = x.ix[ys.index]
+#
+#     xs = xs.loc[:, xs.sum() != 0]
+#
+#     lm = Ridge().fit(xs, zscore(ys))
+#
+#     return dict(zip(*(xs.columns, lm.coef_)))
+#
+# k_activity_sklearn = DataFrame({c: k_activity_with_sklearn(k_targets, data[c]) for c in data})
 
 
 # ---- Calculate kinase activity with Statsmodel
@@ -45,7 +61,9 @@ def k_activity_with_statsmodel(x, y):
 
     lm = sm.OLS(zscore(ys), st.add_constant(xs))
 
-    res = lm.fit_regularized(L1_wt=0, alpha=.01)
+    res = lm.fit_regularized(L1_wt=0)
+
+    print res.summary()
 
     return res.params.drop('const').to_dict()
 
