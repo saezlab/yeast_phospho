@@ -10,6 +10,13 @@ AA_PRIORS_YEAST = Series({
     'S': 0.091, 'T': 0.059, 'W': 0.010, 'Y': 0.034, 'V': 0.056
 })
 
+AA_PRIORS_HUMAN = Series({
+    'A': 0.070, 'R': 0.056, 'N': 0.036, 'D': 0.048, 'C': 0.023,
+    'Q': 0.047, 'E': 0.071, 'G': 0.066, 'H': 0.026, 'I': 0.044,
+    'L': 0.100, 'K': 0.058, 'M': 0.021, 'F': 0.037, 'P': 0.063,
+    'S': 0.083, 'T': 0.053, 'W': 0.012, 'Y': 0.027, 'V': 0.060
+})
+
 namespace = ['A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y', 'V']
 
 
@@ -21,7 +28,7 @@ def read_fasta(fasta_file=None):
 
         for i in range(len(lines)):
             if lines[i].startswith('>'):
-                key = lines[i].split('>')[1].strip()
+                key = lines[i].split(' ')[0].split('>')[1].strip()
                 sequence = ''
 
                 i += 1
@@ -29,7 +36,7 @@ def read_fasta(fasta_file=None):
                     sequence += lines[i].strip()
                     i += 1
 
-                sequences[key] = sequence
+                sequences[key] = sequence.replace('*', '')
 
     return sequences
 
@@ -43,6 +50,10 @@ def flanking_sequence(seqs, sites, flank=7, empty_char='-'):
         sequence = seqs[tar]
 
         seq_pos = pos - 1
+
+        if seq_pos > len(sequence):
+            print '[WARNING] P-site (%s) placed outside protein sequence' % s
+            continue
 
         start_pos = max(0, seq_pos - flank)
         end_pos = min(len(sequence), seq_pos + flank + 1)
@@ -74,11 +85,11 @@ def position_weight_matrix(flanking_regions, priors, relative_freq=True):
     # Information content
     ic = (pwm_m * np.log2(pwm_m.divide(priors, axis=0))).sum()
 
-    return pwm_m, ic
+    return pwm_m.replace(np.NaN, 0), ic
 
 
-def score_sequence(sequence, pwm):
-    return np.array([pwm.ix[sequence[i], i] for i in range(len(sequence))])
+def score_sequence(sequence, pwm, empty_char='-'):
+    return np.array([pwm.ix[sequence[i], i] if sequence[i] != empty_char else .0 for i in range(len(sequence))])
 
 
 def similarity_score_matrix(flanking_regions, pwm, ic, ignore_central=True, is_kinase_pwm=True):

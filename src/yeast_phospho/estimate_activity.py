@@ -28,6 +28,10 @@ def get_kinases_targets(studies_to_filter={'21177495'}):
     return k_targets
 
 
+def get_protein_sequence():
+    return read_csv('%s/files/PhosphoGrid.txt' % wd, sep='\t').groupby('ORF_NAME')['SEQUENCE'].first().to_dict()
+
+
 def kinase_activity_with_sklearn(x, y, alpha=.1):
     ys = y.dropna()
     xs = x.ix[ys.index].replace(np.NaN, 0.0)
