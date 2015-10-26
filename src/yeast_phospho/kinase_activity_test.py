@@ -8,8 +8,7 @@ from yeast_phospho import wd
 from pandas.stats.misc import zscore
 from sklearn.linear_model import Ridge
 from pandas import DataFrame, Series, read_csv, melt, pivot_table
-from yeast_phospho.utils import pearson
-from yeast_phospho.estimate_activity import get_kinases_targets, get_protein_sequence
+from yeast_phospho.utilities import pearson, get_kinases_targets, get_protein_sequence
 from yeast_phospho.similarity_scores import read_fasta, flanking_sequence, position_weight_matrix, similarity_score_matrix, AA_PRIORS_YEAST
 
 acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=0)
