@@ -12,12 +12,10 @@ id2name = read_csv('%s/files/orf_name_dataframe.tab' % wd, sep='\t', index_col=0
 transcriptomics = read_csv('%s/data/Kemmeren_2014_zscores_parsed_filtered.tab' % wd, sep='\t', header=False)
 transcriptomics['tf'] = [name2id[i] if i in name2id else id2name[i] for i in transcriptomics['tf']]
 transcriptomics = pivot_table(transcriptomics, values='value', index='target', columns='tf')
-print '[INFO] Gene-expression imported!'
 
 # Export processed data-set
 transcriptomics_file = wd + 'tables/transcriptomics_steady_state.tab'
 transcriptomics.to_csv(transcriptomics_file, sep='\t')
-print '[INFO] [TRANSCRIPTOMICS] Exported to: %s' % transcriptomics_file
 
 
 # ---- Process dynamic transcriptomics
@@ -50,4 +48,3 @@ for condition in conditions:
 # Export processed data-set
 dyn_trans_df_file = wd + 'tables/transcriptomics_dynamic.tab'
 dyn_trans_df.to_csv(dyn_trans_df_file, sep='\t')
-print '[INFO] [TRANSCRIPTOMICS] Exported to: %s' % dyn_trans_df_file

@@ -71,12 +71,17 @@ def get_kinases_targets(studies_to_filter={'21177495', '19779198'}, remove_self=
 
 def regress_out(x, y):
     samples = list(x.index)
-    lm = LinearRegression(fit_intercept=False).fit(np.mat(x).T, y)
+
+    mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
+
+    xs, ys = x[mask], y[mask]
+
+    lm = LinearRegression(fit_intercept=False).fit(np.mat(xs).T, ys)
     y_ = y - lm.coef_[0] * x
     return dict(zip(np.array(samples), y_))
 
 
-def kinase_activity_with_sklearn(x, y, alpha=.1):
+def estimate_activity_with_sklearn(x, y, alpha=.1):
     ys = y.dropna()
     xs = x.ix[ys.index].replace(np.NaN, 0.0)
 
@@ -87,7 +92,7 @@ def kinase_activity_with_sklearn(x, y, alpha=.1):
     return dict(zip(*(xs.columns, lm.coef_)))
 
 
-def kinase_activity_with_statsmodel(x, y, L1_wt=0):
+def estimate_activity_with_statsmodel(x, y, L1_wt=0):
     ys = y.dropna()
     xs = x.ix[ys.index].replace(np.NaN, 0.0)
 

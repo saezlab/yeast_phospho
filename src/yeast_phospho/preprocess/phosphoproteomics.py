@@ -16,28 +16,23 @@ protein_seq = {k: protein_seq[k] for k in protein_seq if len(protein_seq[k]) > 1
 # ----  Process steady-state phosphoproteomics
 phospho_df = read_csv(wd + 'data/steady_state_phosphoproteomics.tab', sep='\t')
 phospho_df = phospho_df.pivot_table(values='logFC', index=['peptide', 'target'], columns='regulator', aggfunc=np.median)
-print '[INFO] [PHOSPHOPROTEOMICS] : ', phospho_df.shape
 
 # Filter ambigous peptides
 phospho_df = phospho_df[[len(i[0].split(',')) == 1 for i in phospho_df.index]]
-print '[INFO] [PHOSPHOPROTEOMICS] Filter ambigous peptides: ', phospho_df.shape
 
 # Remove K and R aminoacids from the peptide head
 phospho_df.index = phospho_df.index.set_levels([re.split('^[K|R]\.', x)[1] for x in phospho_df.index.levels[0]], 'peptide')
 
 # Match peptide sequences to protein sequence and calculate peptide phosphorylation site
 pep_site = {peptide: target + '_' + '_'.join(get_multiple_site(protein_seq[target].upper(), peptide)) for peptide, target in phospho_df.index if target in protein_seq}
-print '[INFO] [PHOSPHOPROTEOMICS] Peptides mapped to proteins'
 
 # Merge phosphosites with median
 phospho_df['site'] = [pep_site[peptide] if peptide in pep_site else np.NaN for peptide, target in phospho_df.index]
 phospho_df = phospho_df.groupby('site').median()
-print '[INFO] [PHOSPHOPROTEOMICS] (merge phosphosites, i.e median): ', phospho_df.shape
 
 # Export processed data-set
 phospho_df_file = wd + 'tables/pproteomics_steady_state.tab'
 phospho_df.to_csv(phospho_df_file, sep='\t')
-print '[INFO] [PHOSPHOPROTEOMICS] Exported to: %s' % phospho_df_file
 
 
 # ---- Process dynamic phosphoproteomics
@@ -70,4 +65,3 @@ for condition in conditions:
 # Export processed data-set
 dyn_phospho_df_file = '%s/tables/pproteomics_dynamic.tab' % wd
 dyn_phospho_df.to_csv(dyn_phospho_df_file, sep='\t')
-print '[INFO] [PHOSPHOPROTEOMICS] Exported to: %s' % dyn_phospho_df_file

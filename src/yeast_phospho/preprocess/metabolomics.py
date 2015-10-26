@@ -12,37 +12,29 @@ growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_
 # ----  Process steady-state metabolomics
 metabol_df = read_csv(wd + 'data/steady_state_metabolomics.tab', sep='\t')
 metabol_df['m/z'] = ['%.2f' % i for i in metabol_df['m/z']]
-print '[INFO] [METABOLOMICS]: ', metabol_df.shape
 
 counts = {mz: counts for mz, counts in zip(*(np.unique(metabol_df['m/z'], return_counts=True)))}
 metabol_df = metabol_df[[counts[i] == 1 for i in metabol_df['m/z']]]
 metabol_df = metabol_df.set_index('m/z')
-print '[INFO] [METABOLOMICS] remove duplicated m/z: ', metabol_df.shape
 
 metabol_df = metabol_df.dropna()
-print '[INFO] [METABOLOMICS] drop NaN: ', metabol_df.shape
-
-metabol_df_file = wd + 'tables/metabolomics_steady_state_growth_rate.tab'
-metabol_df.to_csv(metabol_df_file, sep='\t')
-print '[INFO] [METABOLOMICS] Exported to: %s' % metabol_df_file
-
-metabol_df = DataFrame({i: regress_out(growth, metabol_df.ix[i, growth.index]) for i in metabol_df.index}).T
-print '[INFO] Growth regressed out from the metabolites: ', metabol_df.shape
 
 metabol_df_file = wd + 'tables/metabolomics_steady_state.tab'
 metabol_df.to_csv(metabol_df_file, sep='\t')
-print '[INFO] [METABOLOMICS] Exported to: %s' % metabol_df_file
+
+metabol_df = DataFrame({i: regress_out(growth, metabol_df.ix[i, growth.index]) for i in metabol_df.index}).T
+
+metabol_df_file = wd + 'tables/metabolomics_steady_state_no_growth.tab'
+metabol_df.to_csv(metabol_df_file, sep='\t')
 
 
 # ----  Process dynamic metabolomics
 dyn_metabol = read_csv(wd + 'data/metabol_intensities.tab', sep='\t').dropna()
 dyn_metabol['m/z'] = ['%.2f' % i for i in dyn_metabol['m/z']]
-print '[INFO] [METABOLOMICS]: ', dyn_metabol.shape
 
 counts = {mz: counts for mz, counts in zip(*(np.unique(dyn_metabol['m/z'], return_counts=True)))}
 dyn_metabol = dyn_metabol[[counts[i] == 1 for i in dyn_metabol['m/z']]]
 dyn_metabol = dyn_metabol.set_index('m/z')
-print '[INFO] [METABOLOMICS] remove duplicated m/z: ', dyn_metabol.shape
 
 # Import samplesheet
 ss = read_csv(wd + 'data/metabol_samplesheet.tab', sep='\t', index_col=0)
@@ -70,4 +62,3 @@ for condition in conditions:
 # Export processed data-set
 dyn_metabol_df_file = wd + 'tables/metabolomics_dynamic.tab'
 dyn_metabol_df.to_csv(dyn_metabol_df_file, sep='\t')
-print '[INFO] [METABOLOMICS] Exported to: %s' % dyn_metabol_df_file
