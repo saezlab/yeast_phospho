@@ -1,31 +1,31 @@
 import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 from yeast_phospho import wd
 from pandas import DataFrame, read_csv, Index
-from yeast_phospho.utilities import regress_out
+from yeast_phospho.utilities import regress_out, pearson, get_ko_strains
 from scipy.interpolate.interpolate import interp1d
 
+# Import KO steady-state strains
+ko_strains = list(get_ko_strains())
 
-# ---- Import growth rates
-growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth']
-
+# Import growth rates
+growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth'][ko_strains]
 
 # ----  Process steady-state metabolomics
-metabol_df = read_csv(wd + 'data/steady_state_metabolomics.tab', sep='\t')
+metabol_df = read_csv(wd + 'data/steady_state_metabolomics.tab', sep='\t').dropna()
 metabol_df['m/z'] = ['%.2f' % i for i in metabol_df['m/z']]
 
 counts = {mz: counts for mz, counts in zip(*(np.unique(metabol_df['m/z'], return_counts=True)))}
 metabol_df = metabol_df[[counts[i] == 1 for i in metabol_df['m/z']]]
 metabol_df = metabol_df.set_index('m/z')
 
-metabol_df = metabol_df.dropna()
+metabol_df = metabol_df[ko_strains]
 
-metabol_df_file = wd + 'tables/metabolomics_steady_state.tab'
-metabol_df.to_csv(metabol_df_file, sep='\t')
+metabol_df.to_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t')
 
 metabol_df = DataFrame({i: regress_out(growth, metabol_df.ix[i, growth.index]) for i in metabol_df.index}).T
-
-metabol_df_file = wd + 'tables/metabolomics_steady_state_no_growth.tab'
-metabol_df.to_csv(metabol_df_file, sep='\t')
+metabol_df.to_csv('%s/tables/metabolomics_steady_state_no_growth.tab' % wd, sep='\t')
 
 
 # ----  Process dynamic metabolomics
@@ -62,3 +62,5 @@ for condition in conditions:
 # Export processed data-set
 dyn_metabol_df_file = wd + 'tables/metabolomics_dynamic.tab'
 dyn_metabol_df.to_csv(dyn_metabol_df_file, sep='\t')
+
+print '[INFO] Metabolomics preprocessing done'

@@ -4,9 +4,11 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from yeast_phospho import wd
 from pandas import DataFrame, Series, read_csv
-from yeast_phospho.utilities import get_protein_sequence, get_multiple_site
-from scipy.interpolate.interpolate import interp1d
+from yeast_phospho.utilities import get_protein_sequence, get_multiple_site, get_ko_strains
 
+
+# Import KO steady-state strains
+ko_strains = list(get_ko_strains())
 
 # ---- Get protein sequence
 protein_seq = get_protein_sequence()
@@ -15,7 +17,7 @@ protein_seq = {k: protein_seq[k] for k in protein_seq if len(protein_seq[k]) > 1
 
 # ----  Process steady-state phosphoproteomics
 phospho_df = read_csv(wd + 'data/steady_state_phosphoproteomics.tab', sep='\t')
-phospho_df = phospho_df.pivot_table(values='logFC', index=['peptide', 'target'], columns='regulator', aggfunc=np.median)
+phospho_df = phospho_df.pivot_table(values='logFC', index=['peptide', 'target'], columns='regulator', aggfunc=np.median)[ko_strains]
 
 # Filter ambigous peptides
 phospho_df = phospho_df[[len(i[0].split(',')) == 1 for i in phospho_df.index]]
@@ -65,3 +67,5 @@ for condition in conditions:
 # Export processed data-set
 dyn_phospho_df_file = '%s/tables/pproteomics_dynamic.tab' % wd
 dyn_phospho_df.to_csv(dyn_phospho_df_file, sep='\t')
+
+print '[INFO] Phosphoproteomics preprocessing done'

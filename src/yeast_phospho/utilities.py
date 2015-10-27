@@ -70,15 +70,13 @@ def get_kinases_targets(studies_to_filter={'21177495', '19779198'}, remove_self=
 
 
 def regress_out(x, y):
-    samples = list(x.index)
-
     mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
-
     xs, ys = x[mask], y[mask]
+    xs = xs[ys.index]
 
     lm = LinearRegression(fit_intercept=False).fit(np.mat(xs).T, ys)
-    y_ = y - lm.coef_[0] * x
-    return dict(zip(np.array(samples), y_))
+    ys_ = ys - lm.coef_[0] * xs
+    return dict(zip(np.array(ys.index), ys_))
 
 
 def estimate_activity_with_sklearn(x, y, alpha=.1):
@@ -292,3 +290,7 @@ def similarity_score_matrix(flanking_regions, pwm, ic, ignore_central=True, is_k
     scores = (scores - ws) / (bs - ws)
 
     return scores
+
+
+def get_ko_strains():
+    return set(read_csv('%s/files/steadystate_strains.txt' % wd, sep='\t')['strains'])

@@ -4,7 +4,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 from yeast_phospho import wd
-from yeast_phospho.utils import metric, pearson
+from yeast_phospho.utilities import metric, pearson
 from sklearn.metrics.pairwise import euclidean_distances, manhattan_distances, linear_kernel
 from sklearn.metrics import roc_curve, auc
 from sklearn.linear_model import Lasso, Ridge, LinearRegression
