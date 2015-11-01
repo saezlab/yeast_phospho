@@ -4,11 +4,8 @@ import matplotlib.pyplot as plt
 from yeast_phospho import wd
 from sklearn.linear_model import Lasso
 from sklearn.cross_validation import LeaveOneOut
-from pandas import DataFrame, Series, read_csv
+from pandas import DataFrame, read_csv
 from yeast_phospho.utilities import pearson, get_proteins_name, get_metabolites_name, get_ko_strains
-
-# KO strains
-ko_strains = list(get_ko_strains())
 
 
 # Import annotations
@@ -21,14 +18,11 @@ met_name = get_metabolites_name()
 metabolomics = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0)
 metabolomics = metabolomics[metabolomics.std(1) > .4]
 metabolomics.index = [str(i) for i in metabolomics.index]
-metabolomics = metabolomics[ko_strains]
 
 k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
 k_activity = k_activity[(k_activity.count(1) / k_activity.shape[1]) > .75].replace(np.NaN, 0.0)
-k_activity = k_activity[ko_strains]
 
 tf_activity = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0)
-tf_activity = tf_activity[ko_strains]
 
 
 # Steady-state without growth
@@ -86,7 +80,6 @@ lm_res = [(ft, dt, f, ct, c) for c in lm_res for ft, dt, f, ct, c in c]
 lm_res = DataFrame(lm_res, columns=['feature_type', 'dataset_type', 'variable', 'corr_type', 'cor'])
 lm_res['variable_name'] = [acc_name[i] if i in acc_name else (met_name[i] if i in met_name else np.NaN) for i in lm_res['variable']]
 print '[INFO] Regressions done'
-
 
 sns.set(style='ticks')
 g = sns.FacetGrid(lm_res, col='dataset_type', legend_out=True)
