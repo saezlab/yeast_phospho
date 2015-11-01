@@ -10,6 +10,7 @@ from yeast_phospho.utilities import pearson, get_proteins_name, get_metabolites_
 # KO strains
 ko_strains = list(get_ko_strains())
 
+
 # Import annotations
 acc_name = get_proteins_name()
 met_name = get_metabolites_name()

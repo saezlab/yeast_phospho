@@ -1,6 +1,6 @@
 from yeast_phospho import wd
 from pandas import DataFrame, read_csv
-from yeast_phospho.utilities import estimate_activity_with_sklearn, regress_out, get_kinases_targets
+from yeast_phospho.utilities import estimate_activity_with_sklearn, get_kinases_targets
 
 
 # Import growth rates

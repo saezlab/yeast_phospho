@@ -1,9 +1,7 @@
-import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
 from yeast_phospho import wd
-from pandas import DataFrame, Series, read_csv
-from yeast_phospho.utilities import get_tfs_targets, estimate_activity_with_sklearn, regress_out, pearson
+from pandas import DataFrame, read_csv
+from yeast_phospho.utilities import get_tfs_targets, estimate_activity_with_sklearn
+
 
 # Import growth rates
 growth = read_csv('%s/files/strain_relative_growth_rate.txt' % wd, sep='\t', index_col=0)['relative_growth']

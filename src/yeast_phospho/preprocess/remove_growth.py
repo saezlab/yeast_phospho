@@ -31,7 +31,7 @@ for df_file, df_type, selected_pc in datasets:
     print [(c, pearson(growth, pc.ix[growth.index, c])) for c in pc]
 
     # Regress-out factor
-    df = DataFrame({m: regress_out(pc.ix[ko_strains, selected_pc], df.ix[ko_strains, m]) for m in df})
+    df = DataFrame({m: regress_out(pc.ix[ko_strains, selected_pc], df.ix[ko_strains, m]) for m in df}).T
 
     # Export regressed-out data-set
     df.to_csv('%s/tables/%s_no_growth.tab' % (wd, df_file), sep='\t')

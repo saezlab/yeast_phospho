@@ -10,6 +10,7 @@ from scipy.interpolate.interpolate import interp1d
 growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth']
 ko_strains = list(growth.index)
 
+
 # ----  Process steady-state metabolomics
 metabol_df = read_csv(wd + 'data/steady_state_metabolomics.tab', sep='\t').dropna()
 metabol_df['m/z'] = ['%.2f' % i for i in metabol_df['m/z']]
