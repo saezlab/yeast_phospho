@@ -20,9 +20,6 @@ trans = read_csv('%s/tables/transcriptomics_steady_state.tab' % wd, sep='\t', in
 tf_activity = DataFrame({c: estimate_activity_with_sklearn(tf_targets, trans[c]) for c in trans})
 tf_activity.to_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t')
 
-# Regress-out growth
-tf_activity = DataFrame({k: regress_out(growth[trans.columns], tf_activity.ix[k]) for k in tf_activity.index}).T
-tf_activity.to_csv('%s/tables/tf_activity_steady_state_no_growth.tab' % wd, sep='\t')
 
 # ---- Estimate TFs activities dynamic
 dyn_trans_df = read_csv('%s/tables/transcriptomics_dynamic.tab' % wd, sep='\t', index_col=0)

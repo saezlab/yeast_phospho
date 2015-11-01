@@ -3,7 +3,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from yeast_phospho import wd
 from pandas import DataFrame, read_csv, Index
-from yeast_phospho.utilities import regress_out
 from scipy.interpolate.interpolate import interp1d
 
 
@@ -22,9 +21,6 @@ metabol_df = metabol_df.set_index('m/z')
 metabol_df = metabol_df[ko_strains]
 
 metabol_df.to_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t')
-
-metabol_df = DataFrame({i: regress_out(growth[ko_strains], metabol_df.ix[i, ko_strains]) for i in metabol_df.index}).T
-metabol_df.to_csv('%s/tables/metabolomics_steady_state_no_growth.tab' % wd, sep='\t')
 
 
 # ----  Process dynamic metabolomics

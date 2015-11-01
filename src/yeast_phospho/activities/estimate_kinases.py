@@ -18,10 +18,6 @@ phospho_df = read_csv('%s/tables/pproteomics_steady_state.tab' % wd, sep='\t', i
 k_activity = DataFrame({c: estimate_activity_with_sklearn(k_targets, phospho_df[c]) for c in phospho_df})
 k_activity.to_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t')
 
-# Regress-out growth
-k_activity = DataFrame({k: regress_out(growth[k_activity.columns], k_activity.ix[k]) for k in k_activity.index}).T
-k_activity.to_csv('%s/tables/kinase_activity_steady_state_no_growth.tab' % wd, sep='\t')
-
 
 # ---- Estimate kinase activities dynamic
 # Import phospho FC
