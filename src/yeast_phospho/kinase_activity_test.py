@@ -2,33 +2,36 @@ from __future__ import division
 import numpy as np
 import seaborn as sns
 import statsmodels.api as sm
-import statsmodels.tools as st
 import matplotlib.pyplot as plt
 from yeast_phospho import wd
 from pandas.stats.misc import zscore
 from sklearn.linear_model import Ridge
-from pandas import DataFrame, Series, read_csv, melt, pivot_table
+from pandas import DataFrame, Series, read_csv, melt, pivot_table, concat
 from yeast_phospho.utilities import pearson, get_kinases_targets, get_protein_sequence
-from yeast_phospho.similarity_scores import read_fasta, flanking_sequence, position_weight_matrix, similarity_score_matrix, AA_PRIORS_YEAST
+from yeast_phospho.utilities import read_fasta, flanking_sequence, position_weight_matrix, similarity_score_matrix, AA_PRIORS_YEAST
 
 acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=0)
 acc_name.index = [i.split(';')[0] for i in acc_name.index]
 acc_name = acc_name['oln'].to_dict()
 
 # ---- Import data
-data = read_csv('%s/tables/pproteomics_dynamic.tab' % wd, sep='\t', index_col=0)
-
-# data = read_csv('%s/tables/pproteomics_steady_state.tab' % wd, sep='\t', index_col=0)
-
+# data = read_csv('%s/tables/pproteomics_dynamic.tab' % wd, sep='\t', index_col=0)
+data = read_csv('%s/tables/pproteomics_steady_state.tab' % wd, sep='\t', index_col=0)
+data_proteins = {i.split('_')[0] for i in data.index}
 
 sequences = read_fasta('%s/files/orf_trans_all.fasta' % wd)
+
+stringdb = read_csv('/Users/emanuel/Downloads/4932.protein.links.v10.txt', sep=' ')
+stringdb = stringdb[stringdb['combined_score'] > 500]
+stringdb['protein1'] = [i.split('.')[1] for i in stringdb['protein1']]
+stringdb['protein2'] = [i.split('.')[1] for i in stringdb['protein2']]
+stringdb = stringdb[[p1 in data_proteins and p2 in data_proteins for p1, p2 in stringdb[['protein1', 'protein2']].values]]
+stringdb = stringdb[[p1 in sequences and p2 in sequences for p1, p2 in stringdb[['protein1', 'protein2']].values]]
+
+
 phosphogrid = get_kinases_targets()
 
 flanking_targets_all = flanking_sequence(sequences, {i for i in data.index if len(i.split('_')) == 2}, flank=7)
-
-
-# phosphogrid[phosphogrid['YLR113W'] != 0]
-# [i for i in  data.index if i.startswith('YLR113W')]
 
 
 def calculate_ssm(kinase):
@@ -38,7 +41,9 @@ def calculate_ssm(kinase):
 
     pwm, ic = position_weight_matrix(flanking_targets, AA_PRIORS_YEAST)
 
-    ssm = similarity_score_matrix(flanking_targets_all, pwm, ic)
+    interactions = {list(set([p1, p2]) - set([kinase]))[0] for p1, p2 in stringdb[['protein1', 'protein2']].values if kinase in [p1, p2]}
+
+    ssm = similarity_score_matrix({p: flanking_targets_all[p] for p in flanking_targets_all if p.split('_')[0] in interactions}, pwm, ic)
 
     if len(ssm) != 0:
         ssm.index = ssm.index.droplevel(1)
@@ -51,18 +56,18 @@ k_targets = DataFrame({k: calculate_ssm(k) for k in phosphogrid}).replace(np.NaN
 print '[INFO] Similarity matrix calculated!'
 
 
-# ---- Calculate kinase activity with Sklearn
-def k_activity_with_sklearn(x, y):
-    ys = y.ix[x.index].dropna()
-    xs = x.ix[ys.index]
-
-    xs = xs.loc[:, xs.sum() != 0]
-
-    lm = Ridge().fit(xs, zscore(ys))
-
-    return dict(zip(*(xs.columns, lm.coef_)))
-
-k_activity_sklearn = DataFrame({c: k_activity_with_sklearn(k_targets, data[c]) for c in data})
+# # ---- Calculate kinase activity with Sklearn
+# def k_activity_with_sklearn(x, y):
+#     ys = y.ix[x.index].dropna()
+#     xs = x.ix[ys.index]
+#
+#     xs = xs.loc[:, xs.sum() != 0]
+#
+#     lm = Ridge().fit(xs, zscore(ys))
+#
+#     return dict(zip(*(xs.columns, lm.coef_)))
+#
+# k_activity_sklearn = DataFrame({c: k_activity_with_sklearn(k_targets, data[c]) for c in data})
 
 
 # ---- Calculate kinase activity with Statsmodel
@@ -71,8 +76,9 @@ def k_activity_with_statsmodel(x, y):
     xs = x.ix[ys.index].replace(np.NaN, 0.0)
 
     xs = xs.loc[:, xs.sum() != 0]
+    xs['const'] = 1
 
-    lm = sm.OLS(zscore(ys), st.add_constant(xs))
+    lm = sm.OLS(zscore(ys), xs)
 
     res = lm.fit_regularized(L1_wt=0)
 
@@ -82,11 +88,24 @@ def k_activity_with_statsmodel(x, y):
 
 k_activity_statsmodel = DataFrame({c: k_activity_with_statsmodel(k_targets, data[c]) for c in data})
 
-print '[INFO] Estimations done'
-
-samples = list(set(k_activity_statsmodel))
-pearson(k_activity_statsmodel.ix['YLR113W', samples], data.ix['YLR113W_Y176', samples])
-
+# print '[INFO] Estimations done'
+#
+# k_activity_statsmodel.ix['YJR066W'].to_csv('/Users/emanuel/Downloads/binary_without_2_papers.csv')
+#
+# x = read_csv('/Users/emanuel/Downloads/binary_without_2_papers.csv', index_col=0, header=None, names=['activities'])
+# y = read_csv('/Users/emanuel/Downloads/similarity_with_2_papers.csv', index_col=0, header=None, names=['activities'])
+# z = read_csv('/Users/emanuel/Downloads/similarity_without_2_papers.csv', index_col=0, header=None, names=['activities'])
+#
+# dyn_xorder = [
+#     'N_downshift_5min', 'N_downshift_9min', 'N_downshift_15min', 'N_downshift_25min', 'N_downshift_44min', 'N_downshift_79min',
+#     'N_upshift_5min', 'N_upshift_9min', 'N_upshift_15min', 'N_upshift_25min', 'N_upshift_44min', 'N_upshift_79min',
+#     'Rapamycin_5min', 'Rapamycin_9min', 'Rapamycin_15min', 'Rapamycin_25min', 'Rapamycin_44min', 'Rapamycin_79min'
+# ]
+#
+# df = concat([x.ix[dyn_xorder, 'activities'], y.ix[dyn_xorder, 'activities'], z.ix[dyn_xorder, 'activities']], axis=1, keys=['binary', 'similarity', 'similarity_full'])
+#
+# sns.set(style='ticks')
+# plt.plot(df, ls='--', marker='o')
 
 # ---- Plot
 # ---- Import YeastGenome gene annotation
@@ -126,10 +145,10 @@ plt.savefig('%s/reports/kinase_activity_test.pdf' % wd, bbox_inches='tight')
 plt.close('all')
 print '[INFO] Plot done'
 
-# ---- Clustermap
-cmap = sns.diverging_palette(220, 10, n=9, as_cmap=True)
-sns.set(style='white', palette='pastel', context='paper')
-sns.clustermap(k_activity.replace(np.NaN, 0.0), robust=True, cmap=cmap, figsize=(5, 20))
-plt.savefig('%s/reports/kinase_activity_test_clustermap.pdf' % wd, bbox_inches='tight')
-plt.close('all')
-print '[INFO] Plot done'
+# # ---- Clustermap
+# cmap = sns.diverging_palette(220, 10, n=9, as_cmap=True)
+# sns.set(style='white', palette='pastel', context='paper')
+# sns.clustermap(k_activity.replace(np.NaN, 0.0), robust=True, cmap=cmap, figsize=(5, 20))
+# plt.savefig('%s/reports/kinase_activity_test_clustermap.pdf' % wd, bbox_inches='tight')
+# plt.close('all')
+# print '[INFO] Plot done'

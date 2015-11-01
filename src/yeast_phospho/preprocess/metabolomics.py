@@ -3,14 +3,13 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from yeast_phospho import wd
 from pandas import DataFrame, read_csv, Index
-from yeast_phospho.utilities import regress_out, pearson, get_ko_strains
+from yeast_phospho.utilities import regress_out
 from scipy.interpolate.interpolate import interp1d
 
-# Import KO steady-state strains
-ko_strains = list(get_ko_strains())
 
 # Import growth rates
-growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth'][ko_strains]
+growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth']
+ko_strains = list(growth.index)
 
 # ----  Process steady-state metabolomics
 metabol_df = read_csv(wd + 'data/steady_state_metabolomics.tab', sep='\t').dropna()
@@ -24,7 +23,7 @@ metabol_df = metabol_df[ko_strains]
 
 metabol_df.to_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t')
 
-metabol_df = DataFrame({i: regress_out(growth, metabol_df.ix[i, growth.index]) for i in metabol_df.index}).T
+metabol_df = DataFrame({i: regress_out(growth[ko_strains], metabol_df.ix[i, ko_strains]) for i in metabol_df.index}).T
 metabol_df.to_csv('%s/tables/metabolomics_steady_state_no_growth.tab' % wd, sep='\t')
 
 

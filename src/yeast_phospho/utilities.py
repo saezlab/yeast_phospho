@@ -74,8 +74,8 @@ def regress_out(x, y):
     xs, ys = x[mask], y[mask]
     xs = xs[ys.index]
 
-    lm = LinearRegression(fit_intercept=False).fit(np.mat(xs).T, ys)
-    ys_ = ys - lm.coef_[0] * xs
+    lm = LinearRegression().fit(np.mat(xs).T, ys)
+    ys_ = ys - lm.coef_[0] * xs - lm.intercept_
     return dict(zip(np.array(ys.index), ys_))
 
 
@@ -294,3 +294,18 @@ def similarity_score_matrix(flanking_regions, pwm, ic, ignore_central=True, is_k
 
 def get_ko_strains():
     return set(read_csv('%s/files/steadystate_strains.txt' % wd, sep='\t')['strains'])
+
+
+def get_proteins_name(uniprot_file='/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt'):
+    return read_csv(uniprot_file, sep='\t', index_col=1)['gene'].to_dict()
+
+
+def get_metabolites_name(annotation_file='%s/files/Annotation_Yeast_glucose_kegg.csv' % wd):
+    met_name = read_csv(annotation_file, sep=',')
+    met_name['mz'] = ['%.2f' % i for i in met_name['mz']]
+
+    counts = {mz: counts for mz, counts in zip(*(np.unique(met_name['mz'], return_counts=True)))}
+    met_name = met_name[[counts[i] == 1 for i in met_name['mz']]]
+    met_name = met_name.set_index('mz')
+
+    return met_name['Name'].to_dict()

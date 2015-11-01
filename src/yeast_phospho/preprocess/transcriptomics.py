@@ -5,8 +5,10 @@ from pandas import DataFrame, read_csv, pivot_table
 from scipy.interpolate.interpolate import interp1d
 
 
-# Import KO steady-state strains
-ko_strains = list(get_ko_strains())
+# Import growth rates
+growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth']
+ko_strains = list(growth.index)
+
 
 # ---- Process: Steady-state gene-expression
 # Import conversion table
@@ -15,7 +17,7 @@ id2name = read_csv('%s/files/orf_name_dataframe.tab' % wd, sep='\t', index_col=0
 
 transcriptomics = read_csv('%s/data/Kemmeren_2014_zscores_parsed_filtered.tab' % wd, sep='\t', header=False)
 transcriptomics['tf'] = [name2id[i] if i in name2id else id2name[i] for i in transcriptomics['tf']]
-transcriptomics = pivot_table(transcriptomics, values='value', index='target', columns='tf')[ko_strains]
+transcriptomics = pivot_table(transcriptomics, values='value', index='target', columns='tf').loc[:, ko_strains].dropna(how='all', axis=1)
 
 # Export processed data-set
 transcriptomics_file = wd + 'tables/transcriptomics_steady_state.tab'

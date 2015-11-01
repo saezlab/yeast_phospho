@@ -4,11 +4,13 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from yeast_phospho import wd
 from pandas import DataFrame, Series, read_csv
-from yeast_phospho.utilities import get_protein_sequence, get_multiple_site, get_ko_strains
+from yeast_phospho.utilities import get_protein_sequence, get_multiple_site
 
 
-# Import KO steady-state strains
-ko_strains = list(get_ko_strains())
+# Import growth rates
+growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_col=0)['relative_growth']
+ko_strains = list(growth.index)
+
 
 # ---- Get protein sequence
 protein_seq = get_protein_sequence()
@@ -17,7 +19,7 @@ protein_seq = {k: protein_seq[k] for k in protein_seq if len(protein_seq[k]) > 1
 
 # ----  Process steady-state phosphoproteomics
 phospho_df = read_csv(wd + 'data/steady_state_phosphoproteomics.tab', sep='\t')
-phospho_df = phospho_df.pivot_table(values='logFC', index=['peptide', 'target'], columns='regulator', aggfunc=np.median)[ko_strains]
+phospho_df = phospho_df.pivot_table(values='logFC', index=['peptide', 'target'], columns='regulator', aggfunc=np.median).loc[:, ko_strains].dropna(how='all', axis=1)
 
 # Filter ambigous peptides
 phospho_df = phospho_df[[len(i[0].split(',')) == 1 for i in phospho_df.index]]
