@@ -5,7 +5,7 @@ from yeast_phospho import wd
 from sklearn.linear_model import Lasso
 from sklearn.cross_validation import LeaveOneOut
 from pandas import DataFrame, read_csv
-from yeast_phospho.utilities import pearson, get_proteins_name, get_metabolites_name, get_ko_strains
+from yeast_phospho.utilities import pearson, get_proteins_name, get_metabolites_name
 
 
 # Import annotations
