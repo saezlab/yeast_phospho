@@ -1,10 +1,13 @@
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+import statsmodels.api as sm
+import statsmodels.tools as st
 from yeast_phospho import wd
 from sklearn.linear_model import Lasso
 from sklearn.cross_validation import LeaveOneOut
 from pandas import DataFrame, read_csv
+from sklearn.feature_selection.univariate_selection import SelectKBest, f_regression
 from yeast_phospho.utilities import pearson, get_proteins_name, get_metabolites_name
 
 
@@ -48,18 +51,18 @@ tf_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', i
 
 # ---- Build linear regression models
 comparisons = [
-    (k_activity, metabolomics, 'Kinases', 'Steady-state with growth'),
-    (tf_activity, metabolomics, 'TFs', 'Steady-state with growth'),
+    (k_activity, metabolomics, 'Kinases', 'Steady-state with growth', 15),
+    (tf_activity, metabolomics, 'TFs', 'Steady-state with growth', 15),
 
-    (k_activity_ng, metabolomics, 'Kinases', 'Steady-state without growth'),
-    (tf_activity_ng, metabolomics, 'TFs', 'Steady-state without growth'),
+    (k_activity_ng, metabolomics, 'Kinases', 'Steady-state without growth', 15),
+    (tf_activity_ng, metabolomics, 'TFs', 'Steady-state without growth', 15),
 
-    (k_activity_dyn, metabolomics_dyn, 'Kinases', 'Dynamic'),
-    (tf_activity_dyn, metabolomics_dyn, 'TFs', 'Dynamic')
+    (k_activity_dyn, metabolomics_dyn, 'Kinases', 'Dynamic', 10),
+    (tf_activity_dyn, metabolomics_dyn, 'TFs', 'Dynamic', 10)
 ]
 
 
-def loo_regressions(xs, ys, feature_type, dataset_type, lm=Lasso(alpha=0.01, max_iter=2000)):
+def loo_regressions(xs, ys, feature_type, dataset_type, k=15):
     print '[INFO]', feature_type, dataset_type
 
     x = xs.loc[:, ys.columns].dropna(axis=1).T
@@ -67,15 +70,27 @@ def loo_regressions(xs, ys, feature_type, dataset_type, lm=Lasso(alpha=0.01, max
 
     cv = LeaveOneOut(len(y))
 
-    y_pred = DataFrame({x.index[test][0]: lm.fit(x.ix[train], y.ix[train]).predict(x.ix[test])[0] for train, test in cv}, index=y.columns)
-    # y_coef = DataFrame({x.index[test][0]: lm.fit(x.ix[train], y.ix[train]).coef_ for train, test in cv}, index=y.columns)
+    y_pred = {}
+    for m in y:
+        y_pred[m] = {}
+        for train, test in cv:
+            best_features = SelectKBest(f_regression, k=k).fit(x.ix[train], y.ix[train, m]).get_support()
+
+            # lm=Lasso(alpha=0.01, max_iter=2000)
+            # y_pred[m][x.index[test][0]] = lm.fit(x.ix[train, best_features], y.ix[train, m]).predict(x.ix[test, best_features])[0]
+
+            lm = sm.OLS(y.ix[train, m], st.add_constant(x.ix[train, best_features])).fit_regularized(alpha=.01, L1_wt=0.5)
+            y_pred[m][x.index[test][0]] = lm.predict(st.add_constant(x.ix[test, best_features]))[0]
+
+    y_pred = DataFrame(y_pred).T
+    print '[INFO] Regression done: ', feature_type, dataset_type
 
     metabolites_corr = [(feature_type, dataset_type, f, 'metabolites', pearson(y.T.ix[f, y_pred.columns], y_pred.ix[f, y_pred.columns])[0]) for f in y_pred.index]
     conditions_corr = [(feature_type, dataset_type, s, 'conditions', pearson(y.T.ix[y_pred.index, s], y_pred.ix[y_pred.index, s])[0]) for s in y_pred]
 
     return metabolites_corr + conditions_corr
 
-lm_res = [loo_regressions(xs, ys, ft, dt) for xs, ys, ft, dt in comparisons]
+lm_res = [loo_regressions(xs, ys, ft, dt, fs) for xs, ys, ft, dt, fs in comparisons]
 lm_res = [(ft, dt, f, ct, c) for c in lm_res for ft, dt, f, ct, c in c]
 lm_res = DataFrame(lm_res, columns=['feature_type', 'dataset_type', 'variable', 'corr_type', 'cor'])
 lm_res['variable_name'] = [acc_name[i] if i in acc_name else (met_name[i] if i in met_name else np.NaN) for i in lm_res['variable']]

@@ -301,11 +301,8 @@ def get_proteins_name(uniprot_file='/Users/emanuel/Projects/resources/yeast/yeas
 
 
 def get_metabolites_name(annotation_file='%s/files/Annotation_Yeast_glucose_kegg.csv' % wd):
-    met_name = read_csv(annotation_file, sep=',')
-    met_name['mz'] = ['%.2f' % i for i in met_name['mz']]
+    annot = read_csv(annotation_file, sep=',')
+    annot['mz'] = ['%.2f' % i for i in annot['mz']]
+    annot = annot.groupby('mz')['Name'].agg(lambda x: '; '.join(set(x))).to_dict()
 
-    counts = {mz: counts for mz, counts in zip(*(np.unique(met_name['mz'], return_counts=True)))}
-    met_name = met_name[[counts[i] == 1 for i in met_name['mz']]]
-    met_name = met_name.set_index('mz')
-
-    return met_name['Name'].to_dict()
+    return annot

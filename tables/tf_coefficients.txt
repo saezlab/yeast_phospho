@@ -1,0 +1,108 @@
+TF	Metabolite	Condition	coef	coef_pvalue	fold-change	pvalue	Metabolite_name	TF_name
+YMR021C	306.08	Gal_YMR021C	-0.430976714317	0.00511575256944	0.435923	0.001623	Glutathione	MAC1;CUA1
+YMR021C	306.08	Glc_YMR021C	-0.430976714317	0.00511575256944	0.187925	0.29206	Glutathione	MAC1;CUA1
+YMR021C	306.08	Ure_YMR021C	-0.430976714317	0.00511575256944	0.049484	0.786534	Glutathione	MAC1;CUA1
+YKL062W	188.06	Gal_YKL062W	0.517109849962	0.0717914618731	-0.361938	0.002417	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	MSN4
+YKL062W	188.06	Glc_YKL062W	0.517109849962	0.0717914618731	0.023989	0.711707	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	MSN4
+YKL062W	188.06	Ure_YKL062W	0.517109849962	0.0717914618731	-0.070288	0.830784	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	MSN4
+YKL109W	306.08	Gal_YKL109W	0.437093967664	0.0752853971946	0.668346	0.00012	Glutathione	HAP4
+YKL109W	306.08	Glc_YKL109W	0.437093967664	0.0752853971946	-0.355681	0.229963	Glutathione	HAP4
+YKL109W	306.08	Ure_YKL109W	0.437093967664	0.0752853971946	0.039602	0.495641	Glutathione	HAP4
+YNL027W	341.11	Ure_YNL027W	-0.396662785178	0.104679575771	-0.868618	0.041019	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	CRZ1;HAL8;TCN1
+YNL027W	341.11	Gal_YNL027W	-0.396662785178	0.104679575771	-0.058295	0.344399	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	CRZ1;HAL8;TCN1
+YNL027W	341.11	Glc_YNL027W	-0.396662785178	0.104679575771	-0.044176	0.818267	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	CRZ1;HAL8;TCN1
+YKL062W	306.08	Ure_YKL062W	0.177317068073	0.119207424812	0.321128	0.043627	Glutathione	MSN4
+YKL062W	306.08	Glc_YKL062W	0.177317068073	0.119207424812	0.151091	0.229311	Glutathione	MSN4
+YKL062W	306.08	Gal_YKL062W	0.177317068073	0.119207424812	-0.008037	0.947214	Glutathione	MSN4
+YPL038W	306.08	Glc_YPL038W	-0.155268217108	0.123540242839	0.669696	0.196012	Glutathione	MET31
+YPL038W	306.08	Gal_YPL038W	-0.155268217108	0.123540242839	0.160567	0.297828	Glutathione	MET31
+YPL038W	306.08	Ure_YPL038W	-0.155268217108	0.123540242839	0.11901	0.305987	Glutathione	MET31
+YLR228C	306.08	Glc_YLR228C	-0.216615781292	0.12685279252	-0.248158	0.059143	Glutathione	ECM22
+YLR228C	306.08	Ure_YLR228C	-0.216615781292	0.12685279252	0.085113	0.635535	Glutathione	ECM22
+YLR228C	306.08	Gal_YLR228C	-0.216615781292	0.12685279252	0.016456	0.842938	Glutathione	ECM22
+YNL167C	188.06	Gal_YNL167C	0.668330789447	0.130441457499	0.394788	0.002251	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	SKO1;ACR1
+YNL167C	188.06	Glc_YNL167C	0.668330789447	0.130441457499	0.135158	0.283126	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	SKO1;ACR1
+YNL167C	188.06	Ure_YNL167C	0.668330789447	0.130441457499	0.114868	0.461565	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	SKO1;ACR1
+YNL027W	191.02	Gal_YNL027W	0.341291115462	0.15441458692	0.580558	0.002758	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	CRZ1;HAL8;TCN1
+YNL027W	191.02	Ure_YNL027W	0.341291115462	0.15441458692	-0.279827	0.166269	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	CRZ1;HAL8;TCN1
+YNL027W	191.02	Glc_YNL027W	0.341291115462	0.15441458692	-0.109797	0.186748	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	CRZ1;HAL8;TCN1
+YCR106W	306.08	Gal_YCR106W	-0.0364309194426	0.175711751625	-0.123397	0.352805	Glutathione	RDS1
+YCR106W	306.08	Ure_YCR106W	-0.0364309194426	0.175711751625	0.125714	0.36972	Glutathione	RDS1
+YCR106W	306.08	Glc_YCR106W	-0.0364309194426	0.175711751625	-0.136077	0.437369	Glutathione	RDS1
+YLR228C	191.02	Gal_YLR228C	-0.243401457692	0.203179071783	0.823453	1.3e-05	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	ECM22
+YLR228C	191.02	Ure_YLR228C	-0.243401457692	0.203179071783	-0.059722	0.261019	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	ECM22
+YLR228C	191.02	Glc_YLR228C	-0.243401457692	0.203179071783	-0.037142	0.632968	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	ECM22
+YKR034W	341.11	Glc_YKR034W	-0.136588103329	0.209097144919	0.336133	0.08454	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	DAL80;UGA43
+YKR034W	341.11	Gal_YKR034W	-0.136588103329	0.209097144919	0.077773	0.207743	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	DAL80;UGA43
+YKR034W	341.11	Ure_YKR034W	-0.136588103329	0.209097144919	-0.216268	0.50845	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	DAL80;UGA43
+YDR043C	341.11	Gal_YDR043C	-0.374566139752	0.218029429687	0.070349	0.039283	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	NRG1;MSS1
+YDR043C	341.11	Ure_YDR043C	-0.374566139752	0.218029429687	3.438969	0.348765	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	NRG1;MSS1
+YDR043C	341.11	Glc_YDR043C	-0.374566139752	0.218029429687	-0.058452	0.514047	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	NRG1;MSS1
+YPL248C	191.02	Ure_YPL248C	-0.441750294607	0.278137710163	0.108464	0.212554	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	GAL4
+YPL248C	191.02	Glc_YPL248C	-0.441750294607	0.278137710163	0.060207	0.302211	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	GAL4
+YEL009C	341.11	Gal_YEL009C	-0.264410265193	0.280047474898	2.821135	3e-06	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	GCN4;AAS3;ARG9
+YEL009C	341.11	Ure_YEL009C	-0.264410265193	0.280047474898	3.897012	7e-06	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	GCN4;AAS3;ARG9
+YEL009C	341.11	Glc_YEL009C	-0.264410265193	0.280047474898	1.989048	0.001305	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	GCN4;AAS3;ARG9
+YPL038W	341.11	Gal_YPL038W	0.0937220670257	0.360242974368	0.300574	0.026919	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	MET31
+YPL038W	341.11	Glc_YPL038W	0.0937220670257	0.360242974368	0.403672	0.256087	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	MET31
+YPL038W	341.11	Ure_YPL038W	0.0937220670257	0.360242974368	0.110237	0.612943	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	MET31
+YKL109W	188.06	Ure_YKL109W	0.601422711607	0.382180676154	-2.217188	0.0	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	HAP4
+YKL109W	188.06	Gal_YKL109W	0.601422711607	0.382180676154	-1.59379	7e-06	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	HAP4
+YKL109W	188.06	Glc_YKL109W	0.601422711607	0.382180676154	-0.758374	0.011739	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	HAP4
+YLR176C	191.02	Gal_YLR176C	0.26677978294	0.395741777623	0.439544	0.198586	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	RFX1;CRT1
+YLR176C	191.02	Glc_YLR176C	0.26677978294	0.395741777623	0.221448	0.288258	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	RFX1;CRT1
+YLR176C	191.02	Ure_YLR176C	0.26677978294	0.395741777623	-0.031952	0.598651	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	RFX1;CRT1
+YPL202C	341.11	Ure_YPL202C	-0.194455369835	0.397628000882	-0.440795	0.254781	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	AFT2
+YPL202C	341.11	Glc_YPL202C	-0.194455369835	0.397628000882	0.24591	0.339227	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	AFT2
+YPL202C	341.11	Gal_YPL202C	-0.194455369835	0.397628000882	0.03373	0.500972	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	AFT2
+YLR451W	191.02	Glc_YLR451W	-0.238057513953	0.398961459624	2.528382	0.0	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	LEU3
+YLR451W	191.02	Ure_YLR451W	-0.238057513953	0.398961459624	1.315635	0.0	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	LEU3
+YLR451W	191.02	Gal_YLR451W	-0.238057513953	0.398961459624	1.079782	3e-06	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	LEU3
+YHR178W	188.06	Ure_YHR178W	0.404951314356	0.416994228476	-1.376582	0.0	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	STB5
+YHR178W	188.06	Gal_YHR178W	0.404951314356	0.416994228476	-1.905293	4.2e-05	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	STB5
+YHR178W	188.06	Glc_YHR178W	0.404951314356	0.416994228476	-0.78261	0.05838	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	STB5
+YMR021C	191.02	Gal_YMR021C	0.132342898971	0.469018344736	-0.362963	0.001991	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	MAC1;CUA1
+YMR021C	191.02	Ure_YMR021C	0.132342898971	0.469018344736	0.171715	0.043364	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	MAC1;CUA1
+YMR021C	191.02	Glc_YMR021C	0.132342898971	0.469018344736	0.210733	0.107462	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	MAC1;CUA1
+YJL089W	306.08	Ure_YJL089W	-0.0288930897983	0.526041865671	-1.088839	0.00228	Glutathione	SIP4
+YJL089W	306.08	Glc_YJL089W	-0.0288930897983	0.526041865671	-0.17522	0.095952	Glutathione	SIP4
+YJL089W	306.08	Gal_YJL089W	-0.0288930897983	0.526041865671	-0.028032	0.725246	Glutathione	SIP4
+YMR037C	188.06	Gal_YMR037C	0.43401615266	0.542367041473	-1.550045	4e-06	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	MSN2
+YMR037C	188.06	Glc_YMR037C	0.43401615266	0.542367041473	-0.647073	0.053241	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	MSN2
+YMR037C	188.06	Ure_YMR037C	0.43401615266	0.542367041473	0.101543	0.280318	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	MSN2
+YIL101C	188.06	Gal_YIL101C	0.115410004258	0.574947381432	0.479077	0.000524	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	XBP1
+YIL101C	188.06	Glc_YIL101C	0.115410004258	0.574947381432	-0.446001	0.029909	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	XBP1
+YIL101C	188.06	Ure_YIL101C	0.115410004258	0.574947381432	0.005822	0.971678	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	XBP1
+YDR253C	191.02	Gal_YDR253C	-0.0599492711985	0.580795591548	0.406089	2.4e-05	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	MET32
+YDR253C	191.02	Ure_YDR253C	-0.0599492711985	0.580795591548	-0.318339	0.0001	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	MET32
+YDR253C	191.02	Glc_YDR253C	-0.0599492711985	0.580795591548	0.103666	0.237395	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	MET32
+YHL020C	188.06	Glc_YHL020C	-0.22604267039	0.587254611355	0.502109	0.004178	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	OPI1
+YHL020C	188.06	Ure_YHL020C	-0.22604267039	0.587254611355	-0.438798	0.004346	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	OPI1
+YHL020C	188.06	Gal_YHL020C	-0.22604267039	0.587254611355	0.006207	0.963973	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	OPI1
+YLR176C	188.06	Glc_YLR176C	-0.176218787404	0.753467685938	-0.638634	0.002307	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	RFX1;CRT1
+YLR176C	188.06	Ure_YLR176C	-0.176218787404	0.753467685938	0.128841	0.204328	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	RFX1;CRT1
+YLR176C	188.06	Gal_YLR176C	-0.176218787404	0.753467685938	0.084473	0.655266	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	RFX1;CRT1
+YER040W	341.11	Gal_YER040W	-0.103151912137	0.771501470399	1.021355	0.000872	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	GLN3
+YER040W	341.11	Ure_YER040W	-0.103151912137	0.771501470399	0.347846	0.437883	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	GLN3
+YER040W	341.11	Glc_YER040W	-0.103151912137	0.771501470399	-0.030987	0.869665	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	GLN3
+YHL009C	188.06	Ure_YHL009C	0.014031634449	0.777565058281	0.366583	0.175987	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	YAP3
+YHL009C	188.06	Glc_YHL009C	0.014031634449	0.777565058281	0.172546	0.272142	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	YAP3
+YHL009C	188.06	Gal_YHL009C	0.014031634449	0.777565058281	-0.058506	0.623917	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	YAP3
+YBR240C	188.06	Gal_YBR240C	0.0968170247926	0.816261184162	-0.201312	0.101832	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	THI2;PHO6
+YBR240C	188.06	Glc_YBR240C	0.0968170247926	0.816261184162	0.150553	0.117316	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	THI2;PHO6
+YBR240C	188.06	Ure_YBR240C	0.0968170247926	0.816261184162	-0.239988	0.122194	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	THI2;PHO6
+YKR099W	188.06	Glc_YKR099W	0.18546694349	0.820335910171	-1.107538	0.000105	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	BAS1
+YKR099W	188.06	Gal_YKR099W	0.18546694349	0.820335910171	-2.000262	0.000116	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	BAS1
+YKR099W	188.06	Ure_YKR099W	0.18546694349	0.820335910171	-1.841073	0.001227	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	BAS1
+YER169W	306.08	Gal_YER169W	-0.0298263100453	0.899561921271	-0.190658	0.034659	Glutathione	RPH1
+YER169W	306.08	Glc_YER169W	-0.0298263100453	0.899561921271	-0.14498	0.084929	Glutathione	RPH1
+YER169W	306.08	Ure_YER169W	-0.0298263100453	0.899561921271	-0.019829	0.877769	Glutathione	RPH1
+YJL089W	191.02	Ure_YJL089W	0.00902694831041	0.923157291143	-0.955492	0.001216	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	SIP4
+YJL089W	191.02	Gal_YJL089W	0.00902694831041	0.923157291143	0.62297	0.002644	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	SIP4
+YJL089W	191.02	Glc_YJL089W	0.00902694831041	0.923157291143	-0.014409	0.827573	(4R,5S)-4,5,6-Trihydroxy-2,3-dioxohexanoate; Citrate; Isocitrate	SIP4
+YLR403W	188.06	Gal_YLR403W	0.0410779581994	0.982585298909	0.387597	0.00692	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	SFP1
+YLR403W	188.06	Glc_YLR403W	0.0410779581994	0.982585298909	0.041277	0.712792	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	SFP1
+YLR403W	188.06	Ure_YLR403W	0.0410779581994	0.982585298909	0.021322	0.895201	L-2-Amino-6-oxoheptanedioate; N-Acetyl-L-glutamate	SFP1
+YPL089C	341.11	Glc_YPL089C	0.00165570751427	0.986975133515	0.152324	0.179944	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	RLM1
+YPL089C	341.11	Gal_YPL089C	0.00165570751427	0.986975133515	0.023979	0.609131	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	RLM1
+YPL089C	341.11	Ure_YPL089C	0.00165570751427	0.986975133515	-0.083629	0.87018	Epimelibiose; Melibiose; alpha,alpha-Trehalose; Lactose; Isomaltose; alpha-D-Galactosyl-(1->3)-1D-myo-inositol; Sucrose; Maltose; Cellobiose	RLM1
