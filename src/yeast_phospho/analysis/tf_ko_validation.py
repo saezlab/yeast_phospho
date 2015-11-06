@@ -1,8 +1,9 @@
 import numpy as np
 import seaborn as sns
-import matplotlib.pyplot as plt
+import itertools as it
 import statsmodels.api as sm
 import statsmodels.tools as st
+import matplotlib.pyplot as plt
 from yeast_phospho import wd, data
 from sklearn.cross_validation import KFold, ShuffleSplit
 from statsmodels.tools.eval_measures import rmse
@@ -55,30 +56,42 @@ tf_pvalue = import_tf_ko('%s/yeast_tf/yeast_tf_ko_pvalues.txt' % data)
 y = metabolomics.T
 x = tf_activity[y.index].T
 
+L1_wt_list = [0, .5, 1.]
+alpha_list = [.1, 1., 10.]
+nfeat_list = [1, 5, 10]
+
 x_coefs = {}
 for m in y:
-    res = {}
-    for i in range(1, len(y[m])):
-        fs = SelectKBest(f_regression, k=i).fit(x, y[m]).get_support()
+    # Train parameters
+    res = (np.Inf, np.Inf, np.Inf, np.Inf)
+    for L1_wt, alpha, n_feat in it.product(L1_wt_list, alpha_list, nfeat_list):
+        fs = SelectKBest(f_regression, k=n_feat).fit(x, y[m]).get_support()
 
         xs = x.loc[:, fs]
         xs = st.add_constant(xs)
 
-        res[i] = sm.OLS(y[m], xs).fit_regularized(alpha=.1, L1_wt=.5).rsquared_adj
+        cv = ShuffleSplit(len(y[m]), n_iter=30, test_size=.15)
 
-    res = Series(res).sort(inplace=False, ascending=False)
-    print m, '\n', res
+        p_rmse = np.median([rmse(y.ix[test, m], sm.OLS(y.ix[train, m], xs.ix[train]).fit_regularized(alpha=alpha, L1_wt=L1_wt).predict(xs.ix[test])) for train, test in cv])
 
-    fs = SelectKBest(f_regression, k=res.index[0]).fit(x, y[m]).get_support()
+        if res[0] > p_rmse:
+            res = (p_rmse, L1_wt, alpha, n_feat)
+
+    p_rmse, L1_wt, alpha, n_feat = res
+
+    # Fit model
+    fs = SelectKBest(f_regression, k=n_feat).fit(x, y[m]).get_support()
 
     xs = x.loc[:, fs]
     xs = st.add_constant(xs)
 
-    lm = sm.OLS(y[m], xs).fit_regularized(alpha=.1, L1_wt=.5)
+    lm = sm.OLS(y[m], xs).fit_regularized(alpha=alpha, L1_wt=L1_wt)
 
     x_coefs[m] = lm
 
-x_coefs = {m: x_coefs[m] for m in x_coefs}
+    print m, p_rmse, L1_wt, alpha, n_feat, lm.rsquared, lm.f_pvalue
+
+x_coefs = {m: x_coefs[m] for m in x_coefs if x_coefs[m].f_pvalue < 0.05}
 print '[INFO] Regressions done: ', len(x_coefs)
 
 df = [(f, m, x_coefs[m].params[f], x_coefs[m].pvalues[f], x_coefs[m].conf_int().ix[f, 0], x_coefs[m].conf_int().ix[f, 1]) for m in x_coefs if m in tf_logfc.index for f, p in x_coefs[m].pvalues.to_dict().items() if f != 'const']
