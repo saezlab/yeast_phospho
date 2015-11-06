@@ -54,8 +54,8 @@ comparisons = [
     (k_activity, metabolomics, 'Kinases', 'Steady-state with growth', 15),
     (tf_activity, metabolomics, 'TFs', 'Steady-state with growth', 15),
 
-    (k_activity_ng, metabolomics, 'Kinases', 'Steady-state without growth', 15),
-    (tf_activity_ng, metabolomics, 'TFs', 'Steady-state without growth', 15),
+    (k_activity_ng, metabolomics_ng, 'Kinases', 'Steady-state without growth', 15),
+    (tf_activity_ng, metabolomics_ng, 'TFs', 'Steady-state without growth', 15),
 
     (k_activity_dyn, metabolomics_dyn, 'Kinases', 'Dynamic', 10),
     (tf_activity_dyn, metabolomics_dyn, 'TFs', 'Dynamic', 10)

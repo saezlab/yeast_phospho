@@ -1,44 +1,48 @@
 import re
 import numpy as np
 import seaborn as sns
+import statsmodels.api as sm
+import statsmodels.tools as st
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
-from yeast_phospho import wd
-from yeast_phospho.utilities import metric, pearson
-from sklearn.metrics.pairwise import euclidean_distances, manhattan_distances, linear_kernel
-from sklearn.metrics import roc_curve, auc
-from sklearn.linear_model import Lasso, Ridge, LinearRegression
 from pandas import DataFrame, read_csv, melt, pivot_table
-from scipy.stats.distributions import hypergeom
+from yeast_phospho import wd
+from sklearn.metrics import roc_curve, auc
+from yeast_phospho.utilities import get_metabolites_model_annot, metric, pearson, get_proteins_name
+from sklearn.metrics.pairwise import euclidean_distances, manhattan_distances, linear_kernel
 from pymist.reader.sbml_reader import read_sbml_model
+from scipy.stats.distributions import hypergeom
+from sklearn.feature_selection.univariate_selection import SelectKBest, f_regression
 
 
 # ---- Calculate metabolite distances
 # Import metabolic model mapping
-model_met_map = read_csv(wd + 'files/metabolite_mz_map_dobson.txt', sep='\t', index_col='id')
-model_met_map['mz'] = [float('%.2f' % i) for i in model_met_map['mz']]
-model_met_map = model_met_map.drop_duplicates('mz')['mz'].to_dict()
+met_annot = get_metabolites_model_annot()
+
+met_name = met_annot['Name'].to_dict()
+met_2_id = {v: k for k, v in met_annot['ABBR'].to_dict().items()}
+
 
 # Import metabolic model
-model = read_sbml_model('/Users/emanuel/Projects/resources/metabolic_models/1752-0509-4-145-s1/yeast_4.04.xml')
+model = read_sbml_model('/Users/emanuel/Projects/resources/metabolic_models/iMM904.v1.xml')
+
 
 # Remove extracellular metabolites
 s_matrix = model.get_stoichiometric_matrix()
 s_matrix = s_matrix[[not i.endswith('_b') for i in s_matrix.index]]
 
+# Remove biomass reactions
+s_matrix = s_matrix.drop('R_biomass_SC5_notrace', axis=1)
+
 # Remove highly connected metabolites
-met_to_remove = [
-    'biomass', 'acetyl-CoA', 'carbon dioxide', 'coenzyme A', 'L-glutamate', 'water', 'hydrogen peroxide',
-    'H+', 'NAD(+)', 'NADH', 'NADP(+)', 'NADPH', 'ammonium', 'oxygen', 'phosphate', 'diphosphate', '2-oxoglutarate',
-    'acyl-CoA', 'ADP', 'AMP', 'ATP', 'UDP', 'UMP', 'UTP', 'CDP', 'CMP', 'CTP', 'GDP', 'GMP', 'GTP',
-    'dADP', 'dAMP', 'dATP', 'dUDP', 'dUMP', 'dUTP', 'dCDP', 'dCMP', 'dCTP', 'dGDP', 'dGMP', 'dGTP'
-]
-met_to_remove = {k for m in met_to_remove for k, v in model.metabolites.items() if re.match('%s \[.*\]' % re.escape(m), v)}
-s_matrix = s_matrix[[i not in met_to_remove for i in s_matrix.index]]
+s_matrix = s_matrix.drop([i for i in s_matrix.index if i[2:-2] in ['nadph', 'coa', 'accoa', 'atp', 'ctp', 'udp']])
 
 # Remove exchange and biomass reactions
-reactions_to_remove = np.hstack((model.get_exchanges(True), 'r_1812'))
+reactions_to_remove = model.get_exchanges(True)
 s_matrix = s_matrix.loc[:, [r not in reactions_to_remove for r in s_matrix.columns]]
+
+# Remove un-mapped metabolites
+s_matrix = s_matrix.ix[[i[2:-2] in set(met_annot['ABBR']) for i in s_matrix.index]]
 
 # Get reactions products and substrates
 r_substrates = {r: set(s_matrix[s_matrix[r] < 0].index) for r in s_matrix.columns}
@@ -54,9 +58,11 @@ s_matrix = s_matrix[s_matrix.sum(1) != 0]
 # Get reactions metabolites
 r_metabolites = {r: set(s_matrix.ix[s_matrix[r] != 0, r].index) for r in s_matrix.columns}
 
+
 # Gene metabolite association
-met_reactions = {kegg_id: set(model.s[met_id].keys()) for met_id, kegg_id in model_met_map.items() if met_id in model.s}
 gene_reactions = dict(model.get_reactions_by_genes(model.get_genes()).items())
+model_2_ion = {i: met_2_id[i[2:-2]] for i in s_matrix.index}
+
 
 # ---- Read protein interactions dbs
 dbs = {}
@@ -72,15 +78,12 @@ for bkg_type in ['string']:
     elif bkg_type == 'string':
         db = read_csv(wd + 'files/4932.protein.links.v9.1.txt', sep=' ')
 
-        lb = db['combined_score'].max() * .4
-        ub = db['combined_score'].max() * 1.
-
-        db = db[db['combined_score'] > lb]
-        db = db[db['combined_score'] < ub]
+        thres = 650
+        db = db[db['combined_score'] > thres]
 
         db = {(source.split('.')[1], target.split('.')[1]) for source, target in db[['protein1', 'protein2']].values}
 
-        print 'lb: %.2f; ub: %.2f' % (lb, ub)
+        print 'thres: %.2f' % thres
 
     db = {(s, t) for s, t in db if s != t}
     print '[INFO] %s: %d' % (bkg_type, len(db))
@@ -94,7 +97,7 @@ for bkg_type in ['string']:
     db = {(s, m) for s, r in db if r in s_matrix.columns for m in r_metabolites[r]}
     print '[INFO] %s, only enzymatic reactions metabolites: %d' % (bkg_type, len(db))
 
-    db = {(s, model_met_map[m]) for s, m in db if m in model_met_map}
+    db = {(s, model_2_ion[m]) for s, m in db if m in model_2_ion}
     print '[INFO] %s, only measured enzymatic reactions metabolites: %d' % (bkg_type, len(db))
 
     dbs[bkg_type] = db
@@ -117,120 +120,103 @@ m_map = m_map.groupby('mz')['name'].apply(lambda i: '; '.join(i)).to_dict()
 
 
 # ---- Import YORF names
-acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt', sep='\t', index_col=1)['gene'].to_dict()
-acc_name = {k: acc_name[k].split(';')[0] for k in acc_name}
+acc_name = get_proteins_name()
 
 
-# ---- Import data-sets
-# Steady-state
-metabolomics_std = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0).ix[cmap.columns].dropna()
-metabolomics_std = metabolomics_std[metabolomics_std.std(1) > .4]
-
-k_activity_std = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0).ix[cmap.index]
-k_activity_std = k_activity_std[(k_activity_std.count(1) / k_activity_std.shape[1]) > .75].replace(np.NaN, 0.0)
-
-tf_activity_std = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0).ix[cmap.index].dropna()
-tf_activity_std = tf_activity_std[tf_activity_std.std(1) > .3]
-
+# ---- Import
 # Steady-state with growth
-metabolomics_std_g = read_csv('%s/tables/metabolomics_steady_state_growth_rate.tab' % wd, sep='\t', index_col=0).ix[cmap.columns].dropna()
-metabolomics_std_g = metabolomics_std_g[metabolomics_std_g.std(1) > .4]
+metabolomics = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0)
+metabolomics = metabolomics[metabolomics.std(1) > .4]
+metabolomics.index = [str(i) for i in metabolomics.index]
 
-k_activity_std_g = read_csv('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).ix[cmap.index]
-k_activity_std_g = k_activity_std_g[(k_activity_std_g.count(1) / k_activity_std_g.shape[1]) > .75].replace(np.NaN, 0.0)
+k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
+k_activity = k_activity[(k_activity.count(1) / k_activity.shape[1]) > .75].replace(np.NaN, 0.0)
 
-tf_activity_std_g = read_csv('%s/tables/tf_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).ix[cmap.index].dropna()
-tf_activity_std_g = tf_activity_std_g[tf_activity_std_g.std(1) > .3]
+tf_activity = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0)
+
+
+# Steady-state without growth
+metabolomics_ng = read_csv('%s/tables/metabolomics_steady_state_no_growth.tab' % wd, sep='\t', index_col=0)
+metabolomics_ng = metabolomics_ng[metabolomics_ng.std(1) > .4]
+
+k_activity_ng = read_csv('%s/tables/kinase_activity_steady_state_no_growth.tab' % wd, sep='\t', index_col=0)
+k_activity_ng = k_activity_ng[(k_activity_ng.count(1) / k_activity_ng.shape[1]) > .75].replace(np.NaN, 0.0)
+
+tf_activity_ng = read_csv('%s/tables/tf_activity_steady_state_no_growth.tab' % wd, sep='\t', index_col=0)
+
 
 # Dynamic
-metabolomics_dyn = read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', index_col=0).ix[cmap.columns].dropna()
+metabolomics_dyn = read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', index_col=0)
 metabolomics_dyn = metabolomics_dyn[metabolomics_dyn.std(1) > .4]
+metabolomics_dyn.index = [str(i) for i in metabolomics_dyn.index]
 
-k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0).ix[cmap.index]
+k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0)
 k_activity_dyn = k_activity_dyn[(k_activity_dyn.count(1) / k_activity_dyn.shape[1]) > .75].replace(np.NaN, 0.0)
 
-tf_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0).ix[cmap.index].dropna()
-tf_activity_dyn = tf_activity_dyn[tf_activity_dyn.std(1) > .3]
-
-
-# ---- Overlap
-strains = list(set(metabolomics_std.columns).intersection(k_activity_std.columns).intersection(tf_activity_std.columns))
-conditions = list(set(metabolomics_dyn.columns).intersection(k_activity_dyn.columns).intersection(tf_activity_dyn.columns))
-metabolites = list(set(metabolomics_std.index).intersection(metabolomics_dyn.index))
-kinases = list(set(k_activity_std.index).intersection(k_activity_dyn.index))
-tfs = list(set(tf_activity_std.index).intersection(tf_activity_dyn.index))
-
-metabolomics_std, k_activity_std, tf_activity_std = metabolomics_std.ix[metabolites, strains], k_activity_std.ix[kinases, strains], tf_activity_std.ix[tfs, strains]
-metabolomics_std_g, k_activity_std_g, tf_activity_std_g = metabolomics_std_g.ix[metabolites, strains], k_activity_std_g.ix[kinases, strains], tf_activity_std_g.ix[tfs, strains]
-metabolomics_dyn, k_activity_dyn, tf_activity_dyn = metabolomics_dyn.ix[metabolites, conditions], k_activity_dyn.ix[kinases, conditions], tf_activity_dyn.ix[tfs, conditions]
-print '[INFO] Data-sets import and overlap calculated'
+tf_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0)
 
 
 # ---- Comparisons
-datasets_files = [
-    (k_activity_std, metabolomics_std, 'Kinase steadystate'),
-    (tf_activity_std, metabolomics_std, 'TF steadystate'),
+comparisons = [
+    (k_activity, metabolomics, 'Kinases steady-state', 15),
+    (tf_activity, metabolomics, 'TFs steady-state', 15),
 
-    (k_activity_std_g, metabolomics_std_g, 'Kinase steadystate (with growth)'),
-    (tf_activity_std_g, metabolomics_std_g, 'TF steadystate (with growth)'),
+    (k_activity_ng, metabolomics_ng, 'Kinases steady-state (no growth)', 15),
+    (tf_activity_ng, metabolomics_ng, 'TFs steady-state (no growth)', 15),
 
-    (k_activity_dyn, metabolomics_dyn, 'Kinase dynamic'),
-    (tf_activity_dyn, metabolomics_dyn, 'TF dynamic'),
+    (k_activity_dyn, metabolomics_dyn, 'Kinases dynamic', 10),
+    (tf_activity_dyn, metabolomics_dyn, 'TFs dynamic', 10)
 ]
 
 
 # ---- Perform kinase/enzyme enrichment
 sns.set(style='ticks', palette='pastel', color_codes=True, context='paper')
-(f, plot), pos = plt.subplots(len(datasets_files), 2, figsize=(7, 4. * len(datasets_files))), 0
-for k_activity, metabolomics, growth in datasets_files:
+(f, plot), pos = plt.subplots(len(comparisons), 2, figsize=(7, 4. * len(comparisons))), 0
+for xss, yss, descprition, fs_k in comparisons:
 
-    # Overlapping kinases/phosphatases knockout
-    strains = list(set(k_activity.columns).intersection(set(metabolomics.columns)))
-    k_activity, metabolomics = k_activity[strains], metabolomics[strains]
+    # Overlapping conditions
+    conditions = list(set(xss.columns).intersection(set(yss.columns)))
+    xs, ys = xss[conditions].T, yss[conditions].T
 
     # ---- Correlate metabolic fold-changes with kinase activities
-    lm = Lasso(alpha=0.01, max_iter=2000).fit(k_activity.T, metabolomics.T)
+    lm_models = {m: sm.OLS(ys[m], st.add_constant(xs)).fit_regularized(L1_wt=0) for m in ys.columns}
 
-    info_table = DataFrame(lm.coef_, index=metabolomics.index, columns=k_activity.index)
-    info_table['metabolite'] = info_table.index
-    info_table = melt(info_table, id_vars='metabolite', value_name='coef', var_name='kinase')
-    info_table = info_table[info_table['coef'] != 0.0]
+    info_table = [(m, f, c) for m in lm_models for f, c in lm_models[m].params.to_dict().items() if f != 'const' and c != 0 and np.isfinite(c)]
+    info_table = DataFrame(info_table, columns=['metabolite', 'feature', 'coef'])
 
     info_table['score'] = info_table['coef'].abs().max() - info_table['coef'].abs()
 
-    info_table['kinase_count'] = [k_activity.ix[k].count() for k in info_table['kinase']]
-
     info_table['metabolite_name'] = [m_map[m] if m in m_map else str(m) for m in info_table['metabolite']]
-    info_table['kinase_name'] = [acc_name[k] if k in acc_name else str(k) for k in info_table['kinase']]
+    info_table['feature_name'] = [acc_name[k] if k in acc_name else str(k) for k in info_table['feature']]
 
     # Kinase/Enzyme interactions via metabolite correlations
-    info_table['TP'] = [int(i in db) for i in zip(info_table['kinase'], info_table['metabolite'])]
+    info_table['TP'] = [int(i in db) for i in zip(info_table['feature'], info_table['metabolite'])]
 
     # Correlation
-    cor = [pearson(metabolomics.loc[m, strains], k_activity.loc[k, strains]) for m, k in info_table[['metabolite', 'kinase']].values]
+    cor = [pearson(ys.loc[conditions, m], xs.loc[conditions, k]) for m, k in info_table[['metabolite', 'feature']].values]
     info_table['pearson'], info_table['pearson_pvalue'] = zip(*cor)[:2]
     info_table['pearson_abs'] = info_table['pearson'].abs()
     info_table['pearson_abs_inv'] = 1 - info_table['pearson'].abs()
     info_table['pearson_pvalue_log10'] = np.log10(info_table['pearson_pvalue'])
 
     # Other metrics
-    info_table['euclidean'] = [metric(euclidean_distances, metabolomics.ix[m, strains], k_activity.ix[k, strains])[0][0] for k, m in zip(info_table['kinase'], info_table['metabolite'])]
-    info_table['manhattan'] = [metric(manhattan_distances, metabolomics.ix[m, strains], k_activity.ix[k, strains])[0][0] for k, m in zip(info_table['kinase'], info_table['metabolite'])]
-    info_table['linear_kernel'] = [metric(linear_kernel, metabolomics.ix[m, strains], k_activity.ix[k, strains])[0][0] for k, m in zip(info_table['kinase'], info_table['metabolite'])]
+    info_table['euclidean'] = [metric(euclidean_distances, ys.ix[conditions, m], xs.ix[conditions, k])[0][0] for k, m in info_table[['feature', 'metabolite']].values]
+    info_table['manhattan'] = [metric(manhattan_distances, ys.ix[conditions, m], xs.ix[conditions, k])[0][0] for k, m in info_table[['feature', 'metabolite']].values]
+    info_table['linear_kernel'] = [metric(linear_kernel, ys.ix[conditions, m], xs.ix[conditions, k])[0][0] for k, m in info_table[['feature', 'metabolite']].values]
     info_table['linear_kernel_abs'] = info_table['linear_kernel'].abs()
 
     info_table = info_table.dropna()
-    print '[INFO] TP (%s): %d / %d' % (growth, info_table['TP'].sum(), info_table.shape[0])
+    print '[INFO] TP (%s): %d / %d' % (descprition, info_table['TP'].sum(), info_table.shape[0])
 
     # ---- Kinase/Enzyme enrichment
     int_enrichment, thresholds = [], roc_curve(info_table['TP'], info_table['score'])[2]
 
-    M = set(zip(info_table['kinase'], info_table['metabolite']))
+    M = set(zip(info_table['feature'], info_table['metabolite']))
     n = M.intersection(db)
 
     for threshold in thresholds:
         N = info_table.loc[info_table['score'] > threshold]
-        N = set(zip(N['kinase'], N['metabolite'])).intersection(M)
+        N = set(zip(N['feature'], N['metabolite'])).intersection(M)
 
         x = N.intersection(n)
 
@@ -238,8 +224,6 @@ for k_activity, metabolomics, growth in datasets_files:
         p_value = hypergeom.sf(len(x), len(M), len(n), len(N))
 
         int_enrichment.append((threshold, fraction, p_value, len(M), len(n), len(N), len(x)))
-
-        print threshold, fraction, p_value, len(M), len(n), len(N), len(x)
 
     int_enrichment = DataFrame(int_enrichment, columns=['thres', 'fraction', 'pvalue', 'M', 'n', 'N', 'x']).dropna()
     print '[INFO] Kinase/Enzyme enrichment ready'
@@ -254,7 +238,7 @@ for k_activity, metabolomics, growth in datasets_files:
         ax.plot(curve_fpr, curve_tpr, label='%s (area = %0.2f)' % (roc_metric, curve_auc))
 
     ax.plot([0, 1], [0, 1], 'k--')
-    ax.set_ylabel(growth)
+    ax.set_ylabel(descprition)
     sns.despine(trim=True, ax=ax)
     ax.legend(loc='lower right')
 
