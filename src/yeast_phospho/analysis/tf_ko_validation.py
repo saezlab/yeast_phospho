@@ -1,5 +1,6 @@
 import numpy as np
 import seaborn as sns
+import matplotlib
 import itertools as it
 import statsmodels.api as sm
 import statsmodels.tools as st
@@ -7,17 +8,16 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 from matplotlib.gridspec import GridSpec
 from yeast_phospho import wd, data
-from sklearn.cross_validation import KFold, ShuffleSplit
+from sklearn.cross_validation import KFold, ShuffleSplit, LeaveOneOut
 from statsmodels.tools.eval_measures import rmse
-from scipy.stats.stats import spearmanr, pearsonr
-from sklearn.metrics.scorer import make_scorer
+from sklearn.metrics.scorer import make_scorer, mean_squared_error_scorer, mean_squared_error
 from sklearn.decomposition.pca import PCA
 from sklearn.feature_selection.rfe import RFECV, RFE
 from sklearn.preprocessing.data import StandardScaler
-from sklearn.linear_model import Lasso, RandomizedLasso, LinearRegression, LassoCV, ElasticNet
+from sklearn.linear_model import Lasso, RandomizedLasso, LinearRegression, LassoCV, ElasticNet, Ridge, RidgeCV
 from sklearn.feature_selection.univariate_selection import SelectKBest, f_regression
 from pandas import DataFrame, Series, read_csv, concat, melt, pivot_table
-from yeast_phospho.utilities import pearson, get_proteins_name, get_metabolites_name
+from yeast_phospho.utilities import pearson, get_proteins_name, get_metabolites_name, spearman
 
 
 # Import annotations
@@ -35,45 +35,6 @@ metabolomics = read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', ind
 metabolomics = metabolomics[metabolomics.std(1) > .4]
 metabolomics.index = [str(i) for i in metabolomics.index]
 metabolomics = metabolomics[[i in met_name for i in metabolomics.index]]
-
-# PCA
-n_components = 10
-
-sns.set(style='ticks')
-fig, gs, pos = plt.figure(figsize=(10, 15)), GridSpec(3, 2, hspace=.3), 0
-for df, df_type in [(metabolomics, 'Metabolomics'), (tf_activity, 'TF activity'), (k_activity, 'Kinases activity')]:
-    pca = PCA(n_components=n_components).fit(df)
-    pcs = DataFrame(pca.transform(df), columns=['PC%d' % i for i in range(1, n_components + 1)], index=df.index)
-    pcs['condition'] = ['_'.join(i.split('_')[:-1]) for i in pcs.index]
-
-    condition_palette = {'N_downshift': '#3498db', 'N_upshift': '#95a5a6', 'Rapamycin': '#e74c3c'}
-
-    ax = plt.subplot(gs[pos])
-    for condition in set(pcs['condition']):
-        ax.scatter(pcs.ix[pcs['condition'] == condition, 'PC1'], pcs.ix[pcs['condition'] == condition, 'PC2'], label=condition, lw=0, marker='o', c=condition_palette[condition])
-    ax.legend()
-    ax.set_title(df_type)
-    ax.set_xlabel('PC1 (%.1f%%)' % (pca.explained_variance_ratio_[0] * 100))
-    ax.set_ylabel('PC2 (%.1f%%)' % (pca.explained_variance_ratio_[1] * 100))
-    sns.despine(trim=True, ax=ax)
-
-    ax = plt.subplot(gs[pos + 1])
-    plot_df = DataFrame(zip(['PC%d' % i for i in range(1, n_components + 1)], pca.explained_variance_ratio_), columns=['PC', 'var'])
-    plot_df['var'] *= 100
-    sns.barplot('var', 'PC', data=plot_df, color='gray', linewidth=0, ax=ax)
-    ax.set_title(df_type)
-    ax.set_xlabel('Explained variance ratio')
-    ax.set_ylabel('Principal component')
-    sns.despine(trim=True, ax=ax)
-    ax.figure.gca().xaxis.set_major_formatter(mtick.FormatStrFormatter('%.1f%%'))
-
-    pos += 2
-
-    print '[INFO] PCA analysis done: %s' % df_type
-
-plt.savefig('%s/reports/dynamic_pca.pdf' % wd, bbox_inches='tight')
-plt.close('all')
-print '[INFO] PCA done'
 
 
 # Import TF KO data-set metabolomics
@@ -106,33 +67,77 @@ x = DataFrame(sc_x.fit_transform(x), index=x.index, columns=x.columns)
 y = metabolomics[x.index].T
 y = DataFrame(sc_y.fit_transform(y), index=y.index, columns=y.columns)
 
-rmse_scorer = make_scorer(rmse, greater_is_better=False)
-
-x_coefs = {}
+fits = {}
 for m in y.columns:
-    lm = LinearRegression()
-    cv = ShuffleSplit(len(y[m]), test_size=.3, n_iter=30)
+    xs = x.copy()
+    ys = y.ix[x.index, m]
 
-    rfe = RFE(lm, step=1, n_features_to_select=1).fit(x, y[m])
+    cv = ShuffleSplit(len(ys), n_iter=30, test_size=.2)
+    lm = Lasso(alpha=1)
 
-    for train, test in cv:
-        lm_m = lm.fit(x.ix[train, rfe.support_], y.ix[train, m])
-        train_rmse = rmse(lm_m.predict(x.ix[train, rfe.support_]), y.ix[train, m])
-        test_rmse = rmse(lm_m.predict(x.ix[test, rfe.support_]), y.ix[test, m])
-        print train_rmse, test_rmse
+    rfe = RFECV(lm, 1, cv=cv, scoring='mean_squared_error').fit(xs, ys)
+    print '[INFO] %s: %d' % (m, rfe.n_features_)
 
-    # lm = lm.fit(x.loc[:, rfe.support_], y[m])
+    lm = lm.fit(xs.ix[:, rfe.get_support()], ys)
 
-    lm = sm.OLS(y[m], st.add_constant(x.loc[:, rfe.support_])).fit()
-    cor, pvalue, _ = pearson(lm.predict(st.add_constant(x.loc[:, rfe.support_])), y[m].values)
+    xs = xs.ix[:, rfe.get_support()]
 
-    if lm.f_pvalue < .05:
-        # x_coefs[m] = dict(zip(*(x.ix[:, rfe.support_], lm.coef_)))
-        x_coefs[m] = {x.loc[:, rfe.support_]: cor}
-print '[INFO] Regressions done: ', len(x_coefs)
+    y_pred = Series({ys.ix[test].index[0]: lm.fit(xs.ix[train], ys.ix[train]).predict(xs.ix[test])[0] for train, test in LeaveOneOut(len(y[m]))})
 
-df = DataFrame([(m, f, x_coefs[m][f]) for m in x_coefs for f in x_coefs[m] if f != 'const'], columns=['variable', 'feature', 'coef'])
-df['cor'] = [pearson(y[m], x[f])[0] for m, f in df[['variable', 'feature']].values]
+    cor, pvalue, _ = pearson(y_pred[ys.index].values, ys.values)
+
+    fits[m] = (lm, rfe, cor, pvalue)
+
+print '[INFO] Regressions done: ', len(fits)
+
+
+sns.set(style='ticks')
+gs, pos = GridSpec(len(y.columns), 3, hspace=.5), 0
+matplotlib.pyplot.gcf().set_size_inches(12, 3 * len(y.columns))
+
+for m in y.columns:
+    lm, rfe, cor, pvalue = fits[m]
+
+    ax = plt.subplot(gs[pos])
+    sns.residplot(y[m], lm.predict(x.ix[y.index, rfe.get_support()]) - y[m], lowess=True, ax=ax)
+    ax.set_title('Residual plot - %s' % m)
+    ax.set_xlabel('meas')
+    ax.set_ylabel('pred - meas')
+    sns.despine(trim=True, ax=ax)
+
+    ax = plt.subplot(gs[pos + 1])
+    ax.plot(range(1, len(rfe.grid_scores_) + 1), (-rfe.grid_scores_), c='#95a5a6', lw=.8)
+    ax.axvline(rfe.n_features_, c='#95a5a6', lw=.3)
+    ax.set_title('Optimal: %d' % rfe.n_features_)
+    ax.set_xlabel('# features')
+    ax.set_ylabel('rmse')
+    sns.despine(trim=True, ax=ax)
+
+    res = []
+    for train, test in ShuffleSplit(len(y[m]), n_iter=30, test_size=.2):
+        lm_m = lm.fit(x.ix[train, rfe.get_support()], y.ix[train, m])
+        res.append((rmse(lm_m.predict(x.ix[train, rfe.get_support()]), y.ix[train, m]), 'train'))
+        res.append((rmse(lm_m.predict(x.ix[test, rfe.get_support()]), y.ix[test, m]), 'test'))
+
+    res = DataFrame(res, columns=['rmse', 'type'])
+
+    ax = plt.subplot(gs[pos + 2])
+    sns.boxplot('type', 'rmse', 'type', res, sym='', ax=ax)
+    sns.stripplot('type', 'rmse', 'type', res, marker='o', size=8, jitter=True, ax=ax)
+    ax.set_title('Test/Train RMSEs')
+    sns.despine(trim=True, ax=ax)
+    ax.legend().remove()
+
+    pos += 3
+
+plt.savefig('%s/reports/TF_KO_validation_fitting_tests.pdf' % wd, bbox_inches='tight')
+plt.close('all')
+print '[INFO] Regressions plot done'
+
+
+df = [(m, f, c) for m in fits for f, c in zip(*(x.ix[:, fits[m][1].get_support()], fits[m][0].coef_)) if c != 0 and fits[m][2] > 0 and fits[m][3] < .05]
+df = DataFrame(df, columns=['variable', 'feature', 'coef'])
+df['cor'] = [spearman(y[m].values, x[f].values)[0] for m, f in df[['variable', 'feature']].values]
 # df['ci_lb'] = [x_coefs[m][f].conf_int().ix[f, 0] for m, f in df[['variable', 'feature']].values]
 # df['ci_ub'] = [x_coefs[m][f].conf_int().ix[f, 1] for m, f in df[['variable', 'feature']].values]
 df['var_name'] = [met_name[i] for i in df['variable']]
@@ -143,12 +148,11 @@ print df.head(15)
 
 plot_df = [(m, f, coef, tf_logfc.ix[m, c]) for m, f, coef in df[['variable', 'feature', 'coef']].values if m in tf_logfc.index for c in tf_logfc if f in c]
 plot_df = DataFrame(plot_df, columns=['variable', 'feature', 'coef', 'fold-change'])
-plot_df = plot_df[plot_df['coef'] != 0]
 
 sns.set(style='ticks')
 margin = 1.20
 xlim, ylim = (plot_df['coef'].min() * margin, plot_df['coef'].max() * margin), (plot_df['fold-change'].min() * margin, plot_df['fold-change'].max() * margin)
-sns.jointplot('coef', 'fold-change', data=plot_df, kind='reg', xlim=xlim, ylim=ylim, marginal_kws={'hist': False}, stat_func=pearsonr)
+sns.jointplot('coef', 'fold-change', data=plot_df, kind='reg', xlim=xlim, ylim=ylim, marginal_kws={'hist': False})
 plt.axhline(y=0, ls='--', c='.5', lw=.3)
 plt.axvline(x=0, ls='--', c='.5', lw=.3)
 plt.xlabel('TF (coefficient)')
