@@ -31,8 +31,10 @@ def interpolate_growth(df, timepoints):
 
 growth_tp = DataFrame({cond: interpolate_growth(growth[growth['condition'] == cond], p_timepoints) for cond in set(growth['condition'])})
 growth_tp['timepoint'] = growth_tp.index
-growth_tp = melt(growth_tp, id_vars='timepoint')
+growth_tp = melt(growth_tp, id_vars='timepoint', value_name='relative_growth')
 growth_tp = growth_tp[growth_tp['timepoint'] != -10]
+growth_tp['condition'] = [v + '_' + str(t) + 'min' for v, t in growth_tp[['variable', 'timepoint']].values]
+growth_tp[['condition', 'relative_growth']].to_csv('%s/files/dynamic_growth.txt' % wd, sep='\t', index=False)
 
 
 metabolomics = read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', index_col=0)

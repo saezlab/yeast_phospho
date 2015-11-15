@@ -8,12 +8,13 @@ from pandas import DataFrame, Series, read_csv, pivot_table
 from pandas.stats.misc import zscore
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.cross_validation import ShuffleSplit
+from sklearn.cross_validation import ShuffleSplit, LeaveOneOut
 from sklearn.grid_search import GridSearchCV
-from sklearn.linear_model import ElasticNetCV, ElasticNet
+from sklearn.linear_model import ElasticNetCV, ElasticNet, Lasso, Ridge, LinearRegression
 from sklearn.feature_selection import RFE
 from sklearn.metrics import mean_squared_error
 from sklearn.decomposition import PCA
+from sklearn.feature_selection import SelectKBest, f_regression
 from sklearn.metrics.classification import jaccard_similarity_score
 from yeast_phospho.utilities import pearson, spearman, get_proteins_name, get_metabolites_name, regress_out
 
@@ -72,47 +73,30 @@ y = DataFrame(ssy.fit_transform(y), index=y.index, columns=y.columns)
 
 cs, features, variables = list(y.index), list(x), list(y)
 
-parameters = {
-    'alpha': [1, .1, .01],
-    'nfeat': [1, 2, 3, 4, 5]
-}
-
 x, y = x.ix[cs], y.ix[cs]
 
 lms = {}
 for v in variables:
-    cv = ShuffleSplit(len(y[v]), 100, .1)
+    coefs = DataFrame([dict(zip(*(x.columns, ElasticNet(alpha=.01).fit(x.ix[train], y.ix[train, v]).coef_))) for train, test in LeaveOneOut(len(y[v]))])
+    coefs = coefs.median()
+    coefs = coefs[coefs != 0]
 
-    scores = []
-    for alpha in parameters['alpha']:
-        for nfeat in parameters['nfeat']:
-            rmse = [mean_squared_error(RFE(ElasticNet(alpha=alpha), n_features_to_select=nfeat).fit(x.ix[train], y.ix[train, v]).predict(x.ix[test]), y.ix[test, v]) for train, test in cv]
+    lms[v] = coefs.to_dict()
 
-            rmse_median = np.median(rmse)
-
-            scores.append((rmse_median, nfeat, alpha))
-
-    scores = DataFrame(scores, columns=['rmse', 'n_feat', 'alpha'])
-    rmse, nfeat, alpha = scores.ix[scores['rmse'].idxmin()]
-
-    lm = RFE(ElasticNet(alpha=alpha), n_features_to_select=nfeat).fit(x, y[v])
-
-    lms[v] = sm.OLS(y[v], st.add_constant(x.ix[:, lm.get_support()])).fit_regularized(L1_wt=.5, alpha=alpha)
-
-    print v, rmse, nfeat, alpha, lms[v].f_pvalue, lms[v].rsquared_adj
+    print v, coefs
 
 print '[INFO] Regressions done'
 
 # lms = {m: sm.OLS(y.ix[cs, m], st.add_constant(x.ix[cs])).fit_regularized(L1_wt=.5, alpha=.1) for m in variables}
 
-df = [(m, f, lms[m].rsquared, lms[m].llf, lms[m].params[f]) for m in variables for f in lms[m].params.index]
-df = [(m, f, cor, llf, coef, tf_logfc.ix[m, c], tf_pvalue.ix[m, c]) for m, f, cor, llf, coef in df if m in tf_logfc.index for c in tf_logfc if f in c]
-df = DataFrame(df, columns=['var', 'fea', 'cor', 'llf', 'coef', 'logfc', 'pvalfc']).sort('cor', ascending=False)
+df = [(m, f, lms[m][f]) for m in variables for f in lms[m]]
+df = [(m, f, coef, tf_logfc.ix[m, c], tf_pvalue.ix[m, c]) for m, f, coef in df if m in tf_logfc.index for c in tf_logfc if f in c]
+df = DataFrame(df, columns=['var', 'fea', 'coef', 'logfc', 'pvalfc'])
 df = df[[i in met_name for i in df['var']]]
 df['var_name'] = [met_name[i] for i in df['var']]
 df['fea_name'] = [acc_name[i] for i in df['fea']]
 df = df[df['coef'] != 0]
-print df.sort('cor', ascending=False).head(15)
+print df.sort('logfc', ascending=False).tail(15)
 
 sns.set(style='ticks')
 sns.jointplot('coef', 'logfc', data=df, kind='reg', marginal_kws={'hist': False})
@@ -122,16 +106,3 @@ plt.xlabel('coefficient')
 plt.ylabel('KO log-FC')
 plt.savefig('%s/reports/single_feature_regression.pdf' % wd, bbox_inches='tight')
 plt.close('all')
-
-v, fea = '174.09', 'YHR178W'
-
-[(spearman(metabolomics.ix[v, cs], tf_activity.ix[tf, cs]), tf) for tf in tf_activity.index]
-
-plt.scatter(zscore(metabolomics.ix[v, cs]), zscore(tf_activity.ix[fea, cs]))
-
-# print scores.ix[scores['rmse'].idxmin()]
-# scores = pivot_table(scores, 'rmse', 'n_feat', 'alpha')
-#
-# sns.heatmap(scores, annot=True)
-# plt.savefig('%s/reports/met_grid_search_heatmap.pdf' % wd, bbox_inches='tight')
-# plt.close('all')

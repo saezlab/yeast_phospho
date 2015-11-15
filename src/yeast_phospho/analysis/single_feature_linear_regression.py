@@ -45,19 +45,21 @@ metabolomics = read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', ind
 # metabolomics = metabolomics[metabolomics.std(1) > .4]
 metabolomics.index = [str(i) for i in metabolomics.index]
 
-k_activity = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0)
-k_activity = k_activity[(k_activity.count(1) / k_activity.shape[1]) > .75].replace(np.NaN, 0.0)
-
-k_activity_gsea = read_csv('%s/tables/kinase_activity_dynamic_gsea.tab' % wd, sep='\t', index_col=0)
-k_activity_gsea = k_activity_gsea[(k_activity_gsea.count(1) / k_activity_gsea.shape[1]) > .75].replace(np.NaN, 0.0)
-
+# k_activity = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0)
+# k_activity = k_activity[(k_activity.count(1) / k_activity.shape[1]) > .75].replace(np.NaN, 0.0)
+#
+# k_activity_gsea = read_csv('%s/tables/kinase_activity_dynamic_gsea.tab' % wd, sep='\t', index_col=0)
+# k_activity_gsea = k_activity_gsea[(k_activity_gsea.count(1) / k_activity_gsea.shape[1]) > .75].replace(np.NaN, 0.0)
 
 tf_activity = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0)
-tf_activity = tf_activity[tf_activity.std(1) > .4]
+# tf_activity = tf_activity[tf_activity.std(1) > .4]
 
 #
 x = tf_activity.T
 y = metabolomics.T
+
+x = DataFrame({v: regress_out(x[v], Series(PCA(10).fit_transform(x)[:, 0], index=x.index)) for v in x})
+y = DataFrame({v: regress_out(y[v], Series(PCA(10).fit_transform(y)[:, 0], index=y.index)) for v in y})
 
 ssx = StandardScaler()
 x = DataFrame(ssx.fit_transform(x), index=x.index, columns=x.columns)
@@ -77,8 +79,10 @@ df['var_name'] = [met_name[i] for i in df['var']]
 df['fea_name'] = [acc_name[i] for i in df['fea']]
 print df.sort('cor', ascending=False).head(15)
 
+plot_df = df.copy()
+
 sns.set(style='ticks')
-sns.jointplot('coef', 'logfc', data=df, kind='reg', marginal_kws={'hist': False})
+sns.jointplot('coef', 'logfc', data=plot_df, kind='reg', marginal_kws={'hist': False})
 plt.axhline(y=0, ls='--', c='.5', lw=.3)
 plt.axvline(x=0, ls='--', c='.5', lw=.3)
 plt.xlabel('coefficient')
