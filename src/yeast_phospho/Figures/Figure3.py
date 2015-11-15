@@ -3,7 +3,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from yeast_phospho import wd
-from yeast_phospho.utils import pearson
+from yeast_phospho.utilities import pearson
 from pandas.stats.misc import zscore
 from matplotlib.gridspec import GridSpec
 from sklearn.cross_validation import LeaveOneOut
@@ -19,7 +19,7 @@ dyn_xorder = [
 
 # ---- Import IDs maps
 m_map = read_csv('%s/files/metabolite_mz_map_kegg.txt' % wd, sep='\t')
-m_map['mz'] = [float('%.2f' % i) for i in m_map['mz']]
+m_map['mz'] = ['%.2f' % i for i in m_map['mz']]
 m_map = m_map.drop_duplicates('mz').drop_duplicates('formula')
 m_map = m_map.groupby('mz')['name'].apply(lambda i: '; '.join(i)).to_dict()
 
@@ -30,6 +30,7 @@ acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt',
 # Dynamic
 metabolomics_dyn = read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', index_col=0).dropna()
 metabolomics_dyn = metabolomics_dyn[metabolomics_dyn.std(1) > .4]
+metabolomics_dyn.index = [str(i) for i in metabolomics_dyn.index]
 
 k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0)
 k_activity_dyn = k_activity_dyn[(k_activity_dyn.count(1) / k_activity_dyn.shape[1]) > .75].replace(np.NaN, 0.0)
@@ -141,7 +142,6 @@ beta_thres = 1.5
 
 network = lm_betas[lm_betas['beta'].abs() > beta_thres]
 network = network[[m in m_map for m in network['metabolite']]]
-network['metabolite'] = [str(m) for m in network['metabolite']]
 
 network_i = igraph.Graph(directed=False)
 network_i.add_vertices(list(set(network['metabolite']).union(network['feature'])))
@@ -151,7 +151,7 @@ print '[INFO] Network: ', network_i.summary()
 
 
 # Set nodes attributes
-node_name = lambda x: acc_name[x].split(';')[0] if x in k_activity_dyn.index or x in tf_activity_dyn.index else m_map[float(x)]
+node_name = lambda x: acc_name[x].split(';')[0] if x in k_activity_dyn.index or x in tf_activity_dyn.index else m_map[x]
 network_i.vs['label'] = [node_name(v) for v in network_i.vs['name']]
 
 node_shape = lambda x: 'square' if (x not in k_activity_dyn.index) and (x not in tf_activity_dyn.index) else 'circle'
@@ -192,7 +192,7 @@ plot_df.index = [acc_name[i].split(';')[0] for i in plot_df.index]
 sns.set(style='white', palette='pastel')
 cmap, lw = sns.diverging_palette(220, 10, n=9, as_cmap=True), .5
 sns.clustermap(plot_df.T, figsize=(15, 20), cmap=cmap, linewidth=lw)
-plt.savefig('%s/reports/Figure_Supp_4_kinases_betas.pdf' % wd, bbox_inches='tight')
+plt.savefig('%s/reports/Figure_Supp_4_kinases_dynamic_betas.pdf' % wd, bbox_inches='tight')
 plt.close('all')
 
 
@@ -204,5 +204,5 @@ plot_df = plot_df[plot_df.std(1) != 0]
 sns.set(style='white', palette='pastel')
 cmap, lw = sns.diverging_palette(220, 10, n=9, as_cmap=True), .5
 sns.clustermap(plot_df.T, figsize=(15, 20), cmap=cmap, linewidth=lw)
-plt.savefig('%s/reports/Figure_Supp_4_transcription_factors_betas.pdf' % wd, bbox_inches='tight')
+plt.savefig('%s/reports/Figure_Supp_4_transcription_factors_dynamic_betas.pdf' % wd, bbox_inches='tight')
 plt.close('all')

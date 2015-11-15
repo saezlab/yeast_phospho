@@ -1,5 +1,6 @@
 import re
 import numpy as np
+import itertools as it
 import statsmodels.api as sm
 import statsmodels.tools as st
 from yeast_phospho import wd
@@ -7,10 +8,13 @@ from pandas.stats.misc import zscore
 from sklearn.linear_model import Ridge
 from scipy.stats.stats import spearmanr, pearsonr
 from sklearn.linear_model import LinearRegression
+from pymist.enrichment.gsea import gsea
 from pandas import Series, DataFrame, read_csv, pivot_table
 
 
 # ---- Kinases and TFs get targets utility functions
+def jaccard(a, b):
+    return float(len(a.intersection(b))) / float(len(a.union(b)))
 
 
 def get_tfs_targets(remove_self=False):
@@ -102,6 +106,13 @@ def estimate_activity_with_statsmodel(x, y, L1_wt=0):
 
     return res.params.drop('const').to_dict()
 
+
+def estimate_activity_with_gsea(fc_dict, signature, permutations=1000):
+    es, pvalue = gsea(fc_dict, signature, permutations)
+
+    score = np.log10(pvalue) if es > 0 else -np.log10(pvalue)
+
+    return score
 
 # ---- Protein related utility functions
 

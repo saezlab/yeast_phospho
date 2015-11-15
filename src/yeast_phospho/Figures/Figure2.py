@@ -3,34 +3,40 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 from yeast_phospho import wd
-from yeast_phospho.utils import pearson
+from yeast_phospho.utilities import pearson, get_metabolites_name
 from matplotlib.gridspec import GridSpec
 from sklearn.cross_validation import LeaveOneOut
 from sklearn.linear_model import Lasso
 from pandas import DataFrame, read_csv
 
 
-m_signif = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0)
+m_signif = read_csv('%s/tables/metabolomics_steady_state_no_growth.tab' % wd, sep='\t', index_col=0)
 m_signif = list(m_signif[m_signif.std(1) > .4].index)
 
-k_signif = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
+k_signif = read_csv('%s/tables/kinase_activity_steady_state_no_growth.tab' % wd, sep='\t', index_col=0)
 k_signif = list(k_signif[(k_signif.count(1) / k_signif.shape[1]) > .75].index)
 
-tf_signif = list(read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0).dropna().index)
+tf_signif = list(read_csv('%s/tables/tf_activity_steady_state_no_growth.tab' % wd, sep='\t', index_col=0).dropna().index)
 
 
 # ---- Import
 # Steady-state
-metabolomics = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0).ix[m_signif]
-k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0).ix[k_signif].replace(np.NaN, 0.0)
-tf_activity = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0).ix[tf_signif].dropna()
+metabolomics = read_csv('%s/tables/metabolomics_steady_state_no_growth.tab' % wd, sep='\t', index_col=0).ix[m_signif]
+metabolomics.index = [str(i) for i in metabolomics.index]
 
-metabolomics_g = read_csv('%s/tables/metabolomics_steady_state_growth_rate.tab' % wd, sep='\t', index_col=0).ix[m_signif]
-k_activity_g = read_csv('%s/tables/kinase_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).ix[k_signif].replace(np.NaN, 0.0)
-tf_activity_g = read_csv('%s/tables/tf_activity_steady_state_with_growth.tab' % wd, sep='\t', index_col=0).ix[tf_signif].dropna()
+k_activity = read_csv('%s/tables/kinase_activity_steady_state_no_growth.tab' % wd, sep='\t', index_col=0).ix[k_signif].replace(np.NaN, 0.0)
+tf_activity = read_csv('%s/tables/tf_activity_steady_state_no_growth.tab' % wd, sep='\t', index_col=0).ix[tf_signif].dropna()
+
+metabolomics_g = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0).ix[m_signif]
+metabolomics_g.index = [str(i) for i in metabolomics_g.index]
+
+k_activity_g = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0).ix[k_signif].replace(np.NaN, 0.0)
+tf_activity_g = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0).ix[tf_signif].dropna()
 
 # Dynamic
 metabolomics_dyn = read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', index_col=0).ix[m_signif].dropna()
+metabolomics_dyn.index = [str(i) for i in metabolomics_dyn.index]
+
 k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0).ix[k_signif].dropna(how='all').replace(np.NaN, 0.0)
 tf_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0).ix[tf_signif].dropna()
 
@@ -150,9 +156,10 @@ lm_res = DataFrame(lm_res, columns=['condition', 'feature', 'growth', 'name', 't
 
 # ---- Plot
 m_map = read_csv('%s/files/metabolite_mz_map_kegg.txt' % wd, sep='\t')
-m_map['mz'] = [float('%.2f' % i) for i in m_map['mz']]
+m_map['mz'] = ['%.2f' % i for i in m_map['mz']]
 m_map = m_map.drop_duplicates('mz').drop_duplicates('formula')
 m_map = m_map.groupby('mz')['name'].apply(lambda i: '; '.join(i)).to_dict()
+
 
 # Figure 2
 dyn_xorder = [

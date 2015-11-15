@@ -4,8 +4,9 @@ import matplotlib.pyplot as plt
 import statsmodels.api as sm
 import statsmodels.tools as st
 from yeast_phospho import wd
-from sklearn.linear_model import Lasso
-from sklearn.cross_validation import LeaveOneOut
+from sklearn.linear_model import Lasso, ElasticNet
+from sklearn.feature_selection import RFECV
+from sklearn.cross_validation import LeaveOneOut, ShuffleSplit
 from pandas import DataFrame, read_csv
 from sklearn.feature_selection.univariate_selection import SelectKBest, f_regression
 from yeast_phospho.utilities import pearson, get_proteins_name, get_metabolites_name

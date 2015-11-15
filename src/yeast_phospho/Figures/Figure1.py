@@ -11,13 +11,13 @@ acc_name = read_csv('/Users/emanuel/Projects/resources/yeast/yeast_uniprot.txt',
 
 # ---- Import
 # Steady-state
-k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
-tf_activity = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0).dropna()
+k_activity = read_csv('%s/tables/kinase_activity_steady_state_no_growth.tab' % wd, sep='\t', index_col=0)
+tf_activity = read_csv('%s/tables/tf_activity_steady_state_no_growth.tab' % wd, sep='\t', index_col=0).dropna()
 
 strains = list(set(k_activity.columns).intersection(tf_activity.columns))
 k_activity, tf_activity = k_activity[strains], tf_activity[strains]
 
-k_activity = k_activity[(k_activity.abs() > 1).sum(1) > 2]
+# k_activity = k_activity[(k_activity.abs() > 1).sum(1) > 2]
 tf_activity = tf_activity[(tf_activity.abs() > 1).sum(1) > 2]
 
 # Dynamic
@@ -30,7 +30,7 @@ dyn_xorder = [
 k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0)
 tf_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0).dropna()
 
-k_activity_dyn = k_activity_dyn[(k_activity_dyn.abs() > 1).sum(1) > 2]
+# k_activity_dyn = k_activity_dyn[(k_activity_dyn.abs() > 1).sum(1) > 2]
 tf_activity_dyn = tf_activity_dyn[(tf_activity_dyn.abs() > 1).sum(1) > 2]
 
 k_activity_dyn, tf_activity_dyn = k_activity_dyn[dyn_xorder], tf_activity_dyn[dyn_xorder]
@@ -97,14 +97,14 @@ plot_df = melt(plot_df, id_vars='kinase', value_name='activity').dropna()
 plot_df['type'] = [kinases_type.ix[i, 'type'] for i in plot_df['kinase']]
 plot_df['diagonal'] = ['KO' if k == s else 'WT' for k, s in plot_df[['kinase', 'strain']].values]
 
-sns.boxplot(data=plot_df, x='type', y='activity', hue='diagonal', palette={'KO': '#e74c3c', 'WT': '#95a5a6'}, hue_order=['KO', 'WT'], order=['Kinase', 'Phosphatase'], sym='', ax=ax02)
-sns.stripplot(data=plot_df, x='type', y='activity', hue='diagonal', palette={'KO': '#e74c3c', 'WT': '#95a5a6'}, hue_order=['KO', 'WT'], order=['Kinase', 'Phosphatase'], jitter=True, size=7, ax=ax02)
-ax02.axhline(y=0, ls=':', c='.5')
-ax02.legend().remove()
-ax02.set_ylabel('Activity')
-ax02.set_xlabel('')
-ax02.set_title('Knockouts\nactivity change')
-sns.despine(trim=True, ax=ax02)
+# sns.boxplot(data=plot_df, x='type', y='activity', hue='diagonal', palette={'KO': '#e74c3c', 'WT': '#95a5a6'}, hue_order=['KO', 'WT'], order=['Kinase', 'Phosphatase'], sym='', ax=ax02)
+# sns.stripplot(data=plot_df, x='type', y='activity', hue='diagonal', palette={'KO': '#e74c3c', 'WT': '#95a5a6'}, hue_order=['KO', 'WT'], order=['Kinase', 'Phosphatase'], jitter=True, size=7, ax=ax02)
+# ax02.axhline(y=0, ls=':', c='.5')
+# ax02.legend().remove()
+# ax02.set_ylabel('Activity')
+# ax02.set_xlabel('')
+# ax02.set_title('Knockouts\nactivity change')
+# sns.despine(trim=True, ax=ax02)
 
 # Export figure
 fig.tight_layout()
