@@ -74,14 +74,17 @@ comparisons = [
 ]
 
 
-def loo_regressions(xs, ys, feature_type, dataset_type, mod_type):
-    print '[INFO]', feature_type, dataset_type
+def loo_regressions(xs, ys, ft, dt, mt):
+    print '[INFO]', ft, dt
 
+    # Align matricies
     x = xs.loc[:, ys.columns].dropna(axis=1).T
     y = ys[x.index].T
 
+    # Define cross-validation
     cv = LeaveOneOut(len(y))
 
+    # Run regressions
     y_pred, y_betas = {}, {}
     for m in y:
         y_pred[m] = {}
@@ -95,13 +98,14 @@ def loo_regressions(xs, ys, feature_type, dataset_type, mod_type):
 
         y_betas[m] = DataFrame(betas).median().to_dict()
 
-    y_pred = DataFrame(y_pred).T
-    print '[INFO] Regression done: ', feature_type, dataset_type
+    y_pred = DataFrame(y_pred).ix[y.index, y.columns]
+    print '[INFO] Regression done: ', ft, dt
 
-    metabolites_corr = [(feature_type, dataset_type, f, mod_type, 'metabolites', pearson(y.T.ix[f, y_pred.columns], y_pred.ix[f, y_pred.columns])[0]) for f in y_pred.index]
-    conditions_corr = [(feature_type, dataset_type, s, mod_type, 'conditions', pearson(y.T.ix[y_pred.index, s], y_pred.ix[y_pred.index, s])[0]) for s in y_pred]
+    # Perform correlation with predicted values
+    metabolites_corr = [(ft, dt, f, mt, 'metabolites', pearson(y[f], y_pred[f])[0]) for f in y_pred]
+    conditions_corr = [(ft, dt, s, mt, 'conditions', pearson(y.ix[s], y_pred.ix[s])[0]) for s in y_pred.index]
 
-    return (metabolites_corr + conditions_corr), (feature_type, dataset_type, mod_type, y_betas)
+    return (metabolites_corr + conditions_corr), (ft, dt, mt, y_betas)
 
 lm_res = [loo_regressions(xs, ys, ft, dt, mt) for xs, ys, ft, dt, mt in comparisons]
 

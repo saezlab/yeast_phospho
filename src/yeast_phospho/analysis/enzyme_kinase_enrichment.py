@@ -1,4 +1,3 @@
-import re
 import pickle
 import numpy as np
 import seaborn as sns
@@ -16,8 +15,6 @@ from pandas import DataFrame, read_csv, pivot_table, melt
 # ---- Calculate metabolite distances
 # Import metabolic model mapping
 met_annot = get_metabolites_model_annot()
-
-met_name = met_annot['Name'].to_dict()
 met_2_id = {v: k for k, v in met_annot['ABBR'].to_dict().items()}
 
 
