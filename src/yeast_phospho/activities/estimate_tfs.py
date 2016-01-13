@@ -25,3 +25,4 @@ dyn_trans_df = read_csv('%s/tables/transcriptomics_dynamic.tab' % wd, sep='\t', 
 # Estimate TFs activities
 tf_activity_dyn = DataFrame({c: estimate_activity_with_sklearn(tf_targets, dyn_trans_df[c]) for c in dyn_trans_df})
 tf_activity_dyn.to_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t')
+print '[INFO] Activities estimated'

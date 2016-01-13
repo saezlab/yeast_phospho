@@ -26,3 +26,4 @@ phospho_df_dyn = read_csv('%s/tables/pproteomics_dynamic.tab' % wd, sep='\t', in
 # Estimate kinase activities
 k_activity_dyn = DataFrame({c: estimate_activity_with_sklearn(k_targets, phospho_df_dyn[c]) for c in phospho_df_dyn})
 k_activity_dyn.to_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t')
+print '[INFO] Activities estimated'

@@ -2,11 +2,11 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from yeast_phospho import wd
-from pandas.stats.misc import zscore
-from sklearn.linear_model import ElasticNet, LinearRegression, Ridge
+from sklearn.linear_model import ElasticNet
 from pandas import DataFrame, Series, read_csv
-from yeast_phospho.utilities import pearson, spearman
+from yeast_phospho.utilities import pearson
 from yeast_phospho.utilities import get_metabolites_name
+
 
 # -- Import IDs maps
 met_name = get_metabolites_name()
