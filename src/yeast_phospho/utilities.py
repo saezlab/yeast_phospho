@@ -12,7 +12,7 @@ from pymist.enrichment.gsea import gsea
 from pandas import Series, DataFrame, read_csv, pivot_table
 
 
-# ---- Kinases and TFs get targets utility functions
+# -- Kinases and TFs get targets utility functions
 def jaccard(a, b):
     return float(len(a.intersection(b))) / float(len(a.union(b)))
 
@@ -70,11 +70,12 @@ def get_kinases_targets(studies_to_filter={'21177495', '19779198'}, remove_self=
     return k_targets
 
 
-# ---- Linear regression models functions
+# -- Linear regression models functions
 
 
 def regress_out(x, y):
     mask = np.bitwise_and(np.isfinite(x), np.isfinite(y))
+
     xs, ys = x[mask], y[mask]
     xs = xs[ys.index]
 
@@ -107,14 +108,7 @@ def estimate_activity_with_statsmodel(x, y, L1_wt=0):
     return res.params.drop('const').to_dict()
 
 
-def estimate_activity_with_gsea(fc_dict, signature, permutations=1000):
-    es, pvalue = gsea(fc_dict, signature, permutations)
-
-    score = np.log10(pvalue) if es > 0 else -np.log10(pvalue)
-
-    return score
-
-# ---- Protein related utility functions
+# -- Protein related utility functions
 
 
 def get_protein_sequence():
@@ -133,7 +127,7 @@ def get_multiple_site(protein, peptide):
     return [get_site(protein, peptide if i == 0 else re.sub('\[[0-9]*\.?[0-9]*\]', '', peptide, i)) for i in xrange(n_sites)]
 
 
-# ---- Statistical utility functions
+# -- Statistical utility functions
 
 
 def pearson(x, y):
@@ -311,10 +305,10 @@ def get_proteins_name(uniprot_file='/Users/emanuel/Projects/resources/yeast/yeas
     return read_csv(uniprot_file, sep='\t', index_col=1)['gene'].to_dict()
 
 
-def get_metabolites_name(annotation_file='%s/files/Annotation_Yeast_glucose_kegg.csv' % wd):
-    annot = read_csv(annotation_file, sep=',')
-    annot['mz'] = ['%.2f' % i for i in annot['mz']]
-    annot = annot.groupby('mz')['Name'].agg(lambda x: '; '.join(set(x))).to_dict()
+def get_metabolites_name(annotation_file='%s/files/dynamic_metabolite_annotation.txt' % wd):
+    annot = read_csv(annotation_file, sep='\t')
+    annot['mz'] = ['%.4f' % i for i in annot['mz']]
+    annot = annot.groupby('mz')['metabolite'].agg(lambda x: '; '.join(set(x))).to_dict()
 
     return annot
 

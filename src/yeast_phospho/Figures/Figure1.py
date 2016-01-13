@@ -7,7 +7,7 @@ from pandas import read_csv
 from yeast_phospho.utilities import get_proteins_name
 
 
-# ---- Import IDs maps
+# -- Import IDs maps
 acc_name = get_proteins_name()
 acc_name = {k: acc_name[k].split(';')[0] for k in acc_name}
 
@@ -19,7 +19,7 @@ dyn_xorder = [
 ]
 
 
-# ---- Import
+# -- Import
 # Steady-state without growth
 k_activity_ng = read_csv('%s/tables/kinase_activity_steady_state_no_growth.tab' % wd, sep='\t', index_col=0)
 k_activity_ng = k_activity_ng[(k_activity_ng.count(1) / k_activity_ng.shape[1]) > .75].replace(np.NaN, 0.0)
@@ -36,7 +36,7 @@ tf_activity_dyn_ng = read_csv('%s/tables/tf_activity_dynamic_no_growth.tab' % wd
 tf_activity_dyn_ng = tf_activity_dyn_ng[tf_activity_dyn_ng.std(1) > .4]
 
 
-# ---- Plot
+# -- Plot
 sns.set(style='white')
 
 # Heatmaps

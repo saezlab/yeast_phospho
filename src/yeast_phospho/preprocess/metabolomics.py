@@ -1,6 +1,4 @@
 import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
 from yeast_phospho import wd
 from pandas import DataFrame, read_csv, Index
 from scipy.interpolate.interpolate import interp1d
@@ -13,7 +11,7 @@ ko_strains = list(growth.index)
 
 # ----  Process steady-state metabolomics
 metabol_df = read_csv(wd + 'data/steady_state_metabolomics.tab', sep='\t').dropna()
-metabol_df['m/z'] = ['%.2f' % i for i in metabol_df['m/z']]
+metabol_df['m/z'] = ['%.4f' % i for i in metabol_df['m/z']]
 
 counts = {mz: counts for mz, counts in zip(*(np.unique(metabol_df['m/z'], return_counts=True)))}
 metabol_df = metabol_df[[counts[i] == 1 for i in metabol_df['m/z']]]
@@ -26,7 +24,7 @@ metabol_df.to_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t')
 
 # ----  Process dynamic metabolomics
 dyn_metabol = read_csv(wd + 'data/metabol_intensities.tab', sep='\t').dropna()
-dyn_metabol['m/z'] = ['%.2f' % i for i in dyn_metabol['m/z']]
+dyn_metabol['m/z'] = ['%.4f' % i for i in dyn_metabol['m/z']]
 
 counts = {mz: counts for mz, counts in zip(*(np.unique(dyn_metabol['m/z'], return_counts=True)))}
 dyn_metabol = dyn_metabol[[counts[i] == 1 for i in dyn_metabol['m/z']]]
@@ -58,5 +56,4 @@ for condition in conditions:
 # Export processed data-set
 dyn_metabol_df_file = wd + 'tables/metabolomics_dynamic.tab'
 dyn_metabol_df.to_csv(dyn_metabol_df_file, sep='\t')
-
 print '[INFO] Metabolomics preprocessing done'

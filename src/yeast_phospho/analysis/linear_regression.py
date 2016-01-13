@@ -9,56 +9,56 @@ from pandas import DataFrame, read_csv
 from yeast_phospho.utilities import pearson
 
 
-# ---- Import
+# -- Import
 # Steady-state with growth
 metabolomics = read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0)
 metabolomics = metabolomics[metabolomics.std(1) > .4]
-metabolomics.index = [str(i) for i in metabolomics.index]
+metabolomics.index = ['%.4f' % i for i in metabolomics.index]
 
-k_activity = read_csv('%s/tables/kinase_activity_steady_state.tab' % wd, sep='\t', index_col=0)
+k_activity = read_csv('%s/tables/kinase_activity_steady_state_gsea.tab' % wd, sep='\t', index_col=0)
 k_activity = k_activity[(k_activity.count(1) / k_activity.shape[1]) > .75].replace(np.NaN, 0.0)
 
-tf_activity = read_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t', index_col=0)
+tf_activity = read_csv('%s/tables/tf_activity_steady_state_gsea.tab' % wd, sep='\t', index_col=0)
 tf_activity = tf_activity[tf_activity.std(1) > .4]
 
 
 # Steady-state without growth
 metabolomics_ng = read_csv('%s/tables/metabolomics_steady_state_no_growth.tab' % wd, sep='\t', index_col=0)
 metabolomics_ng = metabolomics_ng[metabolomics_ng.std(1) > .4]
-metabolomics_ng.index = [str(i) for i in metabolomics_ng.index]
+metabolomics_ng.index = ['%.4f' % i for i in metabolomics_ng.index]
 
-k_activity_ng = read_csv('%s/tables/kinase_activity_steady_state_no_growth.tab' % wd, sep='\t', index_col=0)
+k_activity_ng = read_csv('%s/tables/kinase_activity_steady_state_gsea_no_growth.tab' % wd, sep='\t', index_col=0)
 k_activity_ng = k_activity_ng[(k_activity_ng.count(1) / k_activity_ng.shape[1]) > .75].replace(np.NaN, 0.0)
 
-tf_activity_ng = read_csv('%s/tables/tf_activity_steady_state_no_growth.tab' % wd, sep='\t', index_col=0)
+tf_activity_ng = read_csv('%s/tables/tf_activity_steady_state_gsea_no_growth.tab' % wd, sep='\t', index_col=0)
 tf_activity_ng = tf_activity_ng[tf_activity_ng.std(1) > .4]
 
 
 # Dynamic
 metabolomics_dyn = read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', index_col=0)
 metabolomics_dyn = metabolomics_dyn[metabolomics_dyn.std(1) > .4]
-metabolomics_dyn.index = [str(i) for i in metabolomics_dyn.index]
+metabolomics_dyn.index = ['%.4f' % i for i in metabolomics_dyn.index]
 
-k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic.tab' % wd, sep='\t', index_col=0)
+k_activity_dyn = read_csv('%s/tables/kinase_activity_dynamic_gsea.tab' % wd, sep='\t', index_col=0)
 k_activity_dyn = k_activity_dyn[(k_activity_dyn.count(1) / k_activity_dyn.shape[1]) > .75].replace(np.NaN, 0.0)
 
-tf_activity_dyn = read_csv('%s/tables/tf_activity_dynamic.tab' % wd, sep='\t', index_col=0)
+tf_activity_dyn = read_csv('%s/tables/tf_activity_dynamic_gsea.tab' % wd, sep='\t', index_col=0)
 tf_activity_dyn = tf_activity_dyn[tf_activity_dyn.std(1) > .4]
 
 
 # Dynamic without growth
 metabolomics_dyn_ng = read_csv('%s/tables/metabolomics_dynamic_no_growth.tab' % wd, sep='\t', index_col=0)
 metabolomics_dyn_ng = metabolomics_dyn_ng[metabolomics_dyn_ng.std(1) > .4]
-metabolomics_dyn_ng.index = [str(i) for i in metabolomics_dyn_ng.index]
+metabolomics_dyn_ng.index = ['%.4f' % i for i in metabolomics_dyn_ng.index]
 
-k_activity_dyn_ng = read_csv('%s/tables/kinase_activity_dynamic_no_growth.tab' % wd, sep='\t', index_col=0)
+k_activity_dyn_ng = read_csv('%s/tables/kinase_activity_dynamic_gsea_no_growth.tab' % wd, sep='\t', index_col=0)
 k_activity_dyn_ng = k_activity_dyn_ng[(k_activity_dyn_ng.count(1) / k_activity_dyn_ng.shape[1]) > .75].replace(np.NaN, 0.0)
 
-tf_activity_dyn_ng = read_csv('%s/tables/tf_activity_dynamic_no_growth.tab' % wd, sep='\t', index_col=0)
+tf_activity_dyn_ng = read_csv('%s/tables/tf_activity_dynamic_gsea_no_growth.tab' % wd, sep='\t', index_col=0)
 tf_activity_dyn_ng = tf_activity_dyn_ng[tf_activity_dyn_ng.std(1) > .4]
 
 
-# ---- Build linear regression models
+# -- Build linear regression models
 comparisons = [
     (k_activity, metabolomics, 'Kinases', 'Steady-state', 'with'),
     (tf_activity, metabolomics, 'TFs', 'Steady-state', 'with'),
@@ -116,13 +116,13 @@ lm_betas = [c[1] for c in lm_res]
 print '[INFO] Regressions done'
 
 
-# ---- Export linear regression results
+# -- Export linear regression results
 # Export results
 with open('%s/tables/linear_regressions.pickle' % wd, 'wb') as handle:
     pickle.dump(lm_res, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-# ---- Plot linear regression predictions correlation
+# -- Plot linear regression predictions correlation
 palette = {'TFs': '#34495e', 'Kinases': '#3498db'}
 
 sns.set(style='ticks')

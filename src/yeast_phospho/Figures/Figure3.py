@@ -4,15 +4,12 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from yeast_phospho import wd
-from pandas.stats.misc import zscore
 from matplotlib.gridspec import GridSpec
-from sklearn.cross_validation import LeaveOneOut
-from sklearn.linear_model import Lasso
-from pandas import DataFrame, read_csv, melt, pivot_table, concat
-from yeast_phospho.utilities import pearson, get_proteins_name, get_metabolites_name
+from pandas import DataFrame, read_csv, melt, concat
+from yeast_phospho.utilities import get_proteins_name, get_metabolites_name
 
 
-# ---- Import IDs maps
+# -- Import IDs maps
 acc_name = get_proteins_name()
 acc_name = {k: acc_name[k].split(';')[0] for k in acc_name}
 
@@ -20,16 +17,16 @@ met_name = get_metabolites_name()
 met_name = {k: met_name[k] for k in met_name if len(met_name[k].split('; ')) == 1}
 
 
-# ---- Import
+# -- Import
 # Dynamic data-sets
 metabolomics = read_csv('%s/tables/metabolomics_dynamic_no_growth.tab' % wd, sep='\t', index_col=0).dropna()
+metabolomics.index = ['%.4f' % i for i in metabolomics.index]
 metabolomics = metabolomics[metabolomics.std(1) > .4]
-metabolomics.index = [str(i) for i in metabolomics.index]
 
-k_activity = read_csv('%s/tables/kinase_activity_dynamic_no_growth.tab' % wd, sep='\t', index_col=0)
+k_activity = read_csv('%s/tables/kinase_activity_dynamic_gsea_no_growth.tab' % wd, sep='\t', index_col=0)
 k_activity = k_activity[(k_activity.count(1) / k_activity.shape[1]) > .75].replace(np.NaN, 0.0)
 
-tf_activity = read_csv('%s/tables/tf_activity_dynamic_no_growth.tab' % wd, sep='\t', index_col=0).replace(np.NaN, 0.0)
+tf_activity = read_csv('%s/tables/tf_activity_dynamic_gsea_no_growth.tab' % wd, sep='\t', index_col=0).replace(np.NaN, 0.0)
 tf_activity = tf_activity[tf_activity.std(1) > .4]
 
 
@@ -46,9 +43,8 @@ lm_cor = DataFrame(lm_cor, columns=['feature', 'dataset', 'variable', 'growth', 
 print '[INFO] Data-sets + Linear regression results imported'
 
 
-# ---- Plot
+# -- Plot
 palette = {'TFs': '#34495e', 'Kinases': '#3498db'}
-
 
 plot_df = lm_cor[(lm_cor['growth'] == 'without') & (lm_cor['dataset'] == 'Dynamic')]
 plot_df = plot_df[[i in met_name for i in plot_df['variable']]]
@@ -73,14 +69,14 @@ sns.despine(ax=ax)
 
 # Scatter
 pos = 1
-for m in ['241.08', '131.08', '289.12', '766.11']:
+for m in ['91.0400', '171.0100', '115.0000', '104.0400']:
     ax = plt.subplot(gs[pos])
 
     best_tf = lm_betas_tfs[m].abs().argmax()
     best_kinase = lm_betas_kinases[m].abs().argmax()
 
-    sns.regplot(metabolomics.ix[m], k_activity.ix[best_kinase], scatter_kws={'s': 50, 'alpha': .6}, color=palette['Kinases'], ax=ax, label=acc_name[best_kinase])
-    sns.regplot(metabolomics.ix[m], tf_activity.ix[best_tf], scatter_kws={'s': 50, 'alpha': .6}, color=palette['TFs'], ax=ax, label=acc_name[best_tf])
+    sns.regplot(metabolomics.ix[m], k_activity.ix[best_kinase], scatter_kws={'s': 50, 'alpha': .6}, color=palette['Kinases'], label=acc_name[best_kinase], ax=ax)
+    sns.regplot(metabolomics.ix[m], tf_activity.ix[best_tf], scatter_kws={'s': 50, 'alpha': .6}, color=palette['TFs'], label=acc_name[best_tf], ax=ax)
     sns.despine(ax=ax)
     ax.set_title('%s' % met_name[m])
     ax.set_xlabel('Metabolite (log FC)')
@@ -96,7 +92,7 @@ plt.close('all')
 print '[INFO] Figure 3 exported'
 
 
-# Feature network plot
+# -- Figure 4
 def flatten_betas(df, ftype):
     lm_betas = df.copy()
     lm_betas['feature'] = lm_betas.index
@@ -106,7 +102,7 @@ def flatten_betas(df, ftype):
 
 network = concat([flatten_betas(df, ftype) for df, ftype in [(lm_betas_tfs, 'TFs'), (lm_betas_kinases, 'Kinases')]])
 network = network[[m in met_name for m in network['variable']]]
-network = network[network['value'].abs() > .3]
+network = network[network['value'].abs() > .4]
 
 
 network_i = igraph.Graph(directed=False)
@@ -150,9 +146,8 @@ igraph.plot(
 print '[INFO] Network exported: ', network_i.summary()
 
 
-# Supplementary materials figures
+# -- Betas heatmap
 cmap = sns.diverging_palette(220, 10, n=9, as_cmap=True)
-
 
 plot_df = lm_betas_kinases.loc[:, [m in met_name for m in lm_betas_kinases]]
 plot_df.columns = [met_name[m] for m in plot_df]

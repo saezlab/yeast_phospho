@@ -1,6 +1,8 @@
+import numpy as np
 from yeast_phospho import wd
 from pandas import DataFrame, read_csv
-from yeast_phospho.utilities import get_tfs_targets, estimate_activity_with_gsea
+from pymist.enrichment.gsea import gsea
+from yeast_phospho.utilities import get_tfs_targets
 
 
 # Import growth rates
@@ -9,22 +11,29 @@ ko_strains = list(growth.index)
 
 # Import TF targets
 tf_targets = get_tfs_targets()
+tf_targets = {t: set(tf_targets.ix[map(bool, tf_targets[t]), t].index) for t in tf_targets}
 
-permuations = 10000
+permuations = 1000
 
-# ---- Estimate TFs activities steady-state
+# -- Estimate TFs activities steady-state
 trans = read_csv('%s/tables/transcriptomics_steady_state.tab' % wd, sep='\t', index_col=0).loc[:, ko_strains].dropna(how='all', axis=1)
+trans = {c: trans[c].dropna().to_dict() for c in trans}
 
 # Estimate TFs activities
-tf_activity = DataFrame({c: {t: estimate_activity_with_gsea(trans[c].dropna().to_dict(), set(tf_targets.loc[tf_targets[t] != 0, t].index), permuations) for t in tf_targets} for c in trans})
+tf_activity = {c: {t: gsea(trans[c], tf_targets[t], 1000) for t in tf_targets} for c in trans}
+tf_activity = {c: {k: np.log10(tf_activity[c][k][1]) if tf_activity[c][k][0] > 0 else -np.log10(tf_activity[c][k][1]) for k in tf_activity[c]} for c in tf_activity}
+tf_activity = DataFrame(tf_activity).dropna(how='all', axis=0)
 tf_activity.to_csv('%s/tables/tf_activity_steady_state_gsea.tab' % wd, sep='\t')
 
 
-# ---- Estimate TFs activities dynamic
-dyn_trans_df = read_csv('%s/tables/transcriptomics_dynamic.tab' % wd, sep='\t', index_col=0)
+# -- Estimate TFs activities dynamic
+dyn_trans = read_csv('%s/tables/transcriptomics_dynamic.tab' % wd, sep='\t', index_col=0)
+dyn_trans = {c: dyn_trans[c].dropna().to_dict() for c in dyn_trans}
 
 # Estimate TFs activities
-tf_activity_dyn = DataFrame({c: {t: estimate_activity_with_gsea(dyn_trans_df[c].dropna().to_dict(), set(tf_targets.loc[tf_targets[t] != 0, t].index), permuations) for t in tf_targets} for c in dyn_trans_df})
+tf_activity_dyn = {c: {t: gsea(dyn_trans[c], tf_targets[t], 1000) for t in tf_targets} for c in dyn_trans}
+tf_activity_dyn = {c: {k: np.log10(tf_activity_dyn[c][k][1]) if tf_activity_dyn[c][k][0] > 0 else -np.log10(tf_activity_dyn[c][k][1]) for k in tf_activity_dyn[c]} for c in tf_activity_dyn}
+tf_activity_dyn = DataFrame(tf_activity_dyn).dropna(how='all', axis=0)
 tf_activity_dyn.to_csv('%s/tables/tf_activity_dynamic_gsea.tab' % wd, sep='\t')
 
 print '[INFO] Activities estimated'

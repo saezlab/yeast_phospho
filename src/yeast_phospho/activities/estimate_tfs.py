@@ -11,7 +11,7 @@ ko_strains = list(growth.index)
 tf_targets = get_tfs_targets()
 
 
-# ---- Estimate TFs activities steady-state
+# -- Estimate TFs activities steady-state
 trans = read_csv('%s/tables/transcriptomics_steady_state.tab' % wd, sep='\t', index_col=0).loc[:, ko_strains].dropna(how='all', axis=1)
 
 # Estimate TFs activities
@@ -19,7 +19,7 @@ tf_activity = DataFrame({c: estimate_activity_with_sklearn(tf_targets, trans[c])
 tf_activity.to_csv('%s/tables/tf_activity_steady_state.tab' % wd, sep='\t')
 
 
-# ---- Estimate TFs activities dynamic
+# -- Estimate TFs activities dynamic
 dyn_trans_df = read_csv('%s/tables/transcriptomics_dynamic.tab' % wd, sep='\t', index_col=0)
 
 # Estimate TFs activities
