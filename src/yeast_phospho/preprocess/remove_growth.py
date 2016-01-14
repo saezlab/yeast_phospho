@@ -26,7 +26,7 @@ for df_file, df_type, selected_pc, growth_file in datasets:
     df = read_csv('%s/tables/%s.tab' % (wd, df_file), sep='\t', index_col=0).T
 
     if df_type == 'Kinases':
-        df = df.loc[:, (df.count() / df.shape[0]) > .25]
+        df = df.loc[:, (df.count() / df.shape[0]) > .75]
 
     # Factor Analysis
     fa = PCA(n_components=n_components).fit(df.replace(np.nan, 0.0))

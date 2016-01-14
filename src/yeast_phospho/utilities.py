@@ -95,7 +95,7 @@ def estimate_activity_with_sklearn(x, y, alpha=.1):
     return dict(zip(*(xs.columns, lm.coef_)))
 
 
-def estimate_activity_with_statsmodel(x, y, L1_wt=0):
+def estimate_activity_with_statsmodel(x, y, alpha=.1, L1_wt=0):
     ys = y.dropna()
     xs = x.ix[ys.index].replace(np.NaN, 0.0)
 
@@ -103,7 +103,7 @@ def estimate_activity_with_statsmodel(x, y, L1_wt=0):
 
     lm = sm.OLS(zscore(ys), st.add_constant(xs))
 
-    res = lm.fit_regularized(L1_wt=L1_wt)
+    res = lm.fit_regularized(alpha=alpha, L1_wt=L1_wt)
 
     return res.params.drop('const').to_dict()
 

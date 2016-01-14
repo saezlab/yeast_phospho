@@ -52,7 +52,6 @@ plot_df['metabolite'] = [met_name[i] for i in plot_df['variable']]
 
 order = list(plot_df[plot_df['feature'] == 'TFs'].sort('cor', ascending=False)['metabolite'])
 
-
 # Barplot
 sns.set(style='ticks')
 fig, gs = plt.figure(figsize=(10, 15)), GridSpec(4, 2, width_ratios=[1, 1], hspace=0.45, wspace=0.3)
@@ -66,10 +65,9 @@ ax.set_title('Predicted vs Measured')
 ax.set_xlim((0, 1.0))
 sns.despine(ax=ax)
 
-
 # Scatter
 pos = 1
-for m in ['91.0400', '171.0100', '115.0000', '104.0400']:
+for m in ['91.0400', '171.0100', '174.0900', '104.0400']:
     ax = plt.subplot(gs[pos])
 
     best_tf = lm_betas_tfs[m].abs().argmax()

@@ -20,16 +20,16 @@ metabolomics_dyn_ng = read_csv('%s/tables/metabolomics_dynamic_no_growth.tab' % 
 metabolomics_dyn_ng = metabolomics_dyn_ng[metabolomics_dyn_ng.std(1) > .4]
 metabolomics_dyn_ng.index = ['%.2f' % i for i in metabolomics_dyn_ng.index]
 
-k_activity_dyn_ng = read_csv('%s/tables/kinase_activity_dynamic_no_growth.tab' % wd, sep='\t', index_col=0)
+k_activity_dyn_ng = read_csv('%s/tables/kinase_activity_dynamic_gsea_no_growth.tab' % wd, sep='\t', index_col=0)
 k_activity_dyn_ng = k_activity_dyn_ng[(k_activity_dyn_ng.count(1) / k_activity_dyn_ng.shape[1]) > .75].replace(np.NaN, 0.0)
 
 # Dynamic combination
-metabolomics_dyn_comb = read_csv('%s/tables/dynamic_combination_metabolomics.csv' % wd, index_col=0)
-metabolomics_dyn_comb = metabolomics_dyn_comb[metabolomics_dyn_comb.std(1) > .4]
-metabolomics_dyn_comb.index = ['%.2f' % i for i in metabolomics_dyn_comb.index]
-
 k_activity_dyn_comb_ng = read_csv('%s/tables/kinase_activity_dynamic_combination_gsea.tab' % wd, sep='\t', index_col=0)
 k_activity_dyn_comb_ng = k_activity_dyn_comb_ng[(k_activity_dyn_comb_ng.count(1) / k_activity_dyn_comb_ng.shape[1]) > .75].replace(np.NaN, 0.0)
+
+metabolomics_dyn_comb = read_csv('%s/tables/dynamic_combination_metabolomics.csv' % wd, index_col=0)[k_activity_dyn_comb_ng.columns]
+metabolomics_dyn_comb = metabolomics_dyn_comb[metabolomics_dyn_comb.std(1) > .4]
+metabolomics_dyn_comb.index = ['%.2f' % i for i in metabolomics_dyn_comb.index]
 
 # Variables
 ions = list(set(metabolomics_dyn_ng.index).intersection(metabolomics_dyn_comb.index))
@@ -41,10 +41,10 @@ train, test = list(metabolomics_dyn_ng), list(set(metabolomics_dyn_comb).interse
 # -- Linear regressions
 df = []
 for ion in ions:
-    lm = ElasticNet(alpha=0.01).fit(k_activity_dyn_ng.ix[kinases, train].T, metabolomics_dyn_ng.ix[ion, train])
+    lm = ElasticNet(alpha=.01).fit(k_activity_dyn_ng.ix[kinases, train].T, metabolomics_dyn_ng.ix[ion, train])
 
     pred, meas = Series(lm.predict(k_activity_dyn_comb_ng.ix[kinases, test].T), index=test), metabolomics_dyn_comb.ix[ion, test]
-    pred, meas = zscore(pred), zscore(meas)
+    # pred, meas = zscore(pred), zscore(meas)
 
     cor, pval, nmeas = pearson(pred, meas)
 

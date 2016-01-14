@@ -18,7 +18,7 @@ protein_seq = {k: protein_seq[k] for k in protein_seq if len(protein_seq[k]) > 1
 
 
 # ----  Process steady-state phosphoproteomics
-phospho_df = read_csv(wd + 'data/steady_state_phosphoproteomics.tab', sep='\t')
+phospho_df = read_csv('%s/data/steady_state_phosphoproteomics.tab' % wd, sep='\t')
 phospho_df = phospho_df.pivot_table(values='logFC', index=['peptide', 'target'], columns='regulator', aggfunc=np.median).loc[:, ko_strains].dropna(how='all', axis=1)
 
 # Filter ambigous peptides
