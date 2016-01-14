@@ -26,11 +26,11 @@ for df_file, df_type, selected_pc, growth_file in datasets:
     df = read_csv('%s/tables/%s.tab' % (wd, df_file), sep='\t', index_col=0).T
 
     if df_type == 'Kinases':
-        df = df.loc[:, (df.count() / df.shape[0]) > .25].replace(np.NaN, 0)
+        df = df.loc[:, (df.count() / df.shape[0]) > .25]
 
     # Factor Analysis
-    fa = PCA(n_components=n_components).fit(df)
-    pc = DataFrame(fa.transform(df), index=df.index, columns=['PC%d' % (i+1) for i in range(n_components)])
+    fa = PCA(n_components=n_components).fit(df.replace(np.nan, 0.0))
+    pc = DataFrame(fa.transform(df.replace(np.nan, 0.0)), index=df.index, columns=['PC%d' % (i+1) for i in range(n_components)])
     print [c + ' (cor: %.2f, pval: %.2e, n-meas: %d)' % pearson(growth, pc.ix[growth.index, c]) for c in pc]
 
     # Regress-out factor

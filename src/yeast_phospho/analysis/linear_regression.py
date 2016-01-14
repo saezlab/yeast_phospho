@@ -57,6 +57,14 @@ k_activity_dyn_ng = k_activity_dyn_ng[(k_activity_dyn_ng.count(1) / k_activity_d
 tf_activity_dyn_ng = read_csv('%s/tables/tf_activity_dynamic_gsea_no_growth.tab' % wd, sep='\t', index_col=0)
 tf_activity_dyn_ng = tf_activity_dyn_ng[tf_activity_dyn_ng.std(1) > .4]
 
+# Dynamic combination
+metabolomics_dyn_comb = read_csv('%s/tables/dynamic_combination_metabolomics.csv' % wd, index_col=0)
+metabolomics_dyn_comb = metabolomics_dyn_comb[metabolomics_dyn_comb.std(1) > .4]
+metabolomics_dyn_comb.index = ['%.4f' % i for i in metabolomics_dyn_comb.index]
+
+k_activity_dyn_comb_ng = read_csv('%s/tables/kinase_activity_dynamic_combination_gsea.tab' % wd, sep='\t', index_col=0)
+k_activity_dyn_comb_ng = k_activity_dyn_comb_ng[(k_activity_dyn_comb_ng.count(1) / k_activity_dyn_comb_ng.shape[1]) > .75].replace(np.NaN, 0.0)
+
 
 # -- Build linear regression models
 comparisons = [
@@ -70,7 +78,9 @@ comparisons = [
     (tf_activity_dyn, metabolomics_dyn, 'TFs', 'Dynamic', 'with'),
 
     (k_activity_dyn_ng, metabolomics_dyn_ng, 'Kinases', 'Dynamic', 'without'),
-    (tf_activity_dyn_ng, metabolomics_dyn_ng, 'TFs', 'Dynamic', 'without')
+    (tf_activity_dyn_ng, metabolomics_dyn_ng, 'TFs', 'Dynamic', 'without'),
+
+    (k_activity_dyn_comb_ng, metabolomics_dyn_comb, 'Kinases', 'Combination', 'with'),
 ]
 
 

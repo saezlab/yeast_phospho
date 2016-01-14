@@ -2,6 +2,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from yeast_phospho import wd
+from pandas.stats.misc import zscore
 from sklearn.linear_model import ElasticNet
 from pandas import DataFrame, Series, read_csv
 from yeast_phospho.utilities import pearson
@@ -43,6 +44,7 @@ for ion in ions:
     lm = ElasticNet(alpha=0.01).fit(k_activity_dyn_ng.ix[kinases, train].T, metabolomics_dyn_ng.ix[ion, train])
 
     pred, meas = Series(lm.predict(k_activity_dyn_comb_ng.ix[kinases, test].T), index=test), metabolomics_dyn_comb.ix[ion, test]
+    pred, meas = zscore(pred), zscore(meas)
 
     cor, pval, nmeas = pearson(pred, meas)
 
