@@ -14,10 +14,18 @@ datasets = [
     ('metabolomics_dynamic', 'Metabolomics', 'PC2', 'dynamic_growth.txt'),
     ('kinase_activity_dynamic_gsea', 'Kinases', 'PC3', 'dynamic_growth.txt'),
     ('tf_activity_dynamic_gsea', 'TFs', 'PC2', 'dynamic_growth.txt'),
+
+    ('kinase_activity_steady_state', 'Kinases', 'PC1', 'strain_relative_growth_rate.txt'),
+    ('tf_activity_steady_state', 'TFs', 'PC2', 'strain_relative_growth_rate.txt'),
+
+    ('kinase_activity_dynamic', 'Kinases', 'PC2', 'dynamic_growth.txt'),
+    ('tf_activity_dynamic', 'TFs', 'PC3', 'dynamic_growth.txt'),
 ]
 
 n_components = 3
 for df_file, df_type, selected_pc, growth_file in datasets:
+    print df_file
+
     # Import growth rates
     growth = read_csv('%s/files/%s' % (wd, growth_file), sep='\t', index_col=0)['relative_growth']
     conditions = list(growth.index)
@@ -36,6 +44,6 @@ for df_file, df_type, selected_pc, growth_file in datasets:
     # Regress-out factor
     df = DataFrame({m: regress_out(pc.ix[conditions, selected_pc], df.ix[conditions, m]) for m in df}).T
 
-    # Export regressed-out data-set
-    df.to_csv('%s/tables/%s_no_growth.tab' % (wd, df_file), sep='\t')
-    print '[INFO] Growth regressed-out: ', 'tables/%s_no_growth.tab' % df_file
+    # # Export regressed-out data-set
+    # df.to_csv('%s/tables/%s_no_growth.tab' % (wd, df_file), sep='\t')
+    # print '[INFO] Growth regressed-out: ', 'tables/%s_no_growth.tab' % df_file

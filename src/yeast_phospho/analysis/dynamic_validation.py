@@ -44,12 +44,12 @@ for ion in ions:
     lm = ElasticNet(alpha=.01).fit(k_activity_dyn_ng.ix[kinases, train].T, metabolomics_dyn_ng.ix[ion, train])
 
     pred, meas = Series(lm.predict(k_activity_dyn_comb_ng.ix[kinases, test].T), index=test), metabolomics_dyn_comb.ix[ion, test]
-    # pred, meas = zscore(pred), zscore(meas)
+    pred, meas = zscore(pred), zscore(meas)
 
     cor, pval, nmeas = pearson(pred, meas)
 
     for c in test:
-        df.append((ion, met_name[ion], cor, pval, nmeas, pred.ix[c], metabolomics_dyn_comb.ix[ion, c]))
+        df.append((ion, met_name[ion], cor, pval, nmeas, pred.ix[c], meas.ix[c]))
 
     print '%s: %.2f, %.2e' % (met_name[ion], cor, pval)
 
