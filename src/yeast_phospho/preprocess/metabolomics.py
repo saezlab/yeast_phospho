@@ -1,6 +1,6 @@
 import numpy as np
 from yeast_phospho import wd
-from pandas import DataFrame, read_csv, Index
+from pandas import DataFrame, read_csv, Index, concat
 from scipy.interpolate.interpolate import interp1d
 
 
@@ -9,7 +9,7 @@ growth = read_csv(wd + 'files/strain_relative_growth_rate.txt', sep='\t', index_
 ko_strains = list(growth.index)
 
 
-# ----  Process steady-state metabolomics
+# --  Process steady-state metabolomics
 metabol_df = read_csv(wd + 'data/steady_state_metabolomics.tab', sep='\t').dropna()
 metabol_df['m/z'] = ['%.4f' % i for i in metabol_df['m/z']]
 
@@ -22,7 +22,7 @@ metabol_df = metabol_df[ko_strains]
 metabol_df.to_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t')
 
 
-# ----  Process dynamic metabolomics
+# --  Process dynamic metabolomics
 dyn_metabol = read_csv(wd + 'data/metabol_intensities.tab', sep='\t').dropna()
 dyn_metabol['m/z'] = ['%.4f' % i for i in dyn_metabol['m/z']]
 
@@ -34,9 +34,13 @@ dyn_metabol = dyn_metabol.set_index('m/z')
 ss = read_csv(wd + 'data/metabol_samplesheet.tab', sep='\t', index_col=0)
 ss['time_value'] = [float(i.replace('min', '')) for i in ss['time']]
 
-conditions, p_timepoints, dyn_metabol_df = ['N_downshift', 'N_upshift', 'Rapamycin'], [-10, 5, 9, 15, 25, 44, 79], DataFrame()
+conditions, p_timepoints, dyn_metabol_df, cv = ['N_downshift', 'N_upshift', 'Rapamycin'], [-10, 5, 9, 15, 25, 44, 79], DataFrame(), DataFrame()
 for condition in conditions:
     ss_cond = ss[ss['condition'] == condition]
+
+    # Coefficient of variation
+    cv_df = DataFrame({m: {t: dyn_metabol.ix[m, ss_cond[ss_cond['time'] == t].index].std() / dyn_metabol.ix[m, ss_cond[ss_cond['time'] == t].index].mean() for t in set(ss_cond['time'])} for m in dyn_metabol.index})
+    cv = concat([cv, cv_df])
 
     # Average metabolite replicates
     m_df_cond = DataFrame({m: {t: dyn_metabol.ix[m, ss_cond[ss_cond['time'] == t].index].mean() for t in set(ss_cond['time'])} for m in dyn_metabol.index})
@@ -53,7 +57,9 @@ for condition in conditions:
     # Append to existing data-set
     dyn_metabol_df = dyn_metabol_df.join(m_df_cond, how='outer')
 
+print '[INFO] Done'
+
 # Export processed data-set
-dyn_metabol_df_file = wd + 'tables/metabolomics_dynamic.tab'
-dyn_metabol_df.to_csv(dyn_metabol_df_file, sep='\t')
+dyn_metabol_df.to_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t')
+cv.T.to_csv('%s/tables/dynamic_metabolomics_cv.csv' % wd)
 print '[INFO] Metabolomics preprocessing done'
