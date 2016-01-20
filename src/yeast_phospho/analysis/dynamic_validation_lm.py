@@ -20,11 +20,11 @@ metabolomics_dyn_ng = read_csv('%s/tables/metabolomics_dynamic_no_growth.tab' % 
 metabolomics_dyn_ng = metabolomics_dyn_ng[metabolomics_dyn_ng.std(1) > .4]
 metabolomics_dyn_ng.index = ['%.2f' % i for i in metabolomics_dyn_ng.index]
 
-k_activity_dyn_ng = read_csv('%s/tables/kinase_activity_dynamic_gsea_no_growth.tab' % wd, sep='\t', index_col=0)
+k_activity_dyn_ng = read_csv('%s/tables/kinase_activity_dynamic_no_growth.tab' % wd, sep='\t', index_col=0)
 k_activity_dyn_ng = k_activity_dyn_ng[(k_activity_dyn_ng.count(1) / k_activity_dyn_ng.shape[1]) > .75].replace(np.NaN, 0.0)
 
 # Dynamic combination
-k_activity_dyn_comb_ng = read_csv('%s/tables/kinase_activity_dynamic_combination_gsea.tab' % wd, sep='\t', index_col=0)
+k_activity_dyn_comb_ng = read_csv('%s/tables/kinase_activity_dynamic_combination.tab' % wd, sep='\t', index_col=0)
 k_activity_dyn_comb_ng = k_activity_dyn_comb_ng[[c for c in k_activity_dyn_comb_ng if c.startswith('NaCl_')]]
 k_activity_dyn_comb_ng = k_activity_dyn_comb_ng[(k_activity_dyn_comb_ng.count(1) / k_activity_dyn_comb_ng.shape[1]) > .75].replace(np.NaN, 0.0)
 
@@ -67,6 +67,6 @@ g.map(sns.regplot, 'meas', 'pred', color='#34495e', ci=None)
 g.map(plt.axhline, y=0, lw=.3, ls='--', c='gray', alpha=.6)
 g.map(plt.axvline, x=0, lw=.3, ls='--', c='gray', alpha=.6)
 g.set_axis_labels('Measured', 'Estimated')
-plt.savefig('%s/reports/Figure_5.pdf' % wd, bbox_inches='tight')
+plt.savefig('%s/reports/dynamic_validation_lm.pdf' % wd, bbox_inches='tight')
 plt.close('all')
 print '[INFO] Figure 5 exported'

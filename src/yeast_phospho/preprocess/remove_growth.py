@@ -44,6 +44,6 @@ for df_file, df_type, selected_pc, growth_file in datasets:
     # Regress-out factor
     df = DataFrame({m: regress_out(pc.ix[conditions, selected_pc], df.ix[conditions, m]) for m in df}).T
 
-    # # Export regressed-out data-set
-    # df.to_csv('%s/tables/%s_no_growth.tab' % (wd, df_file), sep='\t')
-    # print '[INFO] Growth regressed-out: ', 'tables/%s_no_growth.tab' % df_file
+    # Export regressed-out data-set
+    df.to_csv('%s/tables/%s_no_growth.tab' % (wd, df_file), sep='\t')
+    print '[INFO] Growth regressed-out: ', 'tables/%s_no_growth.tab' % df_file
