@@ -62,8 +62,8 @@ k_activity_dyn_comb_ng = read_csv('%s/tables/kinase_activity_dynamic_combination
 # k_activity_dyn_comb_ng = k_activity_dyn_comb_ng[[c for c in k_activity_dyn_comb_ng if c.startswith('NaCl_')]]
 k_activity_dyn_comb_ng = k_activity_dyn_comb_ng[(k_activity_dyn_comb_ng.count(1) / k_activity_dyn_comb_ng.shape[1]) > .75].replace(np.NaN, 0.0)
 
-metabolomics_dyn_comb = read_csv('%s/tables/dynamic_combination_metabolomics.csv' % wd, index_col=0)[k_activity_dyn_comb_ng.columns]
-metabolomics_dyn_comb = metabolomics_dyn_comb[metabolomics_dyn_comb.std(1) > .2]
+metabolomics_dyn_comb = read_csv('%s/tables/metabolomics_dynamic_combination_cor_samples.csv' % wd, index_col=0)[k_activity_dyn_comb_ng.columns]
+metabolomics_dyn_comb = metabolomics_dyn_comb[metabolomics_dyn_comb.std(1) > .4]
 metabolomics_dyn_comb.index = ['%.4f' % i for i in metabolomics_dyn_comb.index]
 
 

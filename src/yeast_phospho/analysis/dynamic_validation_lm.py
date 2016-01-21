@@ -5,7 +5,7 @@ from yeast_phospho import wd
 from pandas.stats.misc import zscore
 from sklearn.linear_model import ElasticNet
 from pandas import DataFrame, Series, read_csv
-from yeast_phospho.utilities import pearson
+from yeast_phospho.utilities import pearson, spearman
 from yeast_phospho.utilities import get_metabolites_name
 
 
@@ -28,7 +28,7 @@ k_activity_dyn_comb_ng = read_csv('%s/tables/kinase_activity_dynamic_combination
 # k_activity_dyn_comb_ng = k_activity_dyn_comb_ng[[c for c in k_activity_dyn_comb_ng if c.startswith('NaCl_')]]
 k_activity_dyn_comb_ng = k_activity_dyn_comb_ng[(k_activity_dyn_comb_ng.count(1) / k_activity_dyn_comb_ng.shape[1]) > .75].replace(np.NaN, 0.0)
 
-metabolomics_dyn_comb = read_csv('%s/tables/dynamic_combination_metabolomics.csv' % wd, index_col=0)[k_activity_dyn_comb_ng.columns]
+metabolomics_dyn_comb = read_csv('%s/tables/metabolomics_dynamic_combination_cor_samples.csv' % wd, index_col=0)[k_activity_dyn_comb_ng.columns]
 # metabolomics_dyn_comb = metabolomics_dyn_comb[metabolomics_dyn_comb.std(1) > .4]
 metabolomics_dyn_comb.index = ['%.2f' % i for i in metabolomics_dyn_comb.index]
 
@@ -47,7 +47,7 @@ for ion in ions:
     pred, meas = Series(lm.predict(k_activity_dyn_comb_ng.ix[kinases, test].T), index=test), metabolomics_dyn_comb.ix[ion, test]
     pred, meas = zscore(pred), zscore(meas)
 
-    cor, pval, nmeas = pearson(pred, meas)
+    cor, pval, nmeas = spearman(pred, meas)
 
     title = '%s\n%.2f, %.2e' % (met_name[ion][:11], cor, pval)
 
