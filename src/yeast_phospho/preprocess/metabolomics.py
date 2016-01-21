@@ -1,6 +1,9 @@
+import seaborn as sns
+import matplotlib.pyplot as plt
 import numpy as np
+import itertools as it
 from yeast_phospho import wd
-from pandas import DataFrame, read_csv, Index, concat
+from pandas import DataFrame, read_csv, Index, concat, melt, pivot_table
 from scipy.interpolate.interpolate import interp1d
 
 
@@ -63,3 +66,44 @@ print '[INFO] Done'
 dyn_metabol_df.to_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t')
 cv.T.to_csv('%s/tables/dynamic_metabolomics_cv.csv' % wd)
 print '[INFO] Metabolomics preprocessing done'
+
+# Replicates correlation
+dyn_metabol = dyn_metabol.drop(['metabolite', 'metabolite_charge'], axis=1)
+
+condition = 'N_upshift'
+
+tec_rep = {
+    'BY003_02': 'BY003_01', 'BY003_03': 'BY003_01', 'BY003_04': 'BY003_01',
+    'BY008_02': 'BY008_01', 'BY008_03': 'BY008_01', 'BY008_04': 'BY008_01',
+    'BY012_02': 'BY012_01', 'BY012_03': 'BY012_01', 'BY012_04': 'BY012_01',
+
+    'BY009_03': 'BY009_01', 'BY009_04': 'BY009_01',
+    'BY010_02': 'BY010_01', 'BY010_03': 'BY010_01', 'BY010_04': 'BY010_01',
+    'BY013_02': 'BY013_01', 'BY013_03': 'BY013_01', 'BY013_04': 'BY013_01',
+
+    'BY005_02': 'BY005_01', 'BY005_03': 'BY005_01', 'BY005_04': 'BY005_01',
+    'BY006_02': 'BY006_01', 'BY006_03': 'BY006_01', 'BY006_04': 'BY006_01',
+    'BY007_02': 'BY007_01', 'BY007_03': 'BY007_01', 'BY007_04': 'BY007_01'
+}
+
+
+dyn_metabol.columns = [tec_rep[c] if c in tec_rep else c for c in dyn_metabol]
+dyn_metabol = DataFrame({c: dyn_metabol[c].mean(1) if len(dyn_metabol[c].shape) > 1 else dyn_metabol[c] for c in dyn_metabol})
+
+for time in [.1, .25, .5, .75, 1., 2., 7., 10., 20., 45., 60., 120.]:
+    t0 = set(ss[(ss['condition'] == condition) & (ss['time_value'] < 0)].index).intersection(dyn_metabol)
+    tx = set(ss[(ss['condition'] == condition) & (ss['time_value'] == time)].index).intersection(dyn_metabol)
+
+    logfc_m = DataFrame({'%svs%s' % (c0, cx): np.log2(dyn_metabol[cx]).subtract(np.log2(dyn_metabol[c0])) for c0, cx in it.product(t0, tx)})
+
+    plot_df = logfc_m.corr()
+    plot_df = [(c[0], c[1], plot_df.ix[c[0], c[1]]) for c in it.product(plot_df, plot_df) if len(set(c[0].split('vs')).intersection(c[1].split('vs'))) == 0]
+    plot_df = DataFrame(plot_df, columns=['cond1', 'cond2', 'spearman'])
+    plot_df = pivot_table(plot_df, index='cond1', columns='cond2', values='spearman', fill_value=np.nan)
+
+    plt.figure(figsize=(30, 30))
+    sns.clustermap(plot_df.replace(np.nan, 0), annot=True, fmt='.2f', linewidths=.5, cmap='YlGnBu', square=True)
+    plt.title('%s, %.2f min (median spearman: %.2f)' % (condition, time, plot_df.median().median()))
+    plt.savefig('%s/reports/replicates_correlation_%s_%.2fmin.pdf' % (wd, condition, time), bbox_inches='tight')
+    plt.close('all')
+print '[INFO] Done'

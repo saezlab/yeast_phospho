@@ -25,7 +25,7 @@ k_activity_dyn_ng = k_activity_dyn_ng[(k_activity_dyn_ng.count(1) / k_activity_d
 
 # Dynamic combination
 k_activity_dyn_comb_ng = read_csv('%s/tables/kinase_activity_dynamic_combination.tab' % wd, sep='\t', index_col=0)
-k_activity_dyn_comb_ng = k_activity_dyn_comb_ng[[c for c in k_activity_dyn_comb_ng if c.startswith('NaCl_')]]
+# k_activity_dyn_comb_ng = k_activity_dyn_comb_ng[[c for c in k_activity_dyn_comb_ng if c.startswith('NaCl_')]]
 k_activity_dyn_comb_ng = k_activity_dyn_comb_ng[(k_activity_dyn_comb_ng.count(1) / k_activity_dyn_comb_ng.shape[1]) > .75].replace(np.NaN, 0.0)
 
 metabolomics_dyn_comb = read_csv('%s/tables/dynamic_combination_metabolomics.csv' % wd, index_col=0)[k_activity_dyn_comb_ng.columns]
@@ -63,7 +63,7 @@ print '[INFO] Linear regressions done!'
 # -- Plot
 sns.set(style='ticks')
 g = sns.FacetGrid(df, col='title', col_wrap=5, sharey=False, sharex=False)
-g.map(sns.regplot, 'meas', 'pred', color='#34495e', ci=None)
+g.map(sns.regplot, 'meas', 'pred', color='#34495e')
 g.map(plt.axhline, y=0, lw=.3, ls='--', c='gray', alpha=.6)
 g.map(plt.axvline, x=0, lw=.3, ls='--', c='gray', alpha=.6)
 g.set_axis_labels('Measured', 'Estimated')
