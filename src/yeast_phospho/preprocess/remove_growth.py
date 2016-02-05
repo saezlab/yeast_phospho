@@ -39,11 +39,12 @@ for df_file, df_type, selected_pc, growth_file in datasets:
     # Factor Analysis
     fa = PCA(n_components=n_components).fit(df.replace(np.nan, 0.0))
     pc = DataFrame(fa.transform(df.replace(np.nan, 0.0)), index=df.index, columns=['PC%d' % (i+1) for i in range(n_components)])
-    print [c + ' (cor: %.2f, pval: %.2e, n-meas: %d)' % pearson(growth, pc.ix[growth.index, c]) for c in pc]
+
+    print [c + ' (c: %.2f, p: %.2e, n: %d' % pearson(growth, pc.ix[growth.index, c]) + ', v: %.2f' % (fa.explained_variance_ratio_[int(c[-1:]) - 1] * 100) for c in pc]
 
     # Regress-out factor
     df = DataFrame({m: regress_out(pc.ix[conditions, selected_pc], df.ix[conditions, m]) for m in df}).T
 
-    # Export regressed-out data-set
-    df.to_csv('%s/tables/%s_no_growth.tab' % (wd, df_file), sep='\t')
-    print '[INFO] Growth regressed-out: ', 'tables/%s_no_growth.tab' % df_file
+    # # Export regressed-out data-set
+    # df.to_csv('%s/tables/%s_no_growth.tab' % (wd, df_file), sep='\t')
+    # print '[INFO] Growth regressed-out: ', 'tables/%s_no_growth.tab' % df_file

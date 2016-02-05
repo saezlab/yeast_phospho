@@ -16,35 +16,34 @@ met_name = {'%.2f' % float(k): met_name[k] for k in met_name if len(met_name[k].
 
 # -- Import data-sets
 # Dynamic without growth
-metabolomics_dyn_ng = read_csv('%s/tables/metabolomics_dynamic_no_growth.tab' % wd, sep='\t', index_col=0)
-metabolomics_dyn_ng = metabolomics_dyn_ng[metabolomics_dyn_ng.std(1) > .4]
-metabolomics_dyn_ng.index = ['%.2f' % i for i in metabolomics_dyn_ng.index]
+x_train = read_csv('%s/tables/kinase_activity_dynamic_no_growth.tab' % wd, sep='\t', index_col=0)
+x_train = x_train[(x_train.count(1) / x_train.shape[1]) > .75].replace(np.NaN, 0.0)
 
-k_activity_dyn_ng = read_csv('%s/tables/kinase_activity_dynamic_no_growth.tab' % wd, sep='\t', index_col=0)
-k_activity_dyn_ng = k_activity_dyn_ng[(k_activity_dyn_ng.count(1) / k_activity_dyn_ng.shape[1]) > .75].replace(np.NaN, 0.0)
+y_train = read_csv('%s/tables/metabolomics_dynamic_no_growth.tab' % wd, sep='\t', index_col=0)
+y_train = y_train[y_train.std(1) > .4]
+y_train.index = ['%.2f' % i for i in y_train.index]
 
 # Dynamic combination
-k_activity_dyn_comb_ng = read_csv('%s/tables/kinase_activity_dynamic_combination.tab' % wd, sep='\t', index_col=0)
-k_activity_dyn_comb_ng = k_activity_dyn_comb_ng[[c for c in k_activity_dyn_comb_ng if not c.startswith('NaCl+alpha_')]]
-k_activity_dyn_comb_ng = k_activity_dyn_comb_ng[(k_activity_dyn_comb_ng.count(1) / k_activity_dyn_comb_ng.shape[1]) > .75].replace(np.NaN, 0.0)
+x_test = read_csv('%s/tables/kinase_activity_dynamic_combination.tab' % wd, sep='\t', index_col=0)
+x_test = x_test[[c for c in x_test if not c.startswith('NaCl+alpha_')]]
+x_test = x_test[(x_test.count(1) / x_test.shape[1]) > .75].replace(np.NaN, 0.0)
 
-metabolomics_dyn_comb = read_csv('%s/tables/metabolomics_dynamic_combination_cor_samples.csv' % wd, index_col=0)[k_activity_dyn_comb_ng.columns]
-# metabolomics_dyn_comb = metabolomics_dyn_comb[metabolomics_dyn_comb.std(1) > .4]
-metabolomics_dyn_comb.index = ['%.2f' % i for i in metabolomics_dyn_comb.index]
+y_test = read_csv('%s/tables/metabolomics_dynamic_combination_cor_samples.csv' % wd, index_col=0)[x_test.columns]
+y_test.index = ['%.2f' % i for i in y_test.index]
 
 # Variables
-ions = list(set(metabolomics_dyn_ng.index).intersection(metabolomics_dyn_comb.index))
-kinases = list(set(k_activity_dyn_ng.index).intersection(k_activity_dyn_comb_ng.index))
+ions = list(set(y_train.index).intersection(y_test.index))
+kinases = list(set(x_test.index).intersection(x_train.index))
 
-train, test = list(metabolomics_dyn_ng), list(set(metabolomics_dyn_comb).intersection(k_activity_dyn_comb_ng))
+train, test = list(x_train), list(y_test)
 
 
 # -- Linear regressions
 df = []
 for ion in ions:
-    lm = ElasticNet(alpha=.01).fit(k_activity_dyn_ng.ix[kinases, train].T, metabolomics_dyn_ng.ix[ion, train])
+    lm = ElasticNet(alpha=.01).fit(x_train.ix[kinases, train].T, y_train.ix[ion, train])
 
-    pred, meas = Series(lm.predict(k_activity_dyn_comb_ng.ix[kinases, test].T), index=test), metabolomics_dyn_comb.ix[ion, test]
+    pred, meas = Series(lm.predict(x_test.ix[kinases, test].T), index=test), y_test.ix[ion, test]
     pred, meas = zscore(pred), zscore(meas)
 
     cor, pval, nmeas = spearman(pred, meas)
