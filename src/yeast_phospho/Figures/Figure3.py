@@ -67,7 +67,7 @@ sns.despine(ax=ax)
 
 # Scatter
 pos = 1
-for m in ['91.0400', '171.0100', '174.0900', '104.0400']:
+for m in ['135.0300', '173.1000', '174.0900', '104.0400']:
     ax = plt.subplot(gs[pos])
 
     best_tf = lm_betas_tfs[m].abs().argmax()

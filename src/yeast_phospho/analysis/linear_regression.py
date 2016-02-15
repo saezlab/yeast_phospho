@@ -57,6 +57,7 @@ k_activity_dyn_ng = k_activity_dyn_ng[(k_activity_dyn_ng.count(1) / k_activity_d
 tf_activity_dyn_ng = read_csv('%s/tables/tf_activity_dynamic_gsea_no_growth.tab' % wd, sep='\t', index_col=0)
 tf_activity_dyn_ng = tf_activity_dyn_ng[tf_activity_dyn_ng.std(1) > .4]
 
+
 # Dynamic combination
 k_activity_dyn_comb_ng = read_csv('%s/tables/kinase_activity_dynamic_combination_gsea.tab' % wd, sep='\t', index_col=0)
 k_activity_dyn_comb_ng = k_activity_dyn_comb_ng[[c for c in k_activity_dyn_comb_ng if not c.startswith('NaCl+alpha_')]]
@@ -139,7 +140,7 @@ palette = {'TFs': '#34495e', 'Kinases': '#3498db'}
 sns.set(style='ticks')
 g = sns.FacetGrid(lm_cor, row='dataset', col='growth', legend_out=True)
 g.map(sns.boxplot, 'corr_type', 'cor', 'feature', palette=palette, sym='')
-g.map(sns.stripplot, 'corr_type', 'cor', 'feature', palette=palette, jitter=True, size=5)
+g.map(sns.stripplot, 'corr_type', 'cor', 'feature', palette=palette, jitter=True, size=5, split=True, edgecolor='white', linewidth=.75)
 g.map(plt.axhline, y=0, ls='--', c='.5')
 plt.ylim([-1, 1])
 g.add_legend()
