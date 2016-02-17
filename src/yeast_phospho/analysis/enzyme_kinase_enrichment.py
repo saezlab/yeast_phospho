@@ -3,24 +3,28 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
+import statsmodels.api as sm
+import itertools as it
 from yeast_phospho import wd
-from yeast_phospho.utilities import get_metabolites_model_annot, metric, pearson, get_proteins_name, get_metabolites_name
-from pymist.reader.sbml_reader import read_sbml_model
-from scipy.stats.distributions import hypergeom
+from scipy.stats.stats import pearsonr
 from sklearn.metrics import roc_curve, auc
+from scipy.stats.distributions import hypergeom
+from pymist.reader.sbml_reader import read_sbml_model
+from pandas import DataFrame, read_csv, pivot_table, melt, Series
+from sklearn.cross_validation import LeaveOneOut, ShuffleSplit
+from sklearn.feature_selection import SelectKBest, f_regression
 from sklearn.metrics.pairwise import euclidean_distances, manhattan_distances, linear_kernel
-from pandas import DataFrame, read_csv, pivot_table, melt
+from yeast_phospho.utilities import metric, pearson, get_proteins_name, get_metabolites_name
 
 
-# ---- Calculate metabolite distances
-# Import metabolic model mapping
-met_annot = get_metabolites_model_annot()
-met_2_id = {v: k for k, v in met_annot['ABBR'].to_dict().items()}
+# -- Import metabolic model ion mapping
+annot = read_csv('%s/files/Annotation_Yeast_glucose.csv' % wd, sep=',', index_col=1)
+annot['mz'] = ['%.4f' % round(i, 2) for i in annot['mz']]
+annot = annot['mz'].to_dict()
 
 
-# Import metabolic model
+# -- Import metabolic model
 model = read_sbml_model('/Users/emanuel/Projects/resources/metabolic_models/iMM904.v1.xml')
-
 
 # Remove extracellular metabolites
 s_matrix = model.get_stoichiometric_matrix()
@@ -29,193 +33,128 @@ s_matrix = s_matrix[[not i.endswith('_b') for i in s_matrix.index]]
 # Remove biomass reactions
 s_matrix = s_matrix.drop('R_biomass_SC5_notrace', axis=1)
 
-# Remove highly connected metabolites
-s_matrix = s_matrix.drop([i for i in s_matrix.index if i[2:-2] in ['nadph', 'coa', 'accoa', 'atp', 'ctp', 'udp']])
+# Build {metabolite: protein} dict & Filter highly connected metabolites
+m_dict = {i: {r for r in s_matrix.loc[i, s_matrix.ix[i] != 0].index if not r.startswith('R_EX_')} for i in s_matrix.index}
+m_dict = {m: {g for r in m_dict[m] for g in model.get_reaction_genes(r)} for m in m_dict}
+m_dict = {m: {g for x in m_dict if x[2:-2] == m for g in m_dict[x]} for m in annot}
+m_dict = {m: m_dict[m] for m in m_dict if 0 < len(m_dict[m]) < 5}
 
-# Remove exchange and biomass reactions
-reactions_to_remove = model.get_exchanges(True)
-s_matrix = s_matrix.loc[:, [r not in reactions_to_remove for r in s_matrix.columns]]
+# Build {protein: metabolite} dict
+m_genes = {g for m in m_dict for g in m_dict[m]}
+g_dict = {g: {m for m in m_dict if g in m_dict[m]} for g in m_genes}
 
-# Remove un-mapped metabolites
-s_matrix = s_matrix.ix[[i[2:-2] in set(met_annot['ABBR']) for i in s_matrix.index]]
-
-# Get reactions products and substrates
-r_substrates = {r: set(s_matrix[s_matrix[r] < 0].index) for r in s_matrix.columns}
-r_products = {r: set(s_matrix[s_matrix[r] > 0].index) for r in s_matrix.columns}
-
-# Swap stoichiometric values with ones
-s_matrix = (s_matrix != 0) + 0
-
-# Remove un-used metabolites and reactions
-s_matrix = s_matrix.loc[:, s_matrix.sum() != 0]
-s_matrix = s_matrix[s_matrix.sum(1) != 0]
-
-# Get reactions metabolites
-r_metabolites = {r: set(s_matrix.ix[s_matrix[r] != 0, r].index) for r in s_matrix.columns}
+# Build {protein: ion} dict
+i_dict = {g: {annot[m] for m in g_dict[g]} for g in g_dict}
 
 
-# Gene metabolite association
-gene_reactions = dict(model.get_reactions_by_genes(model.get_genes()).items())
-model_2_ion = {i: met_2_id[i[2:-2]] for i in s_matrix.index}
-
-
-# ---- Read protein interactions dbs
+# -- Read protein interactions dbs
 dbs = {}
-for bkg_type in ['string']:
-    if bkg_type == 'phosphogrid':
-        db = read_csv(wd + 'files/PhosphoGrid.txt', sep='\t')[['KINASES_ORFS', 'ORF_NAME']]
-        db = {(k, r['ORF_NAME']) for i, r in db.iterrows() for k in r['KINASES_ORFS'].split('|') if k != '-'}
-
-    elif bkg_type == 'biogrid':
+for bkg_type in ['biogrid', 'string']:
+    if bkg_type == 'biogrid':
         db = read_csv(wd + 'files/BIOGRID-ORGANISM-Saccharomyces_cerevisiae_S288c-3.4.127.tab', sep='\t', skiprows=35)[['INTERACTOR_A', 'INTERACTOR_B']]
         db = {(s, t) for s, t in db.values}
 
     elif bkg_type == 'string':
         db = read_csv(wd + 'files/4932.protein.links.v9.1.txt', sep=' ')
 
-        thres = 650
+        thres = 600
         db = db[db['combined_score'] > thres]
 
         db = {(source.split('.')[1], target.split('.')[1]) for source, target in db[['protein1', 'protein2']].values}
 
         print 'thres: %.2f' % thres
 
-    db = {(s, t) for s, t in db if s != t}
+    db = {(p1, p2) for p1, p2 in db if p1 != p2}
     print '[INFO] %s: %d' % (bkg_type, len(db))
 
-    db = {(s, x) for s, t in db for x in [s, t] if x in gene_reactions}
-    print '[INFO] %s, only enzyme targets: %d' % (bkg_type, len(db))
-
-    db = {(s, r) for s, t in db for r in gene_reactions[t] if r in s_matrix.columns}
+    db = {(s, i) for p1, p2 in db for s, t in it.permutations((p1, p2), 2) if t in i_dict for i in i_dict[t]}
     print '[INFO] %s, only enzymatic reactions: %d' % (bkg_type, len(db))
-
-    db = {(s, m) for s, r in db if r in s_matrix.columns for m in r_metabolites[r]}
-    print '[INFO] %s, only enzymatic reactions metabolites: %d' % (bkg_type, len(db))
-
-    db = {(s, model_2_ion[m]) for s, m in db if m in model_2_ion}
-    print '[INFO] %s, only measured enzymatic reactions metabolites: %d' % (bkg_type, len(db))
 
     dbs[bkg_type] = db
 
-db = dbs['string']
+db = dbs['biogrid'].union(dbs['string'])
+db_proteins = {i[0] for i in db}
+db_ions = {i[1] for i in db}
 print '[INFO] Kinase/Enzymes interactions data-bases imported'
 
-
-# ---- Protein - Metabolite connectivity map
-cmap = DataFrame(list(db), columns=['kinase', 'metabolite'])
-cmap['value'] = 1
-cmap = pivot_table(cmap, values='value', index='kinase', columns='metabolite', fill_value=0)
-
-
-# ---- Import IDs maps
-acc_name = get_proteins_name()
-acc_name = {k: acc_name[k].split(';')[0] for k in acc_name}
-
-met_name = get_metabolites_name()
-met_name = {k: met_name[k] for k in met_name if len(met_name[k].split('; ')) == 1}
-
-
-# ---- Import
-# Steady-state without growth
-metabolomics_ng = read_csv('%s/tables/metabolomics_steady_state_no_growth.tab' % wd, sep='\t', index_col=0)
-metabolomics_ng = metabolomics_ng[metabolomics_ng.std(1) > .4]
-metabolomics_ng.index = [str(i) for i in metabolomics_ng.index]
-
-k_activity_ng = read_csv('%s/tables/kinase_activity_steady_state_no_growth.tab' % wd, sep='\t', index_col=0)
-k_activity_ng = k_activity_ng[(k_activity_ng.count(1) / k_activity_ng.shape[1]) > .75].replace(np.NaN, 0.0)
-
-tf_activity_ng = read_csv('%s/tables/tf_activity_steady_state_no_growth.tab' % wd, sep='\t', index_col=0)
-tf_activity_ng = tf_activity_ng[tf_activity_ng.std(1) > .4]
-
-
+# -- Import data-sets
 # Dynamic without growth
 metabolomics_dyn_ng = read_csv('%s/tables/metabolomics_dynamic_no_growth.tab' % wd, sep='\t', index_col=0)
 metabolomics_dyn_ng = metabolomics_dyn_ng[metabolomics_dyn_ng.std(1) > .4]
-metabolomics_dyn_ng.index = [str(i) for i in metabolomics_dyn_ng.index]
+metabolomics_dyn_ng.index = ['%.4f' % i for i in metabolomics_dyn_ng.index]
 
-k_activity_dyn_ng = read_csv('%s/tables/kinase_activity_dynamic_no_growth.tab' % wd, sep='\t', index_col=0)
+k_activity_dyn_ng = read_csv('%s/tables/kinase_activity_dynamic_gsea_no_growth.tab' % wd, sep='\t', index_col=0)
 k_activity_dyn_ng = k_activity_dyn_ng[(k_activity_dyn_ng.count(1) / k_activity_dyn_ng.shape[1]) > .75].replace(np.NaN, 0.0)
 
-tf_activity_dyn_ng = read_csv('%s/tables/tf_activity_dynamic_no_growth.tab' % wd, sep='\t', index_col=0)
+tf_activity_dyn_ng = read_csv('%s/tables/tf_activity_dynamic_gsea_no_growth.tab' % wd, sep='\t', index_col=0)
 tf_activity_dyn_ng = tf_activity_dyn_ng[tf_activity_dyn_ng.std(1) > .4]
 
-# Linear regression results
-with open('%s/tables/linear_regressions.pickle' % wd, 'rb') as handle:
-    lm_res = pickle.load(handle)
 
-
-# ---- Define comparisons
+# -- Define comparisons
 comparisons = [
-    (k_activity_ng, metabolomics_ng, 'Kinases', 'Steady-state', 'without'),
-    (tf_activity_ng, metabolomics_ng, 'TFs', 'Steady-state', 'without'),
-
+    (tf_activity_dyn_ng, metabolomics_dyn_ng, 'TFs', 'Dynamic', 'without'),
     (k_activity_dyn_ng, metabolomics_dyn_ng, 'Kinases', 'Dynamic', 'without'),
-    (tf_activity_dyn_ng, metabolomics_dyn_ng, 'TFs', 'Dynamic', 'without')
 ]
 
 
-# ---- Perform kinase/enzyme enrichment
-sns.set(style='ticks', palette='pastel', color_codes=True, context='paper')
-(f, plot), pos = plt.subplots(len(comparisons), 2, figsize=(7, 4. * len(comparisons))), 0
+# -- Perform kinase/enzyme enrichment
+sns.set(style='ticks', context='paper')
+(f, plot), pos = plt.subplots(len(comparisons), 1, figsize=(4, 4. * len(comparisons))), 0
 for xs, ys, ft, dt, gt in comparisons:
-    # ---- Define variables
+    # Define variables
     conditions = list(set(xs).intersection(ys))
+    experiments = {'_'.join(c.split('_')[:-1]) for c in conditions}
     description = ' '.join([ft, dt, gt])
 
-    # ---- Conditions betas
-    info_table = DataFrame([i[1][3] for i in lm_res if i[1][0] == ft and i[1][1] == dt and i[1][2] == gt][0])
-    info_table['feature'] = info_table.index
-    info_table = melt(info_table, id_vars='feature', var_name='metabolite', value_name='coef')
-    info_table = info_table[info_table['coef'] != 0.0]
+    #
+    lm_res = {}
+    for m in ys.index:
+        m_coef = {}
 
-    info_table['score'] = info_table['coef'].abs().max() - info_table['coef'].abs()
+        iteration = 0
+        for exp in experiments:
+            train = [c for c in conditions if not c.startswith(exp)]
+            test = [c for c in conditions if c.startswith(exp)]
 
-    info_table['metabolite_name'] = [met_name[m] if m in met_name else str(m) for m in info_table['metabolite']]
-    info_table['feature_name'] = [acc_name[k] if k in acc_name else str(k) for k in info_table['feature']]
+            yss, xss = ys.ix[m, train], xs[train].T
+
+            fs = SelectKBest(k=15, score_func=f_regression).fit(xss, yss)
+            xss = xss.loc[:, fs.get_support()]
+            xss['const'] = 1
+
+            lm = sm.OLS(yss, xss).fit_regularized(L1_wt=0, alpha=0.1)
+
+            xss = xs.ix[fs.get_support(), test].T
+            xss['const'] = 1
+
+            pred, meas = lm.predict(xss), ys.ix[m, test]
+
+            cor, pval = pearsonr(list(pred), list(meas))
+
+            m_coef['%d' % iteration] = (-np.log10(lm.pvalues.drop('const'))).to_dict()
+
+            iteration += 1
+
+        lm_res[m] = DataFrame(m_coef).mean(1).to_dict()
+    print '[INFO] Associations performed'
+
+    # Conditions betas
+    info_table = DataFrame([(f, m, lm_res[m][f]) for m in lm_res for f in lm_res[m]], columns=['feature', 'metabolite', 'coef'])
+
+    #
+    info_table = info_table[[i in db_proteins for i in info_table['feature']]]
+    info_table = info_table[[i in db_ions for i in info_table['metabolite']]]
 
     # Kinase/Enzyme interactions via metabolite correlations
     info_table['TP'] = [int(i in db) for i in zip(info_table['feature'], info_table['metabolite'])]
 
-    # Correlation
-    cor = [pearson(ys.loc[m, conditions], xs.loc[k, conditions]) for m, k in info_table[['metabolite', 'feature']].values]
-    info_table['pearson'], info_table['pearson_pvalue'] = zip(*cor)[:2]
-    info_table['pearson_abs'] = info_table['pearson'].abs()
-    info_table['pearson_abs_inv'] = 1 - info_table['pearson'].abs()
-    info_table['pearson_pvalue_log10'] = np.log10(info_table['pearson_pvalue'])
-
-    # Other metrics
-    info_table['euclidean'] = [metric(euclidean_distances, ys.ix[m, conditions], xs.ix[k, conditions])[0][0] for k, m in info_table[['feature', 'metabolite']].values]
-    info_table['manhattan'] = [metric(manhattan_distances, ys.ix[m, conditions], xs.ix[k, conditions])[0][0] for k, m in info_table[['feature', 'metabolite']].values]
-    info_table['linear_kernel'] = [metric(linear_kernel, ys.ix[m, conditions], xs.ix[k, conditions])[0][0] for k, m in info_table[['feature', 'metabolite']].values]
-    info_table['linear_kernel_abs'] = info_table['linear_kernel'].abs()
-
     info_table = info_table.dropna()
     print '[INFO] TP (%s): %d / %d' % (description, info_table['TP'].sum(), info_table.shape[0])
 
-    # ---- Kinase/Enzyme enrichment
-    int_enrichment, thresholds = [], roc_curve(info_table['TP'], info_table['score'])[2]
-
-    M = set(zip(info_table['feature'], info_table['metabolite']))
-    n = M.intersection(db)
-
-    for threshold in thresholds:
-        N = info_table.loc[info_table['score'] > threshold]
-        N = set(zip(N['feature'], N['metabolite'])).intersection(M)
-
-        x = N.intersection(n)
-
-        fraction = float(len(x)) / float(len(N)) if float(len(N)) != 0.0 else 0
-        p_value = hypergeom.sf(len(x), len(M), len(n), len(N))
-
-        int_enrichment.append((threshold, fraction, p_value, len(M), len(n), len(N), len(x)))
-
-    int_enrichment = DataFrame(int_enrichment, columns=['thres', 'fraction', 'pvalue', 'M', 'n', 'N', 'x']).dropna()
-    print '[INFO] Kinase/Enzyme enrichment ready'
-
-    # ---- Plot Kinase/Enzyme enrichment
+    # Plot Kinase/Enzyme enrichment
     # ROC plot analysis
-    ax = plot[pos][0]
-    for roc_metric in ['score', 'pearson_abs']:
+    ax = plot[pos]
+    for roc_metric in ['coef']:
         curve_fpr, curve_tpr, thresholds = roc_curve(info_table['TP'], info_table[roc_metric])
         curve_auc = auc(curve_fpr, curve_tpr)
 
@@ -225,20 +164,6 @@ for xs, ys, ft, dt, gt in comparisons:
     ax.set_ylabel(description)
     sns.despine(trim=True, ax=ax)
     ax.legend(loc='lower right')
-
-    # Hypergeometric specific thresold analysis
-    ax = plot[pos][1]
-
-    plot_df = int_enrichment[['thres', 'fraction']].copy()
-    plot_df = plot_df[plot_df['fraction'] != 0]
-    plot_df['fraction'] *= 100
-
-    ax.plot(plot_df['thres'], plot_df['fraction'], c='gray')
-    ax.set_xlim(plot_df['thres'].min(), plot_df['thres'].max())
-    ax.set_ylim(plot_df['fraction'].min(), plot_df['fraction'].max())
-    ax.set_ylabel('Fraction (%)')
-    ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.0f%%'))
-    sns.despine(ax=ax)
 
     pos += 1
 

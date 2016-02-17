@@ -311,15 +311,3 @@ def get_metabolites_name(annotation_file='%s/files/dynamic_metabolite_annotation
     annot = annot.groupby('mz')['metabolite'].agg(lambda x: '; '.join(set(x))).to_dict()
 
     return annot
-
-
-def get_metabolites_model_annot(annotation_file='%s/files/Annotation_Yeast_glucose.csv' % wd):
-    annot = read_csv(annotation_file, sep=',')
-    annot['mz'] = ['%.2f' % i for i in annot['mz']]
-
-    counts = {mz: counts for mz, counts in zip(*(np.unique(annot['mz'], return_counts=True)))}
-    annot = annot[[counts[i] == 1 for i in annot['mz']]]
-
-    annot = annot.set_index('mz')
-
-    return annot
