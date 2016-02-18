@@ -21,18 +21,18 @@ dyn_xorder = [
 
 # -- Import
 # Steady-state without growth
-k_activity_ng = read_csv('%s/tables/kinase_activity_steady_state_no_growth.tab' % wd, sep='\t', index_col=0)
+k_activity_ng = read_csv('%s/tables/kinase_activity_steady_state_gsea_no_growth.tab' % wd, sep='\t', index_col=0)
 k_activity_ng = k_activity_ng[(k_activity_ng.count(1) / k_activity_ng.shape[1]) > .75].replace(np.NaN, 0.0)
 
-tf_activity_ng = read_csv('%s/tables/tf_activity_steady_state_no_growth.tab' % wd, sep='\t', index_col=0)
+tf_activity_ng = read_csv('%s/tables/tf_activity_steady_state_gsea_no_growth.tab' % wd, sep='\t', index_col=0)
 tf_activity_ng = tf_activity_ng[tf_activity_ng.std(1) > .4]
 
 
 # Dynamic without growth
-k_activity_dyn_ng = read_csv('%s/tables/kinase_activity_dynamic_no_growth.tab' % wd, sep='\t', index_col=0)
+k_activity_dyn_ng = read_csv('%s/tables/kinase_activity_dynamic_gsea_no_growth.tab' % wd, sep='\t', index_col=0)
 k_activity_dyn_ng = k_activity_dyn_ng[(k_activity_dyn_ng.count(1) / k_activity_dyn_ng.shape[1]) > .75].replace(np.NaN, 0.0)
 
-tf_activity_dyn_ng = read_csv('%s/tables/tf_activity_dynamic_no_growth.tab' % wd, sep='\t', index_col=0)
+tf_activity_dyn_ng = read_csv('%s/tables/tf_activity_dynamic_gsea_no_growth.tab' % wd, sep='\t', index_col=0)
 tf_activity_dyn_ng = tf_activity_dyn_ng[tf_activity_dyn_ng.std(1) > .4]
 
 
@@ -40,7 +40,7 @@ tf_activity_dyn_ng = tf_activity_dyn_ng[tf_activity_dyn_ng.std(1) > .4]
 sns.set(style='white')
 
 # Heatmaps
-fig, gs = plt.figure(figsize=(15, 25)), GridSpec(2, 2, width_ratios=[2.5, 1], height_ratios=[2.5, 1])
+fig, gs = plt.figure(figsize=(15, 25)), GridSpec(2, 2, width_ratios=[2.5, 1], height_ratios=[.25, .5])
 cbar_ax = plt.subplot(gs[2])
 cbar_ax.set_title('Activity')
 

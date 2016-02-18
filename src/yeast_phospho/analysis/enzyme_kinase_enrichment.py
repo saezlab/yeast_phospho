@@ -82,13 +82,18 @@ i_dict = {g: {annot[m] for m in g_dict[g]} for g in g_dict}
 
 # -- Read protein interactions dbs
 dbs = {}
-for bkg_type in ['biogrid', 'string']:
+for bkg_type in ['biogrid', 'string', 'phosphogrid']:
     if bkg_type == 'biogrid':
         db = read_csv('%s/files/BIOGRID-ORGANISM-Saccharomyces_cerevisiae_S288c-3.4.127.tab' % wd, sep='\t', skiprows=35)[['INTERACTOR_A', 'INTERACTOR_B']]
         db = {(s, t) for s, t in db.values}
 
+    elif bkg_type == 'phosphogrid':
+        db = read_csv('%s/files/PhosphoGrid.txt' % wd, sep='\t')[['KINASES_ORFS', 'PHOSPHATASES_ORFS', 'ORF_NAME']]
+        db['regulator'] = db['KINASES_ORFS'] + '|' + db['PHOSPHATASES_ORFS']
+        db = {(p, s) for ps, s in db[['regulator', 'ORF_NAME']].values for p in ps.split('|') if p != '-' and s != '-'}
+
     elif bkg_type == 'string':
-        db = read_csv(wd + 'files/4932.protein.links.v9.1.txt', sep=' ')
+        db = read_csv('%s/files/4932.protein.links.v9.1.txt' % wd, sep=' ')
 
         thres = 700
         db = db[db['combined_score'] > thres]
@@ -97,15 +102,16 @@ for bkg_type in ['biogrid', 'string']:
 
         print 'thres: %.2f' % thres
 
-    db = {(p1, p2) for p1, p2 in db if p1 != p2}
-    print '[INFO] %s: %d' % (bkg_type, len(db))
+    if bkg_type != 'phosphogrid':
+        db = {(p1, p2) for p1, p2 in db if p1 != p2}
+        print '[INFO] %s: %d' % (bkg_type, len(db))
 
     db = {(s, i) for p1, p2 in db for s, t in it.permutations((p1, p2), 2) if t in i_dict for i in i_dict[t]}
     print '[INFO] %s, only enzymatic reactions: %d' % (bkg_type, len(db))
 
     dbs[bkg_type] = db
 
-db = dbs['biogrid'].union(dbs['string'])
+db = dbs['biogrid'].union(dbs['string']).union(dbs['phosphogrid'])
 db_proteins = {i[0] for i in db}
 db_ions = {i[1] for i in db}
 print '[INFO] Kinase/Enzymes interactions data-bases imported'
