@@ -22,7 +22,7 @@ m_targeted = read_csv('%s/tables/metabolomics_dynamic_combination_targeted.csv' 
 m_targeted = m_targeted[[i in m_map for i in m_targeted.index]]
 m_targeted.index = [m_map[i] for i in m_targeted.index]
 
-m_untargeted = read_csv('%s/tables/metabolomics_dynamic_combination_cor_samples.csv' % wd, index_col=0)
+m_untargeted = read_csv('%s/tables/metabolomics_dynamic_combination.csv' % wd, index_col=0)
 m_untargeted.index = ['; '.join(annot['%.4f' % i]) for i in m_untargeted.index]
 
 # -- Overlap data-sets
@@ -37,15 +37,17 @@ m_targeted, m_untargeted = m_targeted.ix[metabolites, samples], m_untargeted.ix[
 plot_df = [(m, c, m_targeted.ix[m, c], m_untargeted.ix[m, c]) for m, c in it.product(metabolites, samples)]
 plot_df = DataFrame(plot_df, columns=['metabolite', 'condition', 'LC-MS', 'QTOF'])
 
+color = '#54504F'
+
 sns.set(style='ticks')
 g = sns.jointplot(
-    'LC-MS', 'QTOF', plot_df, 'reg', color='#34495e', joint_kws={'scatter_kws': {'s': 40, 'edgecolor': 'w', 'linewidth': .5}},
+    'LC-MS', 'QTOF', plot_df, 'reg', color=color, joint_kws={'scatter_kws': {'s': 40, 'edgecolor': 'w', 'linewidth': .5}},
     marginal_kws={'hist': False, 'rug': True}, annot_kws={'template': 'Spearman: {val:.2g}, p-value: {p:.1e}'}, space=0,
     stat_func=spearmanr, xlim=(-1.5, 4), ylim=(-1, 2.5)
 )
-plt.axhline(0, ls='-', lw=0.3, c='#95a5a6', alpha=.5)
-plt.axvline(0, ls='-', lw=0.3, c='#95a5a6', alpha=.5)
-g.plot_marginals(sns.kdeplot, shade=True, color='#34495e')
+plt.axhline(0, ls='-', lw=0.3, c=color, alpha=.5)
+plt.axvline(0, ls='-', lw=0.3, c=color, alpha=.5)
+g.plot_marginals(sns.kdeplot, shade=True, color=color)
 g.set_axis_labels('LC-MS (log2 fold-change)', 'QTOF (log2 fold-change)')
 plt.savefig('%s/reports/metabolomics_correlation.pdf' % wd, bbox_inches='tight')
 plt.close('all')

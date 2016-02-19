@@ -3,3 +3,4 @@ gurobi.log
 .idea
 *.pyc
 *.sqlite
+figures/*
