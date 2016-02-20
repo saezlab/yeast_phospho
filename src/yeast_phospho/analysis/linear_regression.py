@@ -136,14 +136,22 @@ with open('%s/tables/linear_regressions.pickle' % wd, 'wb') as handle:
 
 # -- Plot linear regression predictions correlation
 palette = {'TFs': '#34495e', 'Kinases': '#3498db'}
+condition_name_map = {'Combination': 'NaCl + Pheromone', 'Dynamic': 'Nitrogen metabolism', 'Steady-state': 'Steady-state'}
 
-sns.set(style='ticks')
-g = sns.FacetGrid(lm_cor, row='dataset', col='growth', legend_out=True)
-g.map(sns.boxplot, 'corr_type', 'cor', 'feature', palette=palette, sym='')
-g.map(sns.stripplot, 'corr_type', 'cor', 'feature', palette=palette, jitter=True, size=5, split=True, edgecolor='white', linewidth=.75)
-g.map(plt.axhline, y=0, ls='--', c='.5')
-plt.ylim([-1, 1])
+plot_df = lm_cor.copy()
+plot_df['dataset'] = [condition_name_map[i] for i in plot_df['dataset']]
+plot_df['condition'] = ['%s\n(growth corrected)' % d if g == 'without' else d for d, g in plot_df[['dataset', 'growth']].values]
+
+sns.set(style='ticks', font_scale=.75, context='paper', rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
+g = sns.FacetGrid(plot_df, row='corr_type', legend_out=True, aspect=1, size=1.5, sharex=True, sharey=True)
+g.map(sns.boxplot, 'cor', 'condition', 'feature', palette=palette, sym='')
+g.map(sns.stripplot, 'cor', 'condition', 'feature', palette=palette, jitter=True, size=2, split=True, edgecolor='white', linewidth=.3)
+g.map(plt.axvline, x=0, ls='-', lw=.1, c='gray')
+plt.xlim([-1, 1])
 g.add_legend()
+g.set_axis_labels('Pearson correlation\n(predicted vs measured)', '')
+g.set_titles(row_template='{row_name}')
+g.fig.subplots_adjust(wspace=.05, hspace=.2)
 sns.despine(trim=True)
-plt.savefig('%s/reports/Figure_2.pdf' % wd, bbox_inches='tight')
+plt.savefig('%s/reports/linear_regression_loo_cv_gsea.pdf' % wd, bbox_inches='tight')
 plt.close('all')
