@@ -50,6 +50,10 @@ comparisons = [
     (tf_activity_dyn_ng_lm, metabolomics_dyn_ng, 'TFs', 'Lm'),
 ]
 
+# -- Create lists
+tfs_names = {acc_name[i] for i in tf_activity_dyn_gsea.index}
+kinases_names = {acc_name[i] for i in k_activity_dyn_ng_gsea.index}
+
 # -- Linear regressions
 lm_res, lm_feat = [], []
 for (x, y, feature_type, method_type) in comparisons:
@@ -110,9 +114,10 @@ for method in ['Gsea', 'Lm']:
     plot_df = plot_df[plot_df.std(1) > .1]
 
     cmap = sns.diverging_palette(220, 10, n=9, as_cmap=True)
+    col_c = [palette['TFs'] if c in tfs_names else palette['Kinases'] for c in plot_df]
 
     sns.set(context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
-    g = sns.clustermap(plot_df, figsize=(5, 7), cmap=cmap, linewidth=.5)
+    g = sns.clustermap(plot_df, figsize=(4, 8), cmap=cmap, linewidth=.5, col_colors=col_c)
     plt.savefig('%s/reports/feature_regression_nitrogen_metabolism_heatmap_%s.pdf' % (wd, method), bbox_inches='tight')
     plt.close('all')
 

@@ -136,7 +136,7 @@ with open('%s/tables/linear_regressions.pickle' % wd, 'wb') as handle:
 
 # -- Plot linear regression predictions correlation
 palette = {'TFs': '#34495e', 'Kinases': '#3498db'}
-condition_name_map = {'Combination': 'NaCl + Pheromone', 'Dynamic': 'Nitrogen metabolism', 'Steady-state': 'Steady-state'}
+condition_name_map = {'Combination': 'NaCl + Pheromone', 'Dynamic': 'Nitrogen metabolism', 'Steady-state': 'Genetic perturbations'}
 
 plot_df = lm_cor.copy()
 plot_df['dataset'] = [condition_name_map[i] for i in plot_df['dataset']]
