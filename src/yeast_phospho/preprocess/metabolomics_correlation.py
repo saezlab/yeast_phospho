@@ -37,7 +37,7 @@ m_targeted, m_untargeted = m_targeted.ix[metabolites, samples], m_untargeted.ix[
 plot_df = [(m, c, m_targeted.ix[m, c], m_untargeted.ix[m, c]) for m, c in it.product(metabolites, samples)]
 plot_df = DataFrame(plot_df, columns=['metabolite', 'condition', 'LC-MS', 'QTOF'])
 
-color = '#54504F'
+color = '#808080'
 
 sns.set(style='ticks')
 g = sns.jointplot(

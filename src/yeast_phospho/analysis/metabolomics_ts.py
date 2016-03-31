@@ -8,7 +8,8 @@ from pandas import DataFrame, Series, read_csv
 conditions = ['NaCl', 'alpha']
 palette = {'NaCl': '#CC2229', 'pheromone': '#6FB353'}
 
-# -- Import annotation
+# -- Plot QTOF
+# Import annotation
 annot = read_csv('%s/files/2015_12_10_fia_experiments_imm904_annotation.txt' % wd, sep='\t', index_col=0)
 annot['mz'] = ['%.4f' % i for i in annot['mz']]
 annot = annot[annot['mod'] == '-H(+)']
@@ -19,14 +20,12 @@ annot['160.0615'] = 'O-Acetyl-L-homoserine'
 annot['421.0750'] = 'Trehalose 6-phosphate'
 annot['418.9559'] = '1D-myo-Inositol\n1,4,5-trisphosphate'
 
-
-# -- Import data-sets
+# Import data-set
 m_untargeted_std = read_csv('%s/tables/metabolomics_dynamic_combination_std.csv' % wd, index_col=0)
 m_untargeted_std = m_untargeted_std[[c for c in m_untargeted_std if c.split('_')[0] in conditions]]
 m_untargeted_std.index = ['%.4f' % i for i in m_untargeted_std.index]
 
-
-# -- tsplot: untargeted matebolomics
+# tsplot: untargeted matebolomics
 m_to_show = ['Glycerol 3-phosphate', 'Trehalose', 'L-Malate', 'N-Acetyl-L-glutamate']
 
 plot_df = m_untargeted_std.unstack().reset_index()
