@@ -158,7 +158,7 @@ for method in ['Gsea', 'Lm']:
 
     # scatter
     pos = 1
-    for m in ['L-Glutamine', 'Guanosine', 'L-Malate', 'L-Arginine']:
+    for m in ['L-Glutamine', 'Guanosine', 'L-Serine', 'L-Arginine']:
         ax = plt.subplot(gs[pos])
 
         best_tf = coef_table.ix[m, tf_activity.index].abs().argmax()
@@ -166,8 +166,8 @@ for method in ['Gsea', 'Lm']:
 
         met_x, kin_y, tfs_y = metabolomics.ix[m, samples], k_activity.ix[best_kinase, samples], tf_activity.ix[best_tf, samples]
 
-        sns.regplot(met_x, kin_y, scatter_kws={'s': 50, 'alpha': .6}, color=palette['Kinases'], label=best_kinase, ax=ax)
-        sns.regplot(met_x, tfs_y, scatter_kws={'s': 50, 'alpha': .6}, color=palette['TFs'], label=best_tf, ax=ax)
+        sns.regplot(met_x, kin_y, scatter_kws={'s': 50, 'alpha': .6}, color=palette['Kinases'], label=best_kinase, ax=ax, line_kws={'lw': .3})
+        sns.regplot(met_x, tfs_y, scatter_kws={'s': 50, 'alpha': .6}, color=palette['TFs'], label=best_tf, ax=ax, line_kws={'lw': .3})
         sns.despine(ax=ax)
         ax.set_title('%s' % m)
         ax.set_xlabel('Metabolite (log FC)')
