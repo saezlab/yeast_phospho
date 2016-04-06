@@ -1,10 +1,7 @@
 import pickle
-import numpy as np
-import seaborn as sns
 import itertools as it
-import matplotlib.pyplot as plt
 from yeast_phospho import wd
-from pandas import DataFrame, Series, read_csv
+from pandas import read_csv
 from pymist.reader.sbml_reader import read_sbml_model
 from yeast_phospho.utilities import get_kinases_targets, get_tfs_targets
 
@@ -68,7 +65,7 @@ g_dict = {g: {m for m in m_dict if g in m_dict[m]} for g in m_genes}
 i_dict = {g: {annot[m] for m in g_dict[g]} for g in g_dict}
 
 
-# -- Read protein interactions dbs
+# -- Identify protein-metabolites associations from direct targets of kinases/transcription-factors
 dbs = {}
 for bkg_type in ['kinases', 'tfs']:
     if bkg_type == 'kinases':
@@ -82,9 +79,41 @@ for bkg_type in ['kinases', 'tfs']:
 
     dbs[bkg_type] = db
 
-print '[INFO] Kinase-TFs/Enzymes interactions data-bases imported'
-
-
-# -- Export results
-with open('%s/tables/known_associations.pickle' % wd, 'wb') as handle:
+# Export results
+with open('%s/tables/protein_metabolite_associations_direct_targets.pickle' % wd, 'wb') as handle:
     pickle.dump(dbs, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+print '[INFO] Protein-metabolites associations exported'
+
+
+# -- Identify protein-metabolites associations from protein-protein interaction data-bases
+dbs = {}
+for bkg_type in ['kinases', 'tfs']:
+    # Import BioGrid
+    db_biogrid = read_csv('%s/files/BIOGRID-ORGANISM-Saccharomyces_cerevisiae_S288c-3.4.135.tab2.txt' % wd, sep='\t')
+    db_biogrid = db_biogrid[['Systematic Name Interactor A', 'Systematic Name Interactor B', 'Experimental System Type', 'Organism Interactor A', 'Organism Interactor B']]
+    db_biogrid = db_biogrid[(db_biogrid['Organism Interactor A'] == 559292) & (db_biogrid['Organism Interactor B'] == 559292)]
+
+    if bkg_type == 'tfs':
+        db_biogrid = db_biogrid[db_biogrid['Experimental System Type'] == 'genetic']
+
+    db_biogrid = {(s, t) for (p1, p2) in db_biogrid[['Systematic Name Interactor A', 'Systematic Name Interactor B']].values for s, t in it.combinations((p1, p2), 2)}
+    db_biogrid = {(s, i) for s, t in db_biogrid if t in i_dict for i in i_dict[t]}
+    print '[INFO] BioGrid: %d' % len(db_biogrid)
+
+    # Import String
+    db_string = read_csv('%s/files/4932.protein.links.v9.1.txt' % wd, sep=' ')
+    db_string = db_string[db_string['combined_score'] >= 700]
+    db_string = {(s.split('.')[1], t.split('.')[1]) for p1, p2 in db_string[['protein1', 'protein2']].values for s, t in it.combinations((p1, p2), 2)}
+    db_string = {(s, i) for s, t in db_string if t in i_dict for i in i_dict[t]}
+    print '[INFO] String: %d' % len(db_string)
+
+    # Union
+    dbs[bkg_type] = db_biogrid.union(db_string)
+    print '[INFO] BioGrid+String (%s): %d (%d)' % (bkg_type, len(dbs[bkg_type]), len(db_biogrid) + len(db_string))
+
+# Export results
+with open('%s/tables/protein_metabolite_associations_protein_interactions.pickle' % wd, 'wb') as handle:
+    pickle.dump(dbs, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+print '[INFO] Kinase/Enzymes interactions data-bases imported'

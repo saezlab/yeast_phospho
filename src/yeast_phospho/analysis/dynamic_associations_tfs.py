@@ -21,9 +21,12 @@ met_name = get_metabolites_name()
 met_name = {'%.4f' % float(k): met_name[k] for k in met_name if len(met_name[k].split('; ')) == 1}
 
 
-# -- Import direct associations
-with open('%s/tables/known_associations.pickle' % wd, 'rb') as handle:
-    dbs = pickle.load(handle)
+# -- Import associations
+with open('%s/tables/protein_metabolite_associations_direct_targets.pickle' % wd, 'rb') as handle:
+    dbs_direct = pickle.load(handle)
+
+with open('%s/tables/protein_metabolite_associations_protein_interactions.pickle' % wd, 'rb') as handle:
+    dbs_associations = pickle.load(handle)
 
 
 # -- Import data-sets
@@ -61,7 +64,7 @@ print lm_res.sort('cor')
 label_order = ['N_downshift', 'N_upshift', 'Rapamycin']
 palette = {'Rapamycin': '#D25A2B', 'N_upshift': '#5EACEC', 'N_downshift': '#4783C7', 'NaCl': '#CC2229', 'Pheromone': '#6FB353'}
 
-#
+# General Linear regression boxplots
 sns.set(style='ticks', font_scale=.75, context='paper', rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
 g = sns.FacetGrid(lm_res, legend_out=True, aspect=1., size=1.5, sharex=True, sharey=False)
 g.map(sns.boxplot, 'cor', 'condition', palette=palette, sym='', linewidth=.3, order=label_order, orient='h')
@@ -77,19 +80,18 @@ plt.close('all')
 print '[INFO] Plot done'
 
 
-#
-well_predicted = Series(dict(zip(*(np.unique(lm_res[lm_res['cor'] > 0]['ion'], return_counts=True)))))
-well_predicted = set(lm_res[([i in set(well_predicted[well_predicted == 3].index) for i in lm_res['ion']]) & (lm_res['pval'] < .05)]['ion'])
+# Top predicted metabolites boxplots
+lm_res_top = {k for k, v in lm_res.groupby('ion')['cor'].median().to_dict().items() if v > .5}.intersection({k for k, v in lm_res.groupby('ion')['cor'].min().to_dict().items() if v > .0})
+lm_res_top = set(lm_res[([i in lm_res_top for i in lm_res['ion']]) & (lm_res['pval'] < .05)]['ion'])
+lm_res_top = lm_res[[i in lm_res_top for i in lm_res['ion']]]
+lm_res_top['name'] = [met_name[i] for i in lm_res_top['ion']]
 
-plot_df = lm_res[[i in well_predicted for i in lm_res['ion']]]
-plot_df['name'] = [met_name[i] for i in plot_df['ion']]
+order = [met_name[i] for i in lm_res_top.groupby('ion')['cor'].median().sort_values(ascending=False).index if len(met_name[i]) < 36]
 
-top_predicted = [met_name[i] for i in well_predicted if len(met_name[i]) < 36]
-
-sns.set(style='ticks', font_scale=.5, context='paper', rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
-g = sns.FacetGrid(plot_df, legend_out=True, aspect=1, size=3, sharex=True, sharey=False)
-g.map(sns.boxplot, 'cor', 'name', sym='', orient='h', order=top_predicted, color='#CCCCCC', saturation=.1, linewidth=.3)
-g.map(sns.stripplot, 'cor', 'name', 'condition', palette=palette, jitter=True, size=2, split=True, edgecolor='white', linewidth=.3, orient='h', order=top_predicted, color='#808080')
+sns.set(style='ticks', font_scale=.75, context='paper', rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
+g = sns.FacetGrid(lm_res_top, legend_out=True, aspect=1, size=4, sharex=True, sharey=False)
+g.map(sns.boxplot, 'cor', 'name', sym='', orient='h', order=order, color='#CCCCCC', saturation=.1, linewidth=.3)
+g.map(sns.stripplot, 'cor', 'name', 'condition', palette=palette, jitter=True, size=2, split=True, edgecolor='white', linewidth=.3, orient='h', order=order, color='#808080')
 g.map(plt.axvline, x=0, ls='-', lw=.1, c='gray')
 plt.xlim([0, 1])
 g.add_legend(label_order=label_order)
@@ -102,23 +104,25 @@ plt.close('all')
 print '[INFO] Plot done'
 
 
-#
-coefs = DataFrame([(ion, f, c) for ion, lm, cor in plot_df[['ion', 'lm', 'cor']].values if cor > 0 for f, c in lm.params.to_dict().items()], columns=['i', 'k', 'coef'])
-coefs['transcription-factor'] = [acc_name[c] for c in coefs['k']]
-coefs['metabolite'] = [met_name[c] for c in coefs['i']]
-coefs['reported'] = [int((k, m) in dbs['tfs']) for k, m in coefs[['k', 'i']].values]
-coefs = coefs.sort(['reported', 'coef'], ascending=False)
+# Top predicted metabolites features importance
+lm_res_top_features = DataFrame([(ion, f, c) for ion, lm, cor in lm_res_top[['ion', 'lm', 'cor']].values if cor > 0 for f, c in lm.params.to_dict().items()], columns=['i', 'k', 'coef'])
+lm_res_top_features['Transcription-factors'] = [acc_name[c] for c in lm_res_top_features['k']]
+lm_res_top_features['Metabolites'] = [met_name[c] for c in lm_res_top_features['i']]
+lm_res_top_features['reported'] = [int((k, m) in dbs_direct['tfs']) + int((k, m) in dbs_associations['tfs']) for k, m in lm_res_top_features[['k', 'i']].values]
+lm_res_top_features = lm_res_top_features.sort(['reported', 'coef'], ascending=False)
 
-reported = pivot_table(coefs, index='metabolite', columns='transcription-factor', values='reported', aggfunc=np.max)
-
-coefs = pivot_table(coefs, index='metabolite', columns='transcription-factor', values='coef', aggfunc=np.median)
-coefs = coefs.loc[:, coefs.abs().sum() > .1]
-
-reported = reported.ix[coefs.index, coefs.columns]
+plot_df = pivot_table(lm_res_top_features, index='Metabolites', columns='Transcription-factors', values='coef', aggfunc=np.median)
+plot_df = plot_df.loc[:, plot_df.abs().sum() > .1]
 
 cmap = sns.diverging_palette(220, 10, n=9, as_cmap=True)
 sns.set(context='paper', font_scale=.5, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
-g = sns.clustermap(coefs, figsize=(4, 5), linewidth=.5, cmap=cmap, metric='correlation')
+g = sns.clustermap(plot_df, figsize=(5, 5), linewidth=.5, cmap=cmap, metric='correlation')
+
+for r, c, reported in lm_res_top_features[['Metabolites', 'Transcription-factors', 'reported']].values:
+    if c in g.data2d.columns and r in g.data2d.index and reported > 0:
+        text_x, text_y = (list(g.data2d.columns).index(c), (g.data2d.shape[0] - 1) - list(g.data2d.index).index(r))
+        g.ax_heatmap.annotate('*' if reported == 1 else '+', (text_x, text_y), xytext=(text_x + .5, text_y + .2), ha='center', va='baseline', color='#808080')
+
 plt.savefig('%s/reports/linear_regression_dynamic_transfer_metabolites_heatmap_gsea_tfs.pdf' % wd, bbox_inches='tight')
 plt.close('all')
 print '[INFO] Plot done'
