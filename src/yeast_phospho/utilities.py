@@ -309,5 +309,4 @@ def get_metabolites_name(annotation_file='%s/files/dynamic_metabolite_annotation
     annot = read_csv(annotation_file, sep='\t')
     annot['mz'] = ['%.4f' % i for i in annot['mz']]
     annot = annot.groupby('mz')['metabolite'].agg(lambda x: '; '.join(set(x))).to_dict()
-
     return annot
