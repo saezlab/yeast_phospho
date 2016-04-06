@@ -4,3 +4,4 @@ gurobi.log
 *.pyc
 *.sqlite
 figures/*
+files/BIOGRID-ORGANISM-Saccharomyces_cerevisiae_S288c-3.4.135.tab2.txt
