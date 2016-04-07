@@ -4,11 +4,11 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
+import itertools as it
 from yeast_phospho import wd
 from scipy.stats.stats import pearsonr
-from scipy.cluster.hierarchy import linkage
-from sklearn.linear_model import ElasticNet
-from statsmodels.stats.multitest import multipletests
+from sklearn.metrics import roc_curve, auc
+from scipy.stats.distributions import hypergeom
 from pandas import DataFrame, Series, read_csv, concat, pivot_table
 from yeast_phospho.utilities import get_metabolites_name, get_proteins_name
 
@@ -47,9 +47,9 @@ for ion in ys.index:
     for condition in conditions:
         train, test = [c for c in xs if not re.match(condition, c)], [c for c in xs if re.match(condition, c)]
 
-        lm = sm.OLS(ys.ix[ion, train], xs.ix[tfs, train].T).fit_regularized(L1_wt=.5, alpha=.01)
+        lm = sm.OLS(ys.ix[ion, train], sm.add_constant(xs.ix[tfs, train].T)).fit_regularized(L1_wt=.5, alpha=.01)
 
-        pred, meas = Series(lm.predict(xs.ix[tfs, test].T), index=test), ys.ix[ion, test]
+        pred, meas = Series(lm.predict(sm.add_constant(xs.ix[tfs, test].T)), index=test), ys.ix[ion, test]
         cor, pval = pearsonr(pred, meas.ix[pred.index])
 
         lm_res.append((ion, condition, cor, pval, lm))
@@ -81,7 +81,7 @@ print '[INFO] Plot done'
 
 
 # Top predicted metabolites boxplots
-lm_res_top = {k for k, v in lm_res.groupby('ion')['cor'].median().to_dict().items() if v > .5}.intersection({k for k, v in lm_res.groupby('ion')['cor'].min().to_dict().items() if v > .0})
+lm_res_top = {k for k, cor in lm_res.groupby('ion')['cor'].median().to_dict().items() if cor > .5}.intersection({k for k, cor_min in lm_res.groupby('ion')['cor'].min().to_dict().items() if cor_min > .0})
 lm_res_top = set(lm_res[([i in lm_res_top for i in lm_res['ion']]) & (lm_res['pval'] < .05)]['ion'])
 lm_res_top = lm_res[[i in lm_res_top for i in lm_res['ion']]]
 lm_res_top['name'] = [met_name[i] for i in lm_res_top['ion']]
@@ -105,10 +105,10 @@ print '[INFO] Plot done'
 
 
 # Top predicted metabolites features importance
-lm_res_top_features = DataFrame([(ion, f, c) for ion, lm, cor in lm_res_top[['ion', 'lm', 'cor']].values if cor > 0 for f, c in lm.params.to_dict().items()], columns=['i', 'k', 'coef'])
+lm_res_top_features = DataFrame([(ion, f, c) for ion, lm, cor in lm_res_top[['ion', 'lm', 'cor']].values if cor > 0 and met_name[ion] in order for f, c in lm.params.to_dict().items() if f != 'const'], columns=['i', 'k', 'coef'])
 lm_res_top_features['Transcription-factors'] = [acc_name[c] for c in lm_res_top_features['k']]
 lm_res_top_features['Metabolites'] = [met_name[c] for c in lm_res_top_features['i']]
-lm_res_top_features['reported'] = [int((k, m) in dbs_direct['tfs']) + int((k, m) in dbs_associations['tfs']) for k, m in lm_res_top_features[['k', 'i']].values]
+lm_res_top_features['reported'] = [int((k, m) in dbs_associations['tfs']) for k, m in lm_res_top_features[['k', 'i']].values]
 lm_res_top_features = lm_res_top_features.sort(['reported', 'coef'], ascending=False)
 
 plot_df = pivot_table(lm_res_top_features, index='Metabolites', columns='Transcription-factors', values='coef', aggfunc=np.median)
@@ -126,3 +126,41 @@ for r, c, reported in lm_res_top_features[['Metabolites', 'Transcription-factors
 plt.savefig('%s/reports/linear_regression_dynamic_transfer_metabolites_heatmap_gsea_tfs.pdf' % wd, bbox_inches='tight')
 plt.close('all')
 print '[INFO] Plot done'
+
+
+#
+lm_res_features = [(i, f, c, p, v, abs(v)) for i, c, p, lm in lm_res[['ion', 'cor', 'pval', 'lm']].values for f, v in lm.params.to_dict().items() if f != 'const']
+lm_res_features = DataFrame(lm_res_features, columns=['ion', 'feature', 'cor', 'pval', 'coef', 'abs_coef']).sort('abs_coef', ascending=False)
+lm_res_features['reported'] = [int((f, i) in dbs_direct['tfs'] or (f, i) in dbs_associations['tfs']) for f, i in lm_res_features[['feature', 'ion']].values]
+
+curve_fpr, curve_tpr, thresholds = roc_curve(lm_res_features['reported'], lm_res_features['abs_coef'])
+curve_auc = auc(curve_fpr, curve_tpr)
+print curve_auc
+
+# plt.plot(curve_fpr, curve_tpr, label='Beta (area = %0.2f)' % curve_auc)
+#
+# plt.plot([0, 1], [0, 1], 'k--')
+# plt.despine(trim=True)
+# plt.legend(loc='lower right')
+
+# Hypergeometric test
+# hypergeom.sf(x, M, n, N, loc=0)
+# M: total number of objects,
+# n: total number of type I objects
+# N: total number of type I objects drawn without replacement
+ion_all = {'%.4f' % i for i in read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', index_col=0).index}
+tfs_all = set(read_csv('%s/tables/tf_activity_dynamic_gsea_no_growth.tab' % wd, sep='\t', index_col=0).index)
+
+db = dbs_direct['tfs'].union(dbs_associations['tfs'])
+
+interactions_all = set(it.product(tfs_all, ion_all))
+interactions_reported = {i for i in interactions_all if i in db}
+interactions_predicted = {(f, m) for f, m, c, coef in lm_res_features[['feature', 'ion', 'cor', 'abs_coef']].values if coef > .1}
+
+pval = hypergeom.sf(
+    len(interactions_predicted.intersection(interactions_reported)),
+    len(interactions_all),
+    len(interactions_all.intersection(interactions_reported)),
+    len(interactions_predicted)
+)
+print pval
