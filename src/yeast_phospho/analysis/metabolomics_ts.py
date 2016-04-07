@@ -26,7 +26,7 @@ m_untargeted_std = m_untargeted_std[[c for c in m_untargeted_std if c.split('_')
 m_untargeted_std.index = ['%.4f' % i for i in m_untargeted_std.index]
 
 # tsplot: untargeted matebolomics
-m_to_show = ['Glycerol 3-phosphate', 'Trehalose', 'L-Malate', 'N-Acetyl-L-glutamate']
+m_to_show = ['Glycerol 3-phosphate', 'Trehalose', 'L-Malate', 'Fumarate', 'N-Acetyl-L-glutamate', 'L-Glutamine', 'L-Citrulline', 'O-Acetyl-L-homoserine']
 
 plot_df = m_untargeted_std.unstack().reset_index()
 plot_df.columns = ['sample', 'metabolite', 'fc']
@@ -37,8 +37,8 @@ plot_df['metabolite'] = [annot[m] for m in plot_df['metabolite']]
 plot_df = plot_df[[i in m_to_show for i in plot_df['metabolite']]]
 plot_df['condition'] = ['pheromone' if i == 'alpha' else i for i in plot_df['condition']]
 
-sns.set(style='ticks')
-g = sns.FacetGrid(plot_df, col='metabolite', col_wrap=len(m_to_show), sharey=False)
+sns.set(style='ticks', context='paper', font_scale=.9, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
+g = sns.FacetGrid(plot_df, col='metabolite', col_wrap=4, sharey=False)
 g.map_dataframe(sns.tsplot, time='time', unit='replicate', condition='condition', value='fc', estimator=nanmedian, color=palette, err_kws={'lw': 0})
 g.map(plt.axhline, ls='-', lw=.3, c='gray')
 g.set_titles('{col_name}')

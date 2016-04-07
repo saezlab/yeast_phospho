@@ -130,6 +130,9 @@ print '[INFO] Plot done'
 lm_res_feat = [(i, f, c, p, lm.params[f], lm.pvalues[f], lm.tvalues[f]) for i, c, p, lm in lm_res[['ion', 'cor', 'pval', 'lm']].values for f in kinases if f != 'const']
 lm_res_feat = DataFrame(lm_res_feat, columns=['ion', 'feature', 'cor', 'pval', 'f_coef', 'f_pval', 'f_tstat'])
 
+lm_res_feat['f_pval'] = lm_res_feat['f_pval'].replace(np.nan, 1)
+lm_res_feat['f_tstat'] = lm_res_feat['f_tstat'].replace(np.nan, 0)
+
 lm_res_feat['beta (abs)'] = [abs(i) for i in lm_res_feat['f_coef']]
 lm_res_feat['t-stat (abs)'] = [abs(i) for i in lm_res_feat['f_tstat']]
 lm_res_feat['p-value (-log10)'] = [-np.log10(i) for i in lm_res_feat['f_pval']]
@@ -142,7 +145,7 @@ lm_res_feat['Kinases/Phosphatases'] = [acc_name[c] for c in lm_res_feat['feature
 lm_res_feat['Metabolites'] = [met_name[c] for c in lm_res_feat['ion']]
 
 
-roc_table = lm_res_feat.groupby(['ion', 'feature'])['t-stat (abs)', 'beta (abs)', 'targets', 'biogrid', 'string'].median().reset_index().replace(np.nan, 0)
+roc_table = lm_res_feat.groupby(['ion', 'feature'])['t-stat (abs)', 'beta (abs)', 'targets', 'biogrid', 'string'].median().reset_index()
 
 sns.set(style='ticks', context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
 (f, plot), pos = plt.subplots(1, 3, figsize=(3 * 3, 2.5)), 0
@@ -164,7 +167,7 @@ for source in ['targets', 'biogrid', 'string']:
 
     pos += 1
 
-plt.savefig('%s/reports/linear_regression_dynamic_transfer_metabolites_rocauc_gsea.pdf' % wd, bbox_inches='tight')
+plt.savefig('%s/reports/linear_regression_dynamic_transfer_metabolites_rocauc_gsea_filled.pdf' % wd, bbox_inches='tight')
 plt.close('all')
 print '[INFO] Plot done'
 
@@ -190,7 +193,7 @@ print pval
 
 # Top predicted metabolites features importance
 lm_res_top_features = lm_res_feat[[i in order for i in lm_res_feat['Metabolites']]]
-lm_res_top_features_matrix = pivot_table(lm_res_top_features, index='Metabolites', columns='Kinases/Phosphatases', values='f_tstat', aggfunc=np.median, fill_value=0)
+lm_res_top_features_matrix = pivot_table(lm_res_top_features, index='Metabolites', columns='Kinases/Phosphatases', values='f_tstat', aggfunc=np.median)
 
 cmap = sns.diverging_palette(220, 10, n=9, as_cmap=True)
 sns.set(context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
@@ -201,6 +204,6 @@ for r, c, string, biogrid, target in lm_res_top_features[['Metabolites', 'Kinase
         text_x, text_y = (list(g.data2d.columns).index(c), (g.data2d.shape[0] - 1) - list(g.data2d.index).index(r))
         g.ax_heatmap.annotate('*' if (string + biogrid + target) == 1 else '+', (text_x, text_y), xytext=(text_x + .5, text_y + .2), ha='center', va='baseline', color='#808080')
 
-plt.savefig('%s/reports/linear_regression_dynamic_transfer_metabolites_heatmap_gsea.pdf' % wd, bbox_inches='tight')
+plt.savefig('%s/reports/linear_regression_dynamic_transfer_metabolites_heatmap_gsea_filled.pdf' % wd, bbox_inches='tight')
 plt.close('all')
 print '[INFO] Plot done'
