@@ -79,7 +79,6 @@ for ion in ions:
 
 lm_res = DataFrame(lm_res, columns=['ion', 'condition', 'cor', 'pval', 'lm'])
 lm_res['condition'] = lm_res['condition'].replace('alpha', 'Pheromone')
-lm_res['condition'] = lm_res['condition'].replace('.', 'All')
 print lm_res.sort('cor')
 
 
@@ -128,8 +127,8 @@ print '[INFO] Plot done'
 
 
 # Important features ROC
-lm_res_feat = [(i, f, c, p, lm.params[f], lm.pvalues[f], lm.tvalues[f]) for i, c, p, lm in lm_res[['ion', 'cor', 'pval', 'lm']].values for f in lm.params.index if f != 'const']
-lm_res_feat = DataFrame(lm_res_feat, columns=['ion', 'feature', 'cor', 'pval', 'f_coef', 'f_pval', 'f_tstat']).dropna()
+lm_res_feat = [(i, f, c, p, lm.params[f], lm.pvalues[f], lm.tvalues[f]) for i, c, p, lm in lm_res[['ion', 'cor', 'pval', 'lm']].values for f in kinases if f != 'const']
+lm_res_feat = DataFrame(lm_res_feat, columns=['ion', 'feature', 'cor', 'pval', 'f_coef', 'f_pval', 'f_tstat'])
 
 lm_res_feat['beta (abs)'] = [abs(i) for i in lm_res_feat['f_coef']]
 lm_res_feat['t-stat (abs)'] = [abs(i) for i in lm_res_feat['f_tstat']]
@@ -143,12 +142,14 @@ lm_res_feat['Kinases/Phosphatases'] = [acc_name[c] for c in lm_res_feat['feature
 lm_res_feat['Metabolites'] = [met_name[c] for c in lm_res_feat['ion']]
 
 
+roc_table = lm_res_feat.groupby(['ion', 'feature'])['t-stat (abs)', 'beta (abs)', 'targets', 'biogrid', 'string'].median().reset_index().replace(np.nan, 0)
+
 sns.set(style='ticks', context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
 (f, plot), pos = plt.subplots(1, 3, figsize=(3 * 3, 2.5)), 0
 for source in ['targets', 'biogrid', 'string']:
     ax = plot[pos]
 
-    for roc_metric in ['t-stat (abs)', 'beta (abs)', 'p-value (-log10)']:
+    for roc_metric in ['t-stat (abs)', 'beta (abs)']:
         curve_fpr, curve_tpr, thresholds = roc_curve(lm_res_feat[source], lm_res_feat[roc_metric])
         curve_auc = auc(curve_fpr, curve_tpr)
 
@@ -176,7 +177,7 @@ db = interactions['kinases']['string']
 
 kinase_enzyme_all = set(it.product(kinases, ions))
 kinase_enzyme_true = {i for i in kinase_enzyme_all if i in db}
-kinase_enzyme_thres = {(f, m) for f, m, c in lm_res_feat[['feature', 'ion', 'p-value (-log10)']].values if c > .3}
+kinase_enzyme_thres = {(f, m) for f, m, c in lm_res_feat[['feature', 'ion', 't-stat (abs)']].values if c > .1}
 
 pval = hypergeom.sf(
     len(kinase_enzyme_thres.intersection(kinase_enzyme_true)),

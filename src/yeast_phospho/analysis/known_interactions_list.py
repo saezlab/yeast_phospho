@@ -86,7 +86,7 @@ for bkg_type in ['kinases', 'tfs']:
         # String data-base
         elif source == 'string':
             db = read_csv('%s/files/4932.protein.links.v9.1.txt' % wd, sep=' ')
-            db = db[db['combined_score'] >= 700]
+            db = db[db['combined_score'] >= 900]
             db = {(s.split('.')[1], t.split('.')[1]) for p1, p2 in db[['protein1', 'protein2']].values for s, t in it.combinations((p1, p2), 2)}
             db = {(s, i) for s, t in db if t in i_dict for i in i_dict[t]}
 

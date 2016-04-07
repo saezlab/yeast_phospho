@@ -18,45 +18,54 @@ acc_name = get_proteins_name()
 acc_name = {k: acc_name[k].split(';')[0] for k in acc_name}
 
 met_name = get_metabolites_name()
-met_name = {'%.4f' % float(k): met_name[k] for k in met_name if len(met_name[k].split('; ')) == 1}
+met_name = {'%.4f' % float(k): met_name[k] for k in met_name if len(met_name[k].split('; ')) == 1 and met_name[k] != 'NADP'}
 
 
 # -- Import associations
-with open('%s/tables/protein_metabolite_associations_direct_targets.pickle' % wd, 'rb') as handle:
-    dbs_direct = pickle.load(handle)
-
-with open('%s/tables/protein_metabolite_associations_protein_interactions.pickle' % wd, 'rb') as handle:
-    dbs_associations = pickle.load(handle)
+with open('%s/tables/protein_metabolite_associations.pickle' % wd, 'rb') as handle:
+    interactions = pickle.load(handle)
 
 
 # -- Import data-sets
 # Metabolomics
 ys = read_csv('%s/tables/metabolomics_dynamic_no_growth.tab' % wd, sep='\t', index_col=0)
 ys.index = ['%.4f' % i for i in ys.index]
+ys = ys[[i in met_name for i in ys.index]]
 
 # GSEA
 xs = read_csv('%s/tables/tf_activity_dynamic_gsea_no_growth.tab' % wd, sep='\t', index_col=0)
 xs = xs[xs.std(1) > .4]
 
-conditions, tfs = ['N_downshift', 'N_upshift', 'Rapamycin'], list(xs.index)
+conditions, tfs, ions = ['N_downshift', 'N_upshift', 'Rapamycin'], list(xs.index), list(ys.index)
 
 
 # -- Linear regressions
 lm_res = []
-for ion in ys.index:
+for ion in ions:
     for condition in conditions:
         train, test = [c for c in xs if not re.match(condition, c)], [c for c in xs if re.match(condition, c)]
 
-        lm = sm.OLS(ys.ix[ion, train], sm.add_constant(xs.ix[tfs, train].T)).fit_regularized(L1_wt=.5, alpha=.01)
+        # First EllasticNet
+        ys_train, xs_train = ys.ix[ion, train], sm.add_constant(xs.ix[tfs, train].T)
 
-        pred, meas = Series(lm.predict(sm.add_constant(xs.ix[tfs, test].T)), index=test), ys.ix[ion, test]
-        cor, pval = pearsonr(pred, meas.ix[pred.index])
+        lm = sm.OLS(ys_train, xs_train).fit_regularized(L1_wt=.5, alpha=.01)
+
+        top_features = lm.params.drop('const')
+        top_features = top_features[top_features != 0].abs().sort_values(ascending=False).head(10).index
+
+        # Second EllasticNet
+        ys_train, xs_train = ys.ix[ion, train], sm.add_constant(xs.ix[top_features, train].T)
+        ys_test, xs_test = ys.ix[ion, test], sm.add_constant(xs.ix[top_features, test].T)
+
+        lm = sm.OLS(ys_train, xs_train).fit_regularized(L1_wt=.5, alpha=.01)
+
+        # Prediction
+        pred = Series(lm.predict(xs_test), index=test)
+        cor, pval = pearsonr(pred, ys_test.ix[pred.index])
 
         lm_res.append((ion, condition, cor, pval, lm))
 
 lm_res = DataFrame(lm_res, columns=['ion', 'condition', 'cor', 'pval', 'lm'])
-lm_res['condition'] = lm_res['condition'].replace('alpha', 'Pheromone')
-lm_res['condition'] = lm_res['condition'].replace('.', 'All')
 print lm_res.sort('cor')
 
 
@@ -104,63 +113,82 @@ plt.close('all')
 print '[INFO] Plot done'
 
 
-# Top predicted metabolites features importance
-lm_res_top_features = DataFrame([(ion, f, c) for ion, lm, cor in lm_res_top[['ion', 'lm', 'cor']].values if cor > 0 and met_name[ion] in order for f, c in lm.params.to_dict().items() if f != 'const'], columns=['i', 'k', 'coef'])
-lm_res_top_features['Transcription-factors'] = [acc_name[c] for c in lm_res_top_features['k']]
-lm_res_top_features['Metabolites'] = [met_name[c] for c in lm_res_top_features['i']]
-lm_res_top_features['reported'] = [int((k, m) in dbs_associations['tfs']) for k, m in lm_res_top_features[['k', 'i']].values]
-lm_res_top_features = lm_res_top_features.sort(['reported', 'coef'], ascending=False)
+# Important features ROC
+lm_res_feat = [(i, f, c, p, lm.params[f], lm.pvalues[f], lm.tvalues[f]) if f in lm.params else (i, f, c, p, np.nan, np.nan, np.nan) for i, c, p, lm in lm_res[['ion', 'cor', 'pval', 'lm']].values for f in tfs if f != 'const']
+lm_res_feat = DataFrame(lm_res_feat, columns=['ion', 'feature', 'cor', 'pval', 'f_coef', 'f_pval', 'f_tstat'])
 
-plot_df = pivot_table(lm_res_top_features, index='Metabolites', columns='Transcription-factors', values='coef', aggfunc=np.median)
-plot_df = plot_df.loc[:, plot_df.abs().sum() > .1]
+lm_res_feat['beta (abs)'] = [abs(i) for i in lm_res_feat['f_coef']]
+lm_res_feat['t-stat (abs)'] = [abs(i) for i in lm_res_feat['f_tstat']]
+lm_res_feat['p-value (-log10)'] = [-np.log10(i) for i in lm_res_feat['f_pval']]
 
-cmap = sns.diverging_palette(220, 10, n=9, as_cmap=True)
-sns.set(context='paper', font_scale=.5, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
-g = sns.clustermap(plot_df, figsize=(5, 5), linewidth=.5, cmap=cmap, metric='correlation')
+lm_res_feat['biogrid'] = [int((f, i) in interactions['tfs']['biogrid']) for i, f in lm_res_feat[['ion', 'feature']].values]
+lm_res_feat['string'] = [int((f, i) in interactions['tfs']['string']) for i, f in lm_res_feat[['ion', 'feature']].values]
+lm_res_feat['targets'] = [int((f, i) in interactions['tfs']['targets']) for i, f in lm_res_feat[['ion', 'feature']].values]
 
-for r, c, reported in lm_res_top_features[['Metabolites', 'Transcription-factors', 'reported']].values:
-    if c in g.data2d.columns and r in g.data2d.index and reported > 0:
-        text_x, text_y = (list(g.data2d.columns).index(c), (g.data2d.shape[0] - 1) - list(g.data2d.index).index(r))
-        g.ax_heatmap.annotate('*' if reported == 1 else '+', (text_x, text_y), xytext=(text_x + .5, text_y + .2), ha='center', va='baseline', color='#808080')
+lm_res_feat['Transcription-factors'] = [acc_name[c] for c in lm_res_feat['feature']]
+lm_res_feat['Metabolites'] = [met_name[c] for c in lm_res_feat['ion']]
 
-plt.savefig('%s/reports/linear_regression_dynamic_transfer_metabolites_heatmap_gsea_tfs.pdf' % wd, bbox_inches='tight')
+
+roc_table = lm_res_feat.groupby(['ion', 'feature'])['t-stat (abs)', 'beta (abs)', 'targets', 'biogrid', 'string'].median().reset_index().replace(np.nan, 0)
+
+sns.set(style='ticks', context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
+(f, plot), pos = plt.subplots(1, 3, figsize=(3 * 3, 2.5)), 0
+for source in ['targets', 'biogrid', 'string']:
+    ax = plot[pos]
+
+    for roc_metric in ['t-stat (abs)', 'beta (abs)']:
+        curve_fpr, curve_tpr, thresholds = roc_curve(roc_table[source], roc_table[roc_metric])
+        curve_auc = auc(curve_fpr, curve_tpr)
+
+        ax.plot(curve_fpr, curve_tpr, label='%s (area = %0.2f)' % (roc_metric, curve_auc))
+
+    ax.plot([0, 1], [0, 1], 'k--', lw=.3)
+    ax.set_title(source)
+    ax.set_xlabel('False positive rate')
+    ax.set_ylabel('True positive rate')
+    sns.despine(trim=True, ax=ax)
+    ax.legend(loc='lower right')
+
+    pos += 1
+
+plt.savefig('%s/reports/linear_regression_dynamic_transfer_metabolites_rocauc_gsea_tfs.pdf' % wd, bbox_inches='tight')
 plt.close('all')
 print '[INFO] Plot done'
-
-
-#
-lm_res_features = [(i, f, c, p, v, abs(v)) for i, c, p, lm in lm_res[['ion', 'cor', 'pval', 'lm']].values for f, v in lm.params.to_dict().items() if f != 'const']
-lm_res_features = DataFrame(lm_res_features, columns=['ion', 'feature', 'cor', 'pval', 'coef', 'abs_coef']).sort('abs_coef', ascending=False)
-lm_res_features['reported'] = [int((f, i) in dbs_direct['tfs'] or (f, i) in dbs_associations['tfs']) for f, i in lm_res_features[['feature', 'ion']].values]
-
-curve_fpr, curve_tpr, thresholds = roc_curve(lm_res_features['reported'], lm_res_features['abs_coef'])
-curve_auc = auc(curve_fpr, curve_tpr)
-print curve_auc
-
-# plt.plot(curve_fpr, curve_tpr, label='Beta (area = %0.2f)' % curve_auc)
-#
-# plt.plot([0, 1], [0, 1], 'k--')
-# plt.despine(trim=True)
-# plt.legend(loc='lower right')
 
 # Hypergeometric test
 # hypergeom.sf(x, M, n, N, loc=0)
 # M: total number of objects,
 # n: total number of type I objects
 # N: total number of type I objects drawn without replacement
-ion_all = {'%.4f' % i for i in read_csv('%s/tables/metabolomics_dynamic.tab' % wd, sep='\t', index_col=0).index}
-tfs_all = set(read_csv('%s/tables/tf_activity_dynamic_gsea_no_growth.tab' % wd, sep='\t', index_col=0).index)
+db = interactions['tfs']['string']
 
-db = dbs_direct['tfs'].union(dbs_associations['tfs'])
-
-interactions_all = set(it.product(tfs_all, ion_all))
-interactions_reported = {i for i in interactions_all if i in db}
-interactions_predicted = {(f, m) for f, m, c, coef in lm_res_features[['feature', 'ion', 'cor', 'abs_coef']].values if coef > .1}
+kinase_enzyme_all = set(it.product(tfs, ions))
+kinase_enzyme_true = {i for i in kinase_enzyme_all if i in db}
+kinase_enzyme_thres = {(f, m) for f, m, c in lm_res_feat[['feature', 'ion', 't-stat (abs)']].values if c > .0}
 
 pval = hypergeom.sf(
-    len(interactions_predicted.intersection(interactions_reported)),
-    len(interactions_all),
-    len(interactions_all.intersection(interactions_reported)),
-    len(interactions_predicted)
+    len(kinase_enzyme_thres.intersection(kinase_enzyme_true)),
+    len(kinase_enzyme_all),
+    len(kinase_enzyme_all.intersection(kinase_enzyme_true)),
+    len(kinase_enzyme_thres)
 )
 print pval
+
+
+# Top predicted metabolites features importance
+lm_res_top_features = lm_res_feat[[i in order for i in lm_res_feat['Metabolites']]]
+lm_res_top_features_matrix = pivot_table(lm_res_top_features, index='Metabolites', columns='Transcription-factors', values='f_tstat', aggfunc=np.median, fill_value=0)
+lm_res_top_features_matrix = lm_res_top_features_matrix.loc[:, lm_res_top_features_matrix.std() != 0]
+
+cmap = sns.diverging_palette(220, 10, n=9, as_cmap=True)
+sns.set(context='paper', font_scale=.6, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
+g = sns.clustermap(lm_res_top_features_matrix, figsize=(7, 5), linewidth=.5, cmap=cmap, metric='correlation')
+
+for r, c, string, biogrid, target in lm_res_top_features[['Metabolites', 'Transcription-factors', 'string', 'biogrid', 'targets']].values:
+    if c in g.data2d.columns and r in g.data2d.index and (string + biogrid + target) > 0:
+        text_x, text_y = (list(g.data2d.columns).index(c), (g.data2d.shape[0] - 1) - list(g.data2d.index).index(r))
+        g.ax_heatmap.annotate('*' if (string + biogrid + target) == 1 else '+', (text_x, text_y), xytext=(text_x + .5, text_y + .2), ha='center', va='baseline', color='#808080')
+
+plt.savefig('%s/reports/linear_regression_dynamic_transfer_metabolites_heatmap_gsea_tfs.pdf' % wd, bbox_inches='tight')
+plt.close('all')
+print '[INFO] Plot done'
