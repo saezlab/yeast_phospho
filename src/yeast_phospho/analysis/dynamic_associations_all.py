@@ -13,6 +13,7 @@ from sklearn.linear_model import ElasticNetCV
 from sklearn.metrics.regression import r2_score
 from scipy.stats.distributions import hypergeom
 from sklearn.cross_validation import ShuffleSplit
+from statsmodels.stats.multitest import multipletests
 from pandas import DataFrame, Series, read_csv, concat, pivot_table
 from yeast_phospho.utilities import get_metabolites_name, get_proteins_name
 
@@ -66,6 +67,7 @@ kinases = list(set(k_activity_dyn_ng_gsea.index).intersection(k_activity_dyn_com
 conditions = ['Pheromone', 'NaCl', 'N_downshift', 'N_upshift', 'Rapamycin']
 
 ys = concat([metabolomics_dyn_ng.ix[ions], metabolomics_dyn_comb.ix[ions]], axis=1)
+ys = ys.loc[:, [not i.startswith('Pheromone') for i in ys]]
 
 xs = concat([k_activity_dyn_ng_gsea.ix[kinases], k_activity_dyn_comb_ng.ix[kinases]], axis=1)
 
@@ -76,64 +78,24 @@ xs = xs.divide(xs.std()).T
 # -- Linear regressions
 lm_res = []
 for ion in ions:
-    for condition in conditions:
-        train, test = [c for c in xs.index if not re.match(condition, c)], [c for c in xs.index if re.match(condition, c)]
+    yss = ys.ix[ion]
+    xss = sm.add_constant(xs.ix[yss.index])
 
-        ys_train, xs_train = ys.ix[ion, train], xs.ix[train, kinases]
+    cv = ShuffleSplit(len(yss), n_iter=100, test_size=.2)
+    lm_a = ElasticNetCV(fit_intercept=False, cv=cv).fit(xss, yss)  # [.01, .001]
 
-        cv = ShuffleSplit(len(ys_train), n_iter=10)
-        lm_a = ElasticNetCV(cv=cv,  alphas=[.01, .001]).fit(xs_train, ys_train)  # alphas=[.01, .001]
+    lm = sm.OLS(yss, xss).fit_regularized(L1_wt=lm_a.l1_ratio_, alpha=lm_a.alpha_)
 
-        ys_train, xs_train = ys.ix[ion, train], sm.add_constant(xs.ix[train, kinases])
-        ys_test, xs_test = ys.ix[ion, test], sm.add_constant(xs.ix[test, kinases])
+    lm_res.append((ion, lm.rsquared, lm.f_pvalue, lm, lm_a.alpha_))
 
-        lm = sm.OLS(ys_train, xs_train).fit_regularized(L1_wt=lm_a.l1_ratio_, alpha=lm_a.alpha_)
-
-        meas, pred = ys_test[test].values, lm.predict(xs_test.ix[test])
-
-        rsquared = r2_score(meas, pred)
-
-        cor, pval = pearsonr(meas, pred)
-
-        lm_res.append((ion, condition, cor, pval, rsquared, lm, lm_a.alpha_))
-
-lm_res = DataFrame(lm_res, columns=['ion', 'condition', 'cor', 'pval', 'rsquared', 'lm', 'alpha'])
+lm_res = DataFrame(lm_res, columns=['ion', 'rsquared', 'f_pvalue', 'lm', 'alpha'])
+lm_res['fdr'] = multipletests(lm_res['f_pvalue'], method='fdr_bh')[1]
 print lm_res.sort('rsquared')
 
 
-# # -- Plot
+# -- Plot
 label_order = ['N_downshift', 'N_upshift', 'Rapamycin', 'NaCl', 'Pheromone']
 palette = {'Rapamycin': '#D25A2B', 'N_upshift': '#5EACEC', 'N_downshift': '#4783C7', 'NaCl': '#CC2229', 'Pheromone': '#6FB353'}
-
-# General Linear regression boxplots
-sns.set(style='ticks', font_scale=.75, context='paper', rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
-g = sns.FacetGrid(lm_res, legend_out=True, aspect=1., size=1.5, sharex=True, sharey=False)
-g.map(sns.boxplot, 'cor', 'condition', palette=palette, sym='', linewidth=.3, order=label_order, orient='h')
-g.map(sns.stripplot, 'cor', 'condition', palette=palette, jitter=True, size=2, split=True, edgecolor='white', linewidth=.3, order=label_order, orient='h')
-g.map(plt.axvline, x=0, ls='-', lw=.1, c='gray')
-g.set_axis_labels('R-squared', '')
-g.set_titles(row_template='{row_name}')
-g.fig.subplots_adjust(wspace=.05, hspace=.2)
-plt.xlim([-1, 1])
-sns.despine(trim=True)
-plt.savefig('%s/reports/linear_regression_dynamic_transfer_gsea.pdf' % wd, bbox_inches='tight')
-plt.close('all')
-print '[INFO] Plot done'
-
-# General Linear regression boxplots
-sns.set(style='ticks', font_scale=.75, context='paper', rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
-g = sns.FacetGrid(lm_res, legend_out=True, aspect=1., size=1.5, sharex=True, sharey=False)
-g.map(sns.boxplot, 'rsquared', 'condition', palette=palette, sym='', linewidth=.3, order=label_order, orient='h')
-g.map(sns.stripplot, 'rsquared', 'condition', palette=palette, jitter=True, size=2, split=True, edgecolor='white', linewidth=.3, order=label_order, orient='h')
-g.map(plt.axvline, x=0, ls='-', lw=.1, c='gray')
-g.set_axis_labels('R-squared', '')
-g.set_titles(row_template='{row_name}')
-g.fig.subplots_adjust(wspace=.05, hspace=.2)
-sns.despine(trim=True)
-plt.savefig('%s/reports/linear_regression_dynamic_transfer_rsquared_gsea.pdf' % wd, bbox_inches='tight')
-plt.close('all')
-print '[INFO] Plot done'
-
 
 # Top predicted metabolites boxplots
 lm_res_top = lm_res[lm_res['rsquared'] > 0]
@@ -142,8 +104,8 @@ lm_res_top['name'] = [met_name[i] for i in lm_res_top['ion']]
 order = [met_name[i] for i in lm_res_top.groupby('ion')['rsquared'].max().sort_values(ascending=False).index]
 
 sns.set(style='ticks', font_scale=.75, context='paper', rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
-g = sns.FacetGrid(lm_res_top, legend_out=True, aspect=1, size=4, sharex=True, sharey=False)
-g.map(sns.stripplot, 'rsquared', 'name', 'condition', palette=palette, jitter=True, size=4, split=True, edgecolor='white', linewidth=.3, orient='h', order=order, color='#808080')
+g = sns.FacetGrid(lm_res_top, legend_out=True, aspect=1., size=5, sharex=True, sharey=False)
+g.map(sns.stripplot, 'rsquared', 'name', jitter=True, size=4, split=True, edgecolor='white', linewidth=.3, orient='h', order=order, color='#808080')
 g.map(plt.axvline, x=0, ls='-', lw=.1, c='gray')
 plt.xlim([0, 1])
 g.add_legend(label_order=label_order)
@@ -151,14 +113,14 @@ g.set_axis_labels('R-squared', '')
 g.set_titles(row_template='{row_name}')
 g.fig.subplots_adjust(wspace=.05, hspace=.2)
 sns.despine(trim=True)
-plt.savefig('%s/reports/linear_regression_dynamic_transfer_metabolites_gsea.pdf' % wd, bbox_inches='tight')
+plt.savefig('%s/reports/linear_regression_dynamic_transfer_metabolites_gsea_all.pdf' % wd, bbox_inches='tight')
 plt.close('all')
 print '[INFO] Plot done'
 
 
 # Important features ROC
-lm_res_feat = [(i, f, c, lm.params[f], lm.pvalues[f], lm.tvalues[f]) for i, lm, c in lm_res[['ion', 'lm', 'condition']].values for f in kinases if f != 'const']
-lm_res_feat = DataFrame(lm_res_feat, columns=['ion', 'feature', 'condition', 'f_coef', 'f_pval', 'f_tstat']).sort('f_pval')
+lm_res_feat = [(i, f, lm.params[f], lm.pvalues[f], lm.tvalues[f]) for i, lm in lm_res[['ion', 'lm']].values for f in kinases if f != 'const']
+lm_res_feat = DataFrame(lm_res_feat, columns=['ion', 'feature', 'f_coef', 'f_pval', 'f_tstat']).sort('f_pval')
 
 lm_res_feat['f_pval'] = lm_res_feat['f_pval'].replace(np.nan, 1)
 lm_res_feat['f_tstat'] = lm_res_feat['f_tstat'].replace(np.nan, 0)
@@ -197,7 +159,7 @@ plt.legend(loc='lower right')
 
 plt.gcf().set_size_inches(3, 3)
 
-plt.savefig('%s/reports/linear_regression_dynamic_transfer_metabolites_rocauc_gsea.pdf' % wd, bbox_inches='tight')
+plt.savefig('%s/reports/linear_regression_dynamic_transfer_metabolites_rocauc_gsea_all.pdf' % wd, bbox_inches='tight')
 plt.close('all')
 print '[INFO] Plot done'
 
@@ -234,6 +196,6 @@ for r, c, string, biogrid, target in lm_res_top_features[['Metabolites', 'Kinase
         text_x, text_y = (list(g.data2d.columns).index(c), (g.data2d.shape[0] - 1) - list(g.data2d.index).index(r))
         g.ax_heatmap.annotate('*' if (string + biogrid + target) == 1 else '+', (text_x, text_y), xytext=(text_x + .5, text_y + .2), ha='center', va='baseline', color='#808080')
 
-plt.savefig('%s/reports/linear_regression_dynamic_transfer_metabolites_heatmap_gsea.pdf' % wd, bbox_inches='tight')
+plt.savefig('%s/reports/linear_regression_dynamic_transfer_metabolites_heatmap_gsea_all.pdf' % wd, bbox_inches='tight')
 plt.close('all')
 print '[INFO] Plot done'

@@ -67,7 +67,7 @@ for ion in ions:
 
         lm = sm.OLS(ys_train, xs_train).fit_regularized(L1_wt=lm_a.l1_ratio_, alpha=lm_a.alpha_)
 
-        pred, meas = ys_test[test].values, lm.predict(xs_test.ix[test])
+        meas, pred = ys_test[test].values, lm.predict(xs_test.ix[test])
 
         rsquared = r2_score(meas, pred)
 
