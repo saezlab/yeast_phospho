@@ -5,6 +5,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import itertools as it
 from yeast_phospho import wd
+from statsmodels.api import add_constant
 from scipy.stats.stats import pearsonr
 from sklearn.metrics import roc_curve, auc
 from scipy.stats.distributions import hypergeom
@@ -66,10 +67,10 @@ for ion in ions:
 
         # # Elastic Net ShuffleSplit cross-validation
         cv = ShuffleSplit(len(ys_train), n_iter=20, test_size=.2)
-        lm = ElasticNetCV(cv=cv).fit(xs_train, ys_train)
+        lm = ElasticNetCV(cv=cv, fit_intercept=False).fit(add_constant(xs_train), ys_train)
 
         # Evaluate predictions
-        meas, pred = ys_test[test].values, lm.predict(xs_test.ix[test])
+        meas, pred = ys_test[test].values, lm.predict(add_constant(xs_test.ix[test]))
 
         rsquared = r2_score(meas, pred)
         cor, pval = pearsonr(meas, pred)
@@ -104,7 +105,7 @@ lm_res_top['name'] = [met_name[i] for i in lm_res_top['ion']]
 order = [met_name[i] for i in lm_res_top.groupby('ion')['rsquared'].max().sort_values(ascending=False).index]
 
 sns.set(style='ticks', font_scale=.75, context='paper', rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
-g = sns.FacetGrid(lm_res_top, legend_out=True, aspect=1, size=3, sharex=True, sharey=False)
+g = sns.FacetGrid(lm_res_top, legend_out=True, aspect=1.5, size=3, sharex=True, sharey=False)
 g.map(sns.stripplot, 'rsquared', 'name', 'condition', palette=palette, jitter=False, size=4, split=False, edgecolor='white', linewidth=.3, orient='h', order=order, color='#808080')
 g.map(plt.axvline, x=0, ls='-', lw=.1, c='gray')
 plt.xlim([0, 1])
@@ -132,7 +133,7 @@ for ion in ions:
 
         # Elastic Net ShuffleSplit cross-validation
         cv = ShuffleSplit(len(ys_train), test_size=.2, n_iter=n_iter)
-        lm = ElasticNetCV(cv=cv).fit(xs_train, ys_train)
+        lm = ElasticNetCV(cv=cv, fit_intercept=False).fit(add_constant(xs_train), ys_train)
 
         # Store results
         for f, v in zip(*(tfs, lm.coef_)):
@@ -147,6 +148,9 @@ lm_f_res['targets'] = [int((f, i) in interactions['tfs']['targets']) for i, f in
 
 lm_f_res['Transcription-factors'] = [acc_name[c] for c in lm_f_res['feature']]
 lm_f_res['Metabolites'] = [met_name[c] for c in lm_f_res['ion']]
+
+lm_f_res.sort('coef_abs', ascending=False).to_csv('%s/tables/metabolites_kinases_interactions.csv' % wd, index=False)
+
 print lm_f_res.sort('coef_abs', ascending=False)
 
 
