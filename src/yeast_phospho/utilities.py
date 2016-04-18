@@ -41,6 +41,30 @@ def get_tfs_targets(remove_self=False):
     return tf_targets
 
 
+def get_tfs_targets_filtered(remove_self=False):
+    """
+    Retrieve transcription-factor targets
+
+    :param remove_self:
+    :return:
+    """
+    # Import conversion table
+    name2id = read_csv('%s/files/orf_name_dataframe.tab' % wd, sep='\t', index_col=1).to_dict()['orf']
+    id2name = read_csv('%s/files/orf_name_dataframe.tab' % wd, sep='\t', index_col=0).to_dict()['name']
+
+    # TF targets
+    tf_targets = read_csv('%s/files/tf_gene_network_binding_sites_posterior_90.tab' % wd, sep='\t')
+    tf_targets['tf'] = [name2id[i] if i in name2id else id2name[i] for i in tf_targets['tf']]
+
+    if remove_self:
+        tf_targets = tf_targets[tf_targets['tf'] != tf_targets['target']]
+
+    tf_targets['interaction'] = 1
+    tf_targets = pivot_table(tf_targets, values='interaction', index='target', columns='tf', fill_value=0)
+
+    return tf_targets
+
+
 def get_kinases_targets(studies_to_filter={'21177495', '19779198'}, remove_self=False):
     """
     Retrieve kinase targets

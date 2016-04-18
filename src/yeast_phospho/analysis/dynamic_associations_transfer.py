@@ -5,6 +5,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import itertools as it
+from statsmodels.stats.multitest import multipletests
 from yeast_phospho import wd
 from pandas.stats.misc import zscore
 from statsmodels.api import add_constant
@@ -94,11 +95,11 @@ for ion in ions:
         ys_test -= ys_test.mean()
 
         # Elastic Net ShuffleSplit cross-validation
-        cv = ShuffleSplit(len(ys_train), n_iter=20, test_size=.2)
-        lm = ElasticNetCV(cv=cv, alphas=np.arange(0, .1, .01), fit_intercept=False).fit(add_constant(xs_train), ys_train)
+        cv = ShuffleSplit(len(ys_train), n_iter=20, test_size=.1)
+        lm = ElasticNetCV(cv=cv, alphas=np.arange(0, 1., .1)).fit(xs_train, ys_train)
 
         # Evaluate predictions
-        meas, pred = ys_test[test].values, lm.predict(add_constant(xs_test.ix[test]))
+        meas, pred = ys_test[test].values, lm.predict(xs_test.ix[test])
 
         rsquared = r2_score(meas, pred)
         cor, pval = pearsonr(meas, pred)
@@ -164,7 +165,7 @@ for ion in ions:
 
         # Elastic Net ShuffleSplit cross-validation
         cv = ShuffleSplit(len(ys_train), test_size=.1, n_iter=n_iter)
-        lm = ElasticNetCV(cv=cv, alphas=np.arange(0, .1, .01), fit_intercept=False).fit(add_constant(xs_train), ys_train)
+        lm = ElasticNetCV(cv=cv, alphas=np.arange(0, 1., .01)).fit(xs_train, ys_train)
 
         # Store results
         for f, v in zip(*(kinases, lm.coef_)):
@@ -181,18 +182,18 @@ lm_f_res['Kinases/Phosphatases'] = [acc_name[c] for c in lm_f_res['feature']]
 lm_f_res['Metabolites'] = [met_name[c] for c in lm_f_res['ion']]
 
 lm_f_res.sort('coef_abs', ascending=False).to_csv('%s/tables/metabolites_kinases_interactions.csv' % wd, index=False)
-
 print lm_f_res.sort('coef_abs', ascending=False)
 
 # Important features ROC
 source_pal = {'string': '#e74c3c', 'biogrid': '#34495e', 'targets': '#2ecc71'}
 
+roc_table = lm_f_res.groupby(['Metabolites', 'Kinases/Phosphatases'])['pval', 'coef_abs', 'targets', 'biogrid', 'string'].median().reset_index()
+
 sns.set(style='ticks', context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
 for source in ['targets', 'biogrid', 'string']:
-    curve_fpr, curve_tpr, thresholds = roc_curve(lm_f_res[source], lm_f_res['coef_abs'])
+    curve_fpr, curve_tpr, thresholds = roc_curve(roc_table[source], roc_table['coef_abs'])
     curve_auc = auc(curve_fpr, curve_tpr)
-
-    plt.plot(curve_fpr, curve_tpr, label='%s (area = %0.2f)' % (source, curve_auc), color=source_pal[source])
+    plt.plot(curve_fpr, curve_tpr, label='%s (AROC = %0.2f)' % (source, curve_auc), color=source_pal[source])
 
 plt.plot([0, 1], [0, 1], 'k--', lw=.3)
 sns.despine(trim=True)
@@ -243,3 +244,26 @@ for r, c, string, biogrid, target in lm_res_top_features[['Metabolites', 'Kinase
 plt.savefig('%s/reports/lm_dynamic_heatmap_gsea.pdf' % wd, bbox_inches='tight')
 plt.close('all')
 print '[INFO] Plot done'
+
+# # --
+# cor_df = [(i, f, pearsonr(xs.ix[f], ys.ix[i])) for i, f in it.product(set(lm_res_top_features['ion']), set(lm_res_top_features['feature']))]
+# cor_df = DataFrame([(i, f, c, p) for i, f, (c, p) in cor_df], columns=['ion', 'feature', 'cor', 'pval'])
+# cor_df['Kinases/Phosphatases'] = [acc_name[c] for c in cor_df['feature']]
+# cor_df['Metabolites'] = [met_name[c] for c in cor_df['ion']]
+# cor_df['FDR'] = multipletests(cor_df['pval'], method='fdr_bh')[1]
+#
+# cor_m = pivot_table(cor_df, index='Metabolites', columns='Kinases/Phosphatases', values='cor')
+#
+# cmap = sns.diverging_palette(220, 10, n=9, as_cmap=True)
+# sns.set(context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
+#
+# g = sns.clustermap(cor_m, figsize=(4, 6), linewidth=.5, cmap=cmap, metric='correlation', vmin=-1, vmax=1)
+#
+# for _, _, _, _, c, r, _ in cor_df[cor_df['pval'] < .05].values:
+#     text_x, text_y = (list(g.data2d.columns).index(c), (g.data2d.shape[0] - 1) - list(g.data2d.index).index(r))
+#     g.ax_heatmap.annotate('*', (text_x, text_y), xytext=(text_x + .5, text_y + .2), ha='center', va='baseline', color='#808080')
+#
+# plt.savefig('%s/reports/lm_dynamic_heatmap_pearson_gsea.pdf' % wd, bbox_inches='tight')
+# plt.close('all')
+# print '[INFO] Plot done'
+#

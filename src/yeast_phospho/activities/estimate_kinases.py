@@ -2,7 +2,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from yeast_phospho import wd
 from pandas import DataFrame, read_csv
-from yeast_phospho.utilities import get_kinases_targets, estimate_activity_with_sklearn
+from yeast_phospho.utilities import get_kinases_targets, estimate_activity_with_sklearn, get_proteins_name
 
 
 # Import growth rates
@@ -42,3 +42,24 @@ phospho_df_comb_dyn.index = ['%s_%s' % (acc[i.split('_')[0]], i.split('_')[1]) f
 k_activity_comb_dyn = DataFrame({c: estimate_activity_with_sklearn(k_targets, phospho_df_comb_dyn[c].dropna()) for c in phospho_df_comb_dyn})
 k_activity_comb_dyn.to_csv('%s/tables/kinase_activity_dynamic_combination.tab' % wd, sep='\t')
 print '[INFO] Activities estimated'
+
+
+# -- Number of measured targets
+acc_name = get_proteins_name()
+acc_name = {k: acc_name[k].split(';')[0] for k in acc_name}
+
+nitrogen_set, combination_set = set(phospho_df_dyn.index), set(phospho_df_comb_dyn.index)
+total_set = nitrogen_set.union(combination_set)
+
+k_targets_counts = DataFrame({k: [len(set(k_targets[k][k_targets[k] != 0].index).intersection(df)) for df in [nitrogen_set, combination_set, total_set]] for k in k_targets}, index=['nitrogen', 'combination', 'total']).T
+k_targets_counts = k_targets_counts[(k_targets_counts['nitrogen'] > 1) & (k_targets_counts['combination'] > 1)]
+k_targets_counts = k_targets_counts.sort('total')
+k_targets_counts.index = [acc_name[i] for i in k_targets_counts.index]
+
+sns.set(style='ticks', context='paper', rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3}, font_scale=.75)
+k_targets_counts.plot(kind='barh', lw=0)
+sns.despine()
+plt.gcf().set_size_inches(2, 4)
+plt.savefig('%s/reports/k_targets_counts_barplot.pdf' % wd, bbox_inches='tight')
+plt.close('all')
+print '[INFO] Corr plotted!'
