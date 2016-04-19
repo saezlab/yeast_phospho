@@ -95,8 +95,8 @@ for ion in ions:
         ys_test -= ys_test.mean()
 
         # Elastic Net ShuffleSplit cross-validation
-        cv = ShuffleSplit(len(ys_train), n_iter=20, test_size=.2)
-        lm = ElasticNetCV(cv=cv).fit(xs_train, ys_train)
+        cv = ShuffleSplit(len(ys_train), n_iter=20, test_size=.1)
+        lm = ElasticNetCV(cv=cv, alphas=np.arange(.01, .1, .01)).fit(xs_train, ys_train)
 
         # Evaluate predictions
         meas, pred = ys_test[test].values, lm.predict(xs_test.ix[test])
@@ -165,7 +165,7 @@ for ion in ions:
 
         # Elastic Net ShuffleSplit cross-validation
         cv = ShuffleSplit(len(ys_train), test_size=.2, n_iter=n_iter)
-        lm = ElasticNetCV(cv=cv).fit(xs_train, ys_train)
+        lm = ElasticNetCV(cv=cv, alphas=np.arange(.01, .1, .01)).fit(xs_train, ys_train)
 
         # Store results
         for f, v in zip(*(kinases, lm.coef_)):
@@ -231,38 +231,20 @@ print '[INFO] Plot done'
 lm_res_top_features = lm_f_res[[i in order for i in lm_f_res['Metabolites']]]
 t_matrix = pivot_table(lm_res_top_features, index='Metabolites', columns='Kinases/Phosphatases', values='coef', aggfunc=np.mean)
 
+top_features_cor = [(feature, ion, pearsonr(xs.ix[feature], ys.ix[ion])) for feature, ion in it.product(set(lm_res_top_features['feature']), set(lm_res_top_features['ion']))]
+top_features_cor = DataFrame([(f, i, c, p) for f, i, (c, p) in top_features_cor], columns=['feature', 'ion', 'cor', 'pval'])
+top_features_cor['fdr'] = multipletests(top_features_cor['pval'], method='fdr_bh')[1]
+signif_features = {(f, i) for f, i in top_features_cor[top_features_cor['fdr'] < .05][['feature', 'ion']].values}
+
 cmap = sns.diverging_palette(220, 10, n=9, as_cmap=True)
 sns.set(context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
-
 g = sns.clustermap(t_matrix, figsize=(4, 6), linewidth=.5, cmap=cmap, metric='correlation')
 
-for r, c, string, biogrid, target in lm_res_top_features[['Metabolites', 'Kinases/Phosphatases', 'string', 'biogrid', 'targets']].values:
-    if c in g.data2d.columns and r in g.data2d.index and (string + biogrid + target) > 0:
+for r, c, feature, ion in lm_res_top_features[['Metabolites', 'Kinases/Phosphatases', 'feature', 'ion']].values:
+    if c in g.data2d.columns and r in g.data2d.index and (feature, ion) in signif_features and t_matrix.abs().ix[r, c] > .1:
         text_x, text_y = (list(g.data2d.columns).index(c), (g.data2d.shape[0] - 1) - list(g.data2d.index).index(r))
-        g.ax_heatmap.annotate('*' if (string + biogrid + target) == 1 else '+', (text_x, text_y), xytext=(text_x + .5, text_y + .2), ha='center', va='baseline', color='#808080')
+        g.ax_heatmap.annotate('*', (text_x, text_y), xytext=(text_x + .5, text_y + .2), ha='center', va='baseline', color='#808080')
 
 plt.savefig('%s/reports/lm_dynamic_heatmap_gsea.pdf' % wd, bbox_inches='tight')
 plt.close('all')
 print '[INFO] Plot done'
-
-# # --
-# cor_df = [(i, f, pearsonr(xs.ix[f], ys.ix[i])) for i, f in it.product(set(lm_res_top_features['ion']), set(lm_res_top_features['feature']))]
-# cor_df = DataFrame([(i, f, c, p) for i, f, (c, p) in cor_df], columns=['ion', 'feature', 'cor', 'pval'])
-# cor_df['Kinases/Phosphatases'] = [acc_name[c] for c in cor_df['feature']]
-# cor_df['Metabolites'] = [met_name[c] for c in cor_df['ion']]
-# cor_df['FDR'] = multipletests(cor_df['pval'], method='fdr_bh')[1]
-#
-# cor_m = pivot_table(cor_df, index='Metabolites', columns='Kinases/Phosphatases', values='cor')
-#
-# cmap = sns.diverging_palette(220, 10, n=9, as_cmap=True)
-# sns.set(context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
-#
-# g = sns.clustermap(cor_m, figsize=(4, 6), linewidth=.5, cmap=cmap, metric='correlation', vmin=-1, vmax=1)
-#
-# for _, _, _, _, c, r, _ in cor_df[cor_df['pval'] < .05].values:
-#     text_x, text_y = (list(g.data2d.columns).index(c), (g.data2d.shape[0] - 1) - list(g.data2d.index).index(r))
-#     g.ax_heatmap.annotate('*', (text_x, text_y), xytext=(text_x + .5, text_y + .2), ha='center', va='baseline', color='#808080')
-#
-# plt.savefig('%s/reports/lm_dynamic_heatmap_pearson_gsea.pdf' % wd, bbox_inches='tight')
-# plt.close('all')
-# print '[INFO] Plot done'

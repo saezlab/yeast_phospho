@@ -11,8 +11,8 @@ dyn_trans = read_csv('%s/tables/transcriptomics_dynamic.tab' % wd, sep='\t', ind
 cmap = sns.diverging_palette(220, 10, n=9, as_cmap=True)
 sns.set(context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
 
-g = sns.clustermap(dyn_trans.T.corr(), figsize=(14, 14), linewidth=.5, cmap=cmap, metric='correlation', xticklabels=False, yticklabels=False)
+g = sns.clustermap(dyn_trans.T.corr(), figsize=(2, 2), linewidth=.0, cmap=cmap, metric='correlation', xticklabels=False, yticklabels=False)
 plt.title('Nitrogen metabolism\n(pearson)')
-plt.savefig('%s/reports/transcriptomics_clustermap_nitrogen.pdf' % wd, bbox_inches='tight')
+plt.savefig('%s/reports/transcriptomics_clustermap_nitrogen.tiff' % wd, bbox_inches='tight', dpi=300)
 plt.close('all')
 print '[INFO] Clustermap done'

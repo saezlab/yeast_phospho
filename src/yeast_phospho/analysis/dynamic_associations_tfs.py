@@ -8,6 +8,7 @@ from yeast_phospho import wd
 from scipy.stats.stats import pearsonr
 from sklearn.metrics import roc_curve, auc
 from scipy.stats.distributions import hypergeom
+from statsmodels.stats.multitest import multipletests
 from sklearn.linear_model import ElasticNetCV, RidgeCV
 from sklearn.cross_validation import ShuffleSplit, LeaveOneOut
 from sklearn.metrics.regression import r2_score
@@ -106,7 +107,6 @@ order = [met_name[i] for i in lm_res_top.groupby('ion')['rsquared'].max().sort_v
 sns.set(style='ticks', font_scale=.75, context='paper', rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
 g = sns.FacetGrid(lm_res_top, legend_out=True, aspect=1.5, size=3, sharex=True, sharey=False)
 g.map(sns.stripplot, 'rsquared', 'name', 'condition', palette=palette, jitter=False, size=4, split=False, edgecolor='white', linewidth=.3, orient='h', order=order, color='#808080')
-g.map(plt.axvline, x=0, ls='-', lw=.1, c='gray')
 plt.xlim([0, 1])
 g.add_legend(label_order=label_order)
 g.set_axis_labels('R-squared', '')
@@ -198,18 +198,23 @@ print '[INFO] Plot done'
 
 # Top predicted metabolites features importance
 lm_res_top_features = lm_f_res[[i in order for i in lm_f_res['Metabolites']]]
+
 t_matrix = pivot_table(lm_res_top_features, index='Metabolites', columns='Transcription-factors', values='coef', aggfunc=np.mean)
 t_matrix = t_matrix.loc[:, t_matrix.std() > .05]
 
+top_features_cor = [(feature, ion, pearsonr(xs.ix[feature], ys.ix[ion])) for feature, ion in it.product(set(lm_res_top_features['feature']), set(lm_res_top_features['ion']))]
+top_features_cor = DataFrame([(f, i, c, p) for f, i, (c, p) in top_features_cor], columns=['feature', 'ion', 'cor', 'pval'])
+top_features_cor['fdr'] = multipletests(top_features_cor['pval'], method='fdr_bh')[1]
+signif_features = {(f, i) for f, i in top_features_cor[top_features_cor['fdr'] < .05][['feature', 'ion']].values}
+
 cmap = sns.diverging_palette(220, 10, n=9, as_cmap=True)
 sns.set(context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
-
 g = sns.clustermap(t_matrix, figsize=(4, 5), linewidth=.5, cmap=cmap, metric='correlation')
 
-for r, c, string, biogrid, target in lm_res_top_features[['Metabolites', 'Transcription-factors', 'string', 'biogrid', 'targets']].values:
-    if c in g.data2d.columns and r in g.data2d.index and (string + biogrid + target) > 0:
+for r, c, feature, ion in lm_res_top_features[['Metabolites', 'Transcription-factors', 'feature', 'ion']].values:
+    if c in g.data2d.columns and r in g.data2d.index and (feature, ion) in signif_features and t_matrix.abs().ix[r, c] > .05:
         text_x, text_y = (list(g.data2d.columns).index(c), (g.data2d.shape[0] - 1) - list(g.data2d.index).index(r))
-        g.ax_heatmap.annotate('*' if (string + biogrid + target) == 1 else '+', (text_x, text_y), xytext=(text_x + .5, text_y + .2), ha='center', va='baseline', color='#808080')
+        g.ax_heatmap.annotate('*', (text_x, text_y), xytext=(text_x + .5, text_y + .2), ha='center', va='baseline', color='#808080')
 
 plt.savefig('%s/reports/lm_dynamic_heatmap_tfs_gsea.pdf' % wd, bbox_inches='tight')
 plt.close('all')
