@@ -8,12 +8,13 @@ from yeast_phospho import wd
 from scipy.stats.stats import pearsonr
 from sklearn.metrics import roc_curve, auc
 from scipy.stats.distributions import hypergeom
+from sklearn.decomposition.pca import PCA
 from statsmodels.stats.multitest import multipletests
 from sklearn.linear_model import ElasticNetCV, RidgeCV
 from sklearn.cross_validation import ShuffleSplit, LeaveOneOut
 from sklearn.metrics.regression import r2_score
 from pandas import DataFrame, Series, read_csv, concat, pivot_table
-from yeast_phospho.utilities import get_metabolites_name, get_proteins_name
+from yeast_phospho.utilities import get_metabolites_name, get_proteins_name, regress_out
 
 
 # -- General vars
@@ -45,6 +46,56 @@ xs = read_csv('%s/tables/tf_activity_dynamic_gsea_no_growth.tab' % wd, sep='\t',
 xs = xs[xs.std(1) > .1]
 
 conditions, tfs, ions = ['N_downshift', 'N_upshift', 'Rapamycin'], list(xs.index), list(ys.index)
+
+
+n_components = 10
+xs_pca = PCA(n_components=n_components).fit(xs.T)
+xs_pcs = DataFrame(xs_pca.transform(xs.T), columns=['PC%d' % i for i in range(1, n_components + 1)], index=xs.columns)
+print xs_pca.explained_variance_ratio_
+xs = DataFrame({i: regress_out(xs_pcs['PC1'], xs.ix[i, xs_pcs.index]) for i in xs.index}).T
+
+
+ys_pca = PCA(n_components=n_components).fit(ys.T)
+ys_pcs = DataFrame(ys_pca.transform(ys.T), columns=['PC%d' % i for i in range(1, n_components + 1)], index=ys.columns)
+print ys_pca.explained_variance_ratio_
+ys = DataFrame({i: regress_out(ys_pcs['PC1'], ys.ix[i, ys_pcs.index]) for i in ys.index}).T
+
+
+plot_df = xs.T.corr()
+plot_df.index = [acc_name[i] for i in plot_df.index]
+plot_df.columns = [acc_name[i] for i in plot_df.columns]
+
+cmap = sns.diverging_palette(220, 10, n=9, as_cmap=True)
+sns.set(context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
+g = sns.clustermap(plot_df, figsize=(10, 10), linewidth=.5, cmap=cmap, metric='correlation')
+plt.title('Nitrogen metabolism\n(pearson)')
+plt.savefig('%s/reports/clustermap_nitrogen_tfactivities_with_pc1_gsea.pdf' % wd, bbox_inches='tight')
+plt.close('all')
+
+
+plot_df = ys.T.corr()
+plot_df.index = [met_name[i] for i in plot_df.index]
+plot_df.columns = [met_name[i] for i in plot_df.columns]
+
+cmap = sns.diverging_palette(220, 10, n=9, as_cmap=True)
+sns.set(context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
+g = sns.clustermap(plot_df, figsize=(15, 15), linewidth=.5, cmap=cmap, metric='correlation')
+plt.title('Nitrogen metabolism\n(pearson)')
+plt.savefig('%s/reports/clustermap_nitrogen_metabolomics_with_pc1_gsea.pdf' % wd, bbox_inches='tight')
+plt.close('all')
+
+
+sns.set(style='ticks', context='paper', rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
+g = sns.jointplot(
+    xs_pcs['PC1'], ys_pcs['PC1'], kind='reg', color='#808080', joint_kws={'scatter_kws': {'s': 40, 'edgecolor': 'w', 'linewidth': .5}},
+    marginal_kws={'hist': False, 'rug': True}, space=0
+)
+plt.axhline(0, ls='-', lw=0.3, c='#808080', alpha=.5)
+plt.axvline(0, ls='-', lw=0.3, c='#808080', alpha=.5)
+g.plot_marginals(sns.kdeplot, shade=True, color='#808080')
+g.set_axis_labels('TF activities PC1', 'Metabolomics activities PC1')
+plt.savefig('%s/reports/pca_correlation.pdf' % wd, bbox_inches='tight')
+plt.close('all')
 
 
 # -- Predict experiments
@@ -200,7 +251,7 @@ print '[INFO] Plot done'
 lm_res_top_features = lm_f_res[[i in order for i in lm_f_res['Metabolites']]]
 
 t_matrix = pivot_table(lm_res_top_features, index='Metabolites', columns='Transcription-factors', values='coef', aggfunc=np.mean)
-t_matrix = t_matrix.loc[:, t_matrix.std() > .05]
+t_matrix = t_matrix.loc[:, t_matrix.std() > .01]
 
 top_features_cor = [(feature, ion, pearsonr(xs.ix[feature], ys.ix[ion])) for feature, ion in it.product(set(lm_res_top_features['feature']), set(lm_res_top_features['ion']))]
 top_features_cor = DataFrame([(f, i, c, p) for f, i, (c, p) in top_features_cor], columns=['feature', 'ion', 'cor', 'pval'])
