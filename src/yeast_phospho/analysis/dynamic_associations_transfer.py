@@ -11,7 +11,7 @@ from pandas.stats.misc import zscore
 from statsmodels.api import add_constant
 from scipy.stats.stats import pearsonr
 from sklearn.metrics import roc_curve, auc
-from sklearn.linear_model import ElasticNetCV, ElasticNet, RidgeCV
+from sklearn.linear_model import ElasticNetCV, ElasticNet, RidgeCV, LassoCV
 from sklearn.metrics.regression import r2_score
 from scipy.stats.distributions import hypergeom
 from sklearn.cross_validation import ShuffleSplit, LeaveOneOut
@@ -95,8 +95,8 @@ for ion in ions:
         ys_test -= ys_test.mean()
 
         # Elastic Net ShuffleSplit cross-validation
-        cv = ShuffleSplit(len(ys_train), n_iter=20, test_size=.1)
-        lm = ElasticNetCV(cv=cv, alphas=np.arange(0, 1., .1)).fit(xs_train, ys_train)
+        cv = ShuffleSplit(len(ys_train), n_iter=20, test_size=.2)
+        lm = ElasticNetCV(cv=cv).fit(xs_train, ys_train)
 
         # Evaluate predictions
         meas, pred = ys_test[test].values, lm.predict(xs_test.ix[test])
@@ -153,10 +153,10 @@ print '[INFO] Plot done'
 # ys = ys.loc[:, [not c.startswith('Pheromone') for c in ys]]
 
 # Run Linear models
-lm_f_res, n_iter = [], 20
+lm_f_res, n_iter = [], 10
 # train, _ = list(ShuffleSplit(len(ys.ix[ion]), test_size=.2))[0]
 for ion in ions:
-    for train, _ in ShuffleSplit(len(ys.ix[ion]), test_size=.1, n_iter=n_iter):
+    for train, _ in ShuffleSplit(len(ys.ix[ion]), test_size=.2, n_iter=n_iter):
         ys_train, xs_train = ys.ix[ion, train], xs.ix[kinases, train].T
 
         # Standardization
@@ -164,8 +164,8 @@ for ion in ions:
         ys_train -= ys_train.mean()
 
         # Elastic Net ShuffleSplit cross-validation
-        cv = ShuffleSplit(len(ys_train), test_size=.1, n_iter=n_iter)
-        lm = ElasticNetCV(cv=cv, alphas=np.arange(0, 1., .01)).fit(xs_train, ys_train)
+        cv = ShuffleSplit(len(ys_train), test_size=.2, n_iter=n_iter)
+        lm = ElasticNetCV(cv=cv).fit(xs_train, ys_train)
 
         # Store results
         for f, v in zip(*(kinases, lm.coef_)):
@@ -187,7 +187,7 @@ print lm_f_res.sort('coef_abs', ascending=False)
 # Important features ROC
 source_pal = {'string': '#e74c3c', 'biogrid': '#34495e', 'targets': '#2ecc71'}
 
-roc_table = lm_f_res.groupby(['Metabolites', 'Kinases/Phosphatases'])['pval', 'coef_abs', 'targets', 'biogrid', 'string'].median().reset_index()
+roc_table = lm_f_res.groupby(['Metabolites', 'Kinases/Phosphatases'])['coef_abs', 'targets', 'biogrid', 'string'].median().reset_index()
 
 sns.set(style='ticks', context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
 for source in ['targets', 'biogrid', 'string']:
@@ -266,4 +266,3 @@ print '[INFO] Plot done'
 # plt.savefig('%s/reports/lm_dynamic_heatmap_pearson_gsea.pdf' % wd, bbox_inches='tight')
 # plt.close('all')
 # print '[INFO] Plot done'
-#

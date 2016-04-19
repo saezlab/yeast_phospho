@@ -5,11 +5,10 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import itertools as it
 from yeast_phospho import wd
-from statsmodels.api import add_constant
 from scipy.stats.stats import pearsonr
 from sklearn.metrics import roc_curve, auc
 from scipy.stats.distributions import hypergeom
-from sklearn.linear_model import ElasticNetCV
+from sklearn.linear_model import ElasticNetCV, RidgeCV
 from sklearn.cross_validation import ShuffleSplit, LeaveOneOut
 from sklearn.metrics.regression import r2_score
 from pandas import DataFrame, Series, read_csv, concat, pivot_table
@@ -66,11 +65,11 @@ for ion in ions:
         ys_test -= ys_test.mean()
 
         # # Elastic Net ShuffleSplit cross-validation
-        cv = ShuffleSplit(len(ys_train), n_iter=20, test_size=.2)
-        lm = ElasticNetCV(cv=cv, fit_intercept=False).fit(add_constant(xs_train), ys_train)
+        cv = ShuffleSplit(len(ys_train), n_iter=10, test_size=.1)
+        lm = ElasticNetCV(cv=cv).fit(xs_train, ys_train)
 
         # Evaluate predictions
-        meas, pred = ys_test[test].values, lm.predict(add_constant(xs_test.ix[test]))
+        meas, pred = ys_test[test].values, lm.predict(xs_test.ix[test])
 
         rsquared = r2_score(meas, pred)
         cor, pval = pearsonr(meas, pred)
@@ -133,7 +132,7 @@ for ion in ions:
 
         # Elastic Net ShuffleSplit cross-validation
         cv = ShuffleSplit(len(ys_train), test_size=.2, n_iter=n_iter)
-        lm = ElasticNetCV(cv=cv, fit_intercept=False).fit(add_constant(xs_train), ys_train)
+        lm = ElasticNetCV(cv=cv).fit(xs_train, ys_train)
 
         # Store results
         for f, v in zip(*(tfs, lm.coef_)):
@@ -149,17 +148,18 @@ lm_f_res['targets'] = [int((f, i) in interactions['tfs']['targets']) for i, f in
 lm_f_res['Transcription-factors'] = [acc_name[c] for c in lm_f_res['feature']]
 lm_f_res['Metabolites'] = [met_name[c] for c in lm_f_res['ion']]
 
-lm_f_res.sort('coef_abs', ascending=False).to_csv('%s/tables/metabolites_kinases_interactions.csv' % wd, index=False)
-
+lm_f_res.sort('coef_abs', ascending=False).to_csv('%s/tables/metabolites_tfs_interactions.csv' % wd, index=False)
 print lm_f_res.sort('coef_abs', ascending=False)
 
+
+roc_table = lm_f_res.groupby(['Metabolites', 'Transcription-factors'])['coef_abs', 'targets', 'biogrid', 'string'].median().reset_index()
 
 # Important features ROC
 source_pal = {'string': '#e74c3c', 'biogrid': '#34495e', 'targets': '#2ecc71'}
 
 sns.set(style='ticks', context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
 for source in ['targets', 'biogrid', 'string']:
-    curve_fpr, curve_tpr, thresholds = roc_curve(lm_f_res[source], lm_f_res['coef_abs'])
+    curve_fpr, curve_tpr, thresholds = roc_curve(roc_table[source], roc_table['coef_abs'])
     curve_auc = auc(curve_fpr, curve_tpr)
 
     plt.plot(curve_fpr, curve_tpr, label='%s (area = %0.2f)' % (source, curve_auc), color=source_pal[source])

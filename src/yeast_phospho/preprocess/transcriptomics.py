@@ -1,4 +1,6 @@
 import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 from yeast_phospho import wd
 from yeast_phospho.utilities import get_ko_strains
 from pandas import DataFrame, read_csv, pivot_table
@@ -54,5 +56,4 @@ for condition in conditions:
 # Export processed data-set
 dyn_trans_df_file = wd + 'tables/transcriptomics_dynamic.tab'
 dyn_trans_df.to_csv(dyn_trans_df_file, sep='\t')
-
 print '[INFO] Transcriptomics preprocessing done'
