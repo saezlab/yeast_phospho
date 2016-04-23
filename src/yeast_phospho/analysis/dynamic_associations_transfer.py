@@ -10,11 +10,11 @@ from yeast_phospho import wd
 from pandas.stats.misc import zscore
 from statsmodels.api import add_constant
 from scipy.stats.stats import pearsonr
-from sklearn.metrics import roc_curve, auc
+from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_precision_score
 from sklearn.linear_model import ElasticNetCV, ElasticNet, RidgeCV, LassoCV
 from sklearn.metrics.regression import r2_score
 from scipy.stats.distributions import hypergeom
-from sklearn.cross_validation import ShuffleSplit, LeaveOneOut
+from sklearn.cross_validation import ShuffleSplit
 from pandas import DataFrame, Series, read_csv, concat, pivot_table
 from yeast_phospho.utilities import get_metabolites_name, get_proteins_name
 
@@ -95,8 +95,8 @@ for ion in ions:
         ys_test -= ys_test.mean()
 
         # Elastic Net ShuffleSplit cross-validation
-        cv = ShuffleSplit(len(ys_train), n_iter=20, test_size=.1)
-        lm = ElasticNetCV(cv=cv, alphas=np.arange(.01, .1, .01)).fit(xs_train, ys_train)
+        cv = ShuffleSplit(len(ys_train), n_iter=10, test_size=.2)
+        lm = ElasticNetCV(cv=cv).fit(xs_train, ys_train)
 
         # Evaluate predictions
         meas, pred = ys_test[test].values, lm.predict(xs_test.ix[test])
@@ -134,7 +134,7 @@ lm_res_top['name'] = [met_name[i] for i in lm_res_top['ion']]
 order = [met_name[i] for i in lm_res_top.groupby('ion')['rsquared'].max().sort_values(ascending=False).index]
 
 sns.set(style='ticks', font_scale=.75, context='paper', rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
-g = sns.FacetGrid(lm_res_top, legend_out=True, aspect=1, size=3, sharex=True, sharey=False)
+g = sns.FacetGrid(lm_res_top, legend_out=True, aspect=1.25, size=3, sharex=True, sharey=False)
 g.map(sns.stripplot, 'rsquared', 'name', 'condition', palette=palette, jitter=False, size=4, split=False, edgecolor='white', linewidth=.3, orient='h', order=order, color='#808080')
 plt.xlim([0, 1])
 g.add_legend(label_order=label_order)
@@ -148,15 +148,11 @@ print '[INFO] Plot done'
 
 
 # -- Predict associations
-# # Filter Pheromone condition
-# xs = xs.loc[:, [not c.startswith('Pheromone') for c in xs]]
-# ys = ys.loc[:, [not c.startswith('Pheromone') for c in ys]]
-
 # Run Linear models
-lm_f_res, n_iter = [], 10
+lm_f_res = []
 # train, _ = list(ShuffleSplit(len(ys.ix[ion]), test_size=.2))[0]
 for ion in ions:
-    for train, _ in ShuffleSplit(len(ys.ix[ion]), test_size=.2, n_iter=n_iter):
+    for train, _ in ShuffleSplit(len(ys.ix[ion]), test_size=.2, n_iter=20):
         ys_train, xs_train = ys.ix[ion, train], xs.ix[kinases, train].T
 
         # Standardization
@@ -164,8 +160,8 @@ for ion in ions:
         ys_train -= ys_train.mean()
 
         # Elastic Net ShuffleSplit cross-validation
-        cv = ShuffleSplit(len(ys_train), test_size=.2, n_iter=n_iter)
-        lm = ElasticNetCV(cv=cv, alphas=np.arange(.01, .1, .01)).fit(xs_train, ys_train)
+        cv = ShuffleSplit(len(ys_train), test_size=.2, n_iter=10)
+        lm = ElasticNetCV(cv=cv).fit(xs_train, ys_train)
 
         # Store results
         for f, v in zip(*(kinases, lm.coef_)):
@@ -208,6 +204,25 @@ plt.savefig('%s/reports/lm_dynamic_roc_gsea.pdf' % wd, bbox_inches='tight')
 plt.close('all')
 print '[INFO] Plot done'
 
+# APRC
+sns.set(style='ticks', context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
+for source in ['targets', 'biogrid', 'string']:
+    curve_fpr, curve_tpr, _ = precision_recall_curve(roc_table[source], roc_table['coef_abs'])
+    curve_auc = average_precision_score(roc_table[source], roc_table['coef_abs'])
+
+    plt.plot(curve_fpr, curve_tpr, label='%s (area = %0.2f)' % (source, curve_auc), color=source_pal[source])
+
+sns.despine(trim=True)
+plt.xlabel('Recal')
+plt.ylabel('Precision')
+plt.ylim([0.0, 1.05])
+plt.xlim([0.0, 1.0])
+plt.legend(loc='lower left')
+plt.gcf().set_size_inches(3, 3)
+plt.savefig('%s/reports/lm_dynamic_prc_gsea.pdf' % wd, bbox_inches='tight')
+plt.close('all')
+print '[INFO] Plot done'
+
 # # Hypergeometric test
 # # hypergeom.sf(x, M, n, N, loc=0)
 # # M: total number of objects,
@@ -229,19 +244,23 @@ print '[INFO] Plot done'
 
 # Top predicted metabolites features importance
 lm_res_top_features = lm_f_res[[i in order for i in lm_f_res['Metabolites']]]
-t_matrix = pivot_table(lm_res_top_features, index='Metabolites', columns='Kinases/Phosphatases', values='coef', aggfunc=np.mean)
+lm_res_top_features = lm_res_top_features.groupby(['ion', 'feature'])['coef'].mean().reset_index()
+lm_res_top_features['Kinases/Phosphatases'] = [acc_name[c] for c in lm_res_top_features['feature']]
+lm_res_top_features['Metabolites'] = [met_name[c] for c in lm_res_top_features['ion']]
+lm_res_top_features['cor'], lm_res_top_features['pval'] = zip(*([pearsonr(xs.ix[f], ys.ix[i]) for f, i in lm_res_top_features[['feature', 'ion']].values]))
+lm_res_top_features['fdr'] = multipletests(lm_res_top_features['pval'], method='fdr_bh')[1]
+lm_res_top_features['coef (abs)'] = lm_res_top_features['coef'].abs()
+lm_res_top_features = lm_res_top_features.sort('coef (abs)', ascending=False)[['Metabolites', 'ion', 'Kinases/Phosphatases', 'feature', 'coef', 'coef (abs)', 'cor', 'pval', 'fdr']]
+lm_res_top_features.to_csv('%s/tables/metabolites_top_kinases_interactions.csv' % wd, index=False)
 
-top_features_cor = [(feature, ion, pearsonr(xs.ix[feature], ys.ix[ion])) for feature, ion in it.product(set(lm_res_top_features['feature']), set(lm_res_top_features['ion']))]
-top_features_cor = DataFrame([(f, i, c, p) for f, i, (c, p) in top_features_cor], columns=['feature', 'ion', 'cor', 'pval'])
-top_features_cor['fdr'] = multipletests(top_features_cor['pval'], method='fdr_bh')[1]
-signif_features = {(f, i) for f, i in top_features_cor[top_features_cor['fdr'] < .05][['feature', 'ion']].values}
+t_matrix = pivot_table(lm_res_top_features, index='Metabolites', columns='Kinases/Phosphatases', values='coef')
 
 cmap = sns.diverging_palette(220, 10, n=9, as_cmap=True)
 sns.set(context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
-g = sns.clustermap(t_matrix, figsize=(4, 6), linewidth=.5, cmap=cmap, metric='correlation')
+g = sns.clustermap(t_matrix, figsize=(4, 4), linewidth=.5, cmap=cmap, metric='correlation')
 
-for r, c, feature, ion in lm_res_top_features[['Metabolites', 'Kinases/Phosphatases', 'feature', 'ion']].values:
-    if c in g.data2d.columns and r in g.data2d.index and (feature, ion) in signif_features and t_matrix.abs().ix[r, c] > .1:
+for r, c, fdr, coef in lm_res_top_features[['Metabolites', 'Kinases/Phosphatases', 'fdr', 'coef']].values:
+    if c in g.data2d.columns and r in g.data2d.index and fdr < .05 and abs(coef) > 0.05:
         text_x, text_y = (list(g.data2d.columns).index(c), (g.data2d.shape[0] - 1) - list(g.data2d.index).index(r))
         g.ax_heatmap.annotate('*', (text_x, text_y), xytext=(text_x + .5, text_y + .2), ha='center', va='baseline', color='#808080')
 

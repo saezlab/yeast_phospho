@@ -29,9 +29,14 @@ m_untargeted.index = ['; '.join(annot['%.4f' % i]) for i in m_untargeted.index]
 metabolites = list(set(m_targeted.index).intersection(m_untargeted.index))
 
 samples = list(set(m_targeted).intersection(m_untargeted))
-samples = [c for c in samples if (c.split('_')[1] not in ['0', '25']) and (not c.startswith('NaCl+alpha_'))]
+samples = [c for c in samples if (c.split('_')[1] not in ['0', '25']) and (not c.startswith('NaCl+alpha_') and not c.startswith('control'))]
 
 m_targeted, m_untargeted = m_targeted.ix[metabolites, samples], m_untargeted.ix[metabolites, samples]
+
+samples = ['alpha_60', 'alpha_240', 'alpha_300', 'alpha_540', 'alpha_600', 'alpha_900', 'alpha_1200', 'alpha_1500', 'alpha_2100', 'alpha_2700', 'NaCl_60', 'NaCl_240', 'NaCl_300', 'NaCl_540', 'NaCl_600', 'NaCl_900', 'NaCl_1200', 'NaCl_1500', 'NaCl_2100', 'NaCl_2700']
+m_targeted[samples].to_csv('/Users/emanuel/Google Drive/Yeast Phospho/supplementary/metabolomics_targeted.csv')
+
+m_untargeted[samples].to_csv('/Users/emanuel/Google Drive/Yeast Phospho/supplementary/metabolomics_untargeted.csv')
 
 # -- Plot
 plot_df = [(m, c, m_targeted.ix[m, c], m_untargeted.ix[m, c]) for m, c in it.product(metabolites, samples)]
