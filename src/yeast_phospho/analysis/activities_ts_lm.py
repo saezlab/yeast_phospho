@@ -29,13 +29,13 @@ tf_activity_dyn['tf_name'] = [acc_name[k] for k in tf_activity_dyn['tf']]
 # Plot
 palette = {'Rapamycin': '#D25A2B', 'N_upshift': '#5EACEC', 'N_downshift': '#4783C7'}
 
-features = ['YKL062W', 'YMR037C', 'YMR019W', 'YHR178W', 'YER040W']
+features = ['YKL062W', 'YMR037C', 'YER040W']
 
 plot_df = tf_activity_dyn[[k in features for k in tf_activity_dyn['tf']]].dropna()
 
 sns.set(style='ticks', context='paper', rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3}, font_scale=.75)
 g = sns.FacetGrid(plot_df, col='tf_name', sharex=False, sharey=False, size=1.5, aspect=1, legend_out=True, col_order=[acc_name[p] for p in features])
-g.map_dataframe(sns.tsplot, time='time', unit='unit', condition='stimulation', value='activity', color=palette, marker='o')
+g.map_dataframe(sns.tsplot, time='time', unit='unit', condition='stimulation', value='activity', color=palette, marker='o', lw=.3)
 g.map(plt.axhline, y=0, ls='-', lw=0.3, c='black', alpha=.5)
 g.set_titles(col_template='{col_name}')
 g.set_axis_labels('Time (minutes)', 'Activity')
@@ -62,7 +62,7 @@ k_activity_dyn['kinase_name'] = [acc_name[k] for k in k_activity_dyn['kinase']]
 # Plot
 palette = {'Rapamycin': '#D25A2B', 'N_upshift': '#5EACEC', 'N_downshift': '#4783C7'}
 
-features = ['YJR066W', 'YNL183C', 'YFL033C', 'YJL141C', 'YPL153C']
+features = ['YNL183C', 'YFL033C', 'YJL141C']
 phosphatases = []
 
 plot_df = k_activity_dyn[[k in features for k in k_activity_dyn['kinase']]].dropna()
@@ -72,7 +72,7 @@ plot_df = plot_df.drop([i for k in features for c in palette if len(plot_df[(plo
 
 sns.set(style='ticks', context='paper', rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3}, font_scale=.75)
 g = sns.FacetGrid(plot_df, col='kinase_name', sharex=False, sharey=False, size=1.5, aspect=1, legend_out=True, col_order=[acc_name[p] for p in features])
-g.map_dataframe(sns.tsplot, time='time', unit='unit', condition='stimulation', value='activity', color=palette, marker='o')
+g.map_dataframe(sns.tsplot, time='time', unit='unit', condition='stimulation', value='activity', color=palette, marker='o', lw=.3)
 g.map(plt.axhline, y=0, ls='-', lw=0.3, c='black', alpha=.5)
 g.set_titles(col_template='{col_name}')
 g.set_axis_labels('Time (minutes)', 'Activity')
@@ -98,7 +98,7 @@ k_activity_comb_dyn['kinase_name'] = [acc_name[k] for k in k_activity_comb_dyn['
 
 
 # Plot
-features = ['YDL159W', 'YLR113W', 'YJL128C', 'YJR066W', 'YDL006W', 'YER089C', 'YBL056W']
+features = ['YDL159W', 'YLR113W', 'YJL128C']
 phosphatases = ['YDL006W', 'YER089C', 'YBL056W']
 
 plot_df = k_activity_comb_dyn[[k in features for k in k_activity_comb_dyn['kinase']]].dropna()
@@ -108,7 +108,7 @@ palette = {'NaCl': '#CC2229', 'Pheromone': '#6FB353'}
 
 sns.set(style='ticks', context='paper', rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3}, font_scale=.75)
 g = sns.FacetGrid(plot_df, col='kinase_name', sharex=False, sharey=False, size=1.5, aspect=1, legend_out=True, col_order=[acc_name[p] for p in features])
-g.map_dataframe(sns.tsplot, time='time', unit='unit', condition='stimulation', value='activity', color=palette, marker='o')
+g.map_dataframe(sns.tsplot, time='time', unit='unit', condition='stimulation', value='activity', color=palette, marker='o', lw=.3)
 g.map(plt.axhline, y=0, ls='-', lw=0.3, c='black', alpha=.5)
 g.set_titles(col_template='{col_name}')
 g.set_axis_labels('Time (minutes)', 'Activity')
