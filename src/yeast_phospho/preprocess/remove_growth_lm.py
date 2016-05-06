@@ -12,21 +12,14 @@ from yeast_phospho.utilities import pearson, regress_out
 
 # Regress-out Factor correlated with growth rate
 datasets = [
-    # GSEA
+    # Linear regression
     ('metabolomics_steady_state', 'Metabolomics', 'strain_relative_growth_rate.txt', 'Genetic perturbations', 'PC1'),
-    ('kinase_activity_steady_state_gsea', 'Kinases/Phosphatases', 'strain_relative_growth_rate.txt', 'Genetic perturbations', 'PC1'),
-    ('tf_activity_steady_state_gsea', 'TFs', 'strain_relative_growth_rate.txt', 'Genetic perturbations', 'PC1'),
+    ('kinase_activity_steady_state', 'Kinases/Phosphatases', 'strain_relative_growth_rate.txt', 'Genetic perturbations', 'PC1'),
+    ('tf_activity_steady_state', 'TFs', 'strain_relative_growth_rate.txt', 'Genetic perturbations', 'PC2'),
 
     ('metabolomics_dynamic', 'Metabolomics', 'dynamic_growth.txt', 'Nitrogen metabolism', 'PC2'),
-    ('kinase_activity_dynamic_gsea', 'Kinases/Phosphatases', 'dynamic_growth.txt', 'Nitrogen metabolism', 'PC3'),
-    ('tf_activity_dynamic_gsea', 'TFs', 'dynamic_growth.txt', 'Nitrogen metabolism', 'PC2'),
-
-    # # Linear regression
-    # ('kinase_activity_steady_state', 'Kinases/Phosphatases', 'strain_relative_growth_rate.txt', 'Genetic perturbations', 'PC3'),
-    # ('tf_activity_steady_state', 'TFs', 'strain_relative_growth_rate.txt', 'Genetic perturbations', 'PC2'),
-    #
-    # ('kinase_activity_dynamic', 'Kinases/Phosphatases', 'dynamic_growth.txt', 'Nitrogen metabolism', 'PC1'),
-    # ('tf_activity_dynamic', 'TFs', 'dynamic_growth.txt', 'Nitrogen metabolism', 'PC1')
+    ('kinase_activity_dynamic', 'Kinases/Phosphatases', 'dynamic_growth.txt', 'Nitrogen metabolism', 'PC2'),
+    ('tf_activity_dynamic', 'TFs', 'dynamic_growth.txt', 'Nitrogen metabolism', 'PC3')
 ]
 
 n_components = 10
@@ -81,5 +74,5 @@ for df_file, df_type, growth_file, dataset_type, pc in datasets:
     df.to_csv('%s/tables/%s_no_growth.tab' % (wd, df_file), sep='\t')
     print '[INFO] Growth regressed-out: ', 'tables/%s_no_growth.tab' % df_file
 
-plt.savefig('%s/reports/PCA_growth_correlation_gsea.pdf' % wd, bbox_inches='tight')
+plt.savefig('%s/reports/PCA_growth_correlation.pdf' % wd, bbox_inches='tight')
 plt.close('all')

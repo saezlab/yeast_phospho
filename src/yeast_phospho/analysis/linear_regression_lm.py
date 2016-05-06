@@ -59,7 +59,7 @@ tf_activity_dyn_ng = tf_activity_dyn_ng[tf_activity_dyn_ng.std(1) > .4]
 
 
 # Dynamic combination
-k_activity_dyn_comb_ng = read_csv('%s/tables/kinase_activity_dynamic_combination.tab' % wd, sep='\t', index_col=0)
+k_activity_dyn_comb_ng = read_csv('%s/tables/kinase_activity_dynamic_combination_gsea.tab' % wd, sep='\t', index_col=0)
 k_activity_dyn_comb_ng = k_activity_dyn_comb_ng[[c for c in k_activity_dyn_comb_ng if not c.startswith('NaCl+alpha_')]]
 k_activity_dyn_comb_ng = k_activity_dyn_comb_ng[(k_activity_dyn_comb_ng.count(1) / k_activity_dyn_comb_ng.shape[1]) > .75].replace(np.NaN, 0.0)
 
@@ -128,9 +128,15 @@ lm_betas = [c[1] for c in lm_res]
 print '[INFO] Regressions done'
 
 
+# -- Export linear regression results
+# Export results
+with open('%s/tables/linear_regressions_lm.pickle' % wd, 'wb') as handle:
+    pickle.dump(lm_res, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
 # -- Plot linear regression predictions correlation
 palette = {'TFs': '#34495e', 'Kinases': '#3498db'}
-condition_name_map = {'Combination': 'NaCl + Pheromone', 'Dynamic': 'Nitrogen metabolism', 'Steady-state': 'Steady-state'}
+condition_name_map = {'Combination': 'NaCl + Pheromone', 'Dynamic': 'Nitrogen metabolism', 'Steady-state': 'Genetic perturbations'}
 
 plot_df = lm_cor.copy()
 plot_df['dataset'] = [condition_name_map[i] for i in plot_df['dataset']]
@@ -140,12 +146,12 @@ sns.set(style='ticks', font_scale=.75, context='paper', rc={'axes.linewidth': .3
 g = sns.FacetGrid(plot_df, row='corr_type', legend_out=True, aspect=1, size=1.5, sharex=True, sharey=True)
 g.map(sns.boxplot, 'cor', 'condition', 'feature', palette=palette, sym='')
 g.map(sns.stripplot, 'cor', 'condition', 'feature', palette=palette, jitter=True, size=2, split=True, edgecolor='white', linewidth=.3)
-g.map(plt.axvline, x=0, ls='-', lw=.1)
+g.map(plt.axvline, x=0, ls='-', lw=.1, c='gray')
 plt.xlim([-1, 1])
 g.add_legend()
 g.set_axis_labels('Pearson correlation\n(predicted vs measured)', '')
 g.set_titles(row_template='{row_name}')
 g.fig.subplots_adjust(wspace=.05, hspace=.2)
 sns.despine(trim=True)
-plt.savefig('%s/reports/linear_regression_loo_cv_lm.pdf' % wd, bbox_inches='tight')
+plt.savefig('%s/reports/linear_regression_loo_cv.pdf' % wd, bbox_inches='tight')
 plt.close('all')
