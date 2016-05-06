@@ -44,7 +44,7 @@ plot_df = DataFrame(plot_df, columns=['metabolite', 'condition', 'LC-MS', 'QTOF'
 
 color = '#808080'
 
-sns.set(style='ticks', context='paper', rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
+sns.set(style='ticks', context='paper', rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3}, font_scale=1.5)
 g = sns.jointplot(
     'LC-MS', 'QTOF', plot_df, 'reg', color=color, joint_kws={'scatter_kws': {'s': 40, 'edgecolor': 'w', 'linewidth': .5}},
     marginal_kws={'hist': False, 'rug': True}, annot_kws={'template': 'Spearman: {val:.2g}, p-value: {p:.1e}'}, space=0,

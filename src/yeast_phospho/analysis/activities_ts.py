@@ -29,7 +29,7 @@ tf_activity_dyn['tf_name'] = [acc_name[k] for k in tf_activity_dyn['tf']]
 # Plot
 palette = {'Rapamycin': '#D25A2B', 'N_upshift': '#5EACEC', 'N_downshift': '#4783C7'}
 
-features = ['YKL062W', 'YMR037C', 'YER040W']
+features = ['YKL062W', 'YMR037C', 'YER040W', 'YBR083W']
 
 plot_df = tf_activity_dyn[[k in features for k in tf_activity_dyn['tf']]].dropna()
 
