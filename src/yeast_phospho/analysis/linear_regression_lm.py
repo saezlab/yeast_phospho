@@ -133,6 +133,10 @@ print '[INFO] Regressions done'
 with open('%s/tables/linear_regressions_lm.pickle' % wd, 'wb') as handle:
     pickle.dump(lm_res, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+# # Linear regression results
+# with open('%s/tables/linear_regressions_lm.pickle' % wd, 'rb') as handle:
+#     lm_res = pickle.load(handle)
+
 
 # -- Plot linear regression predictions correlation
 palette = {'TFs': '#34495e', 'Kinases': '#3498db'}

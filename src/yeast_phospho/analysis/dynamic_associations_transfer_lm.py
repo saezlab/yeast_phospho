@@ -75,6 +75,13 @@ conditions = ['Pheromone', 'NaCl', 'N_downshift', 'N_upshift', 'Rapamycin']
 ys = concat([metabolomics_dyn_ng.ix[ions], metabolomics_dyn_comb.ix[ions]], axis=1)
 xs = concat([k_activity_dyn_ng_gsea.ix[kinases], k_activity_dyn_comb_ng.ix[kinases]], axis=1)
 
+# x = xs.ix['YJL164C']
+# print [(k, v) for k, v in met_name.items() if 'Proline' in v]
+# y = ys.ix['114.0600', x.index]
+# '%.2f, %.2e' % pearsonr(x, y)
+#
+# '%.2f, %.2e' % pearsonr(xs.ix['YFL033C'], xs.ix['YJR066W'])
+
 # -- Predict experiments
 # condition, ion = 'N_downshift', '237.0300'
 # condition, ion = 'N_upshift', '188.0600'
@@ -253,7 +260,11 @@ lm_res_top_features['coef (abs)'] = lm_res_top_features['coef'].abs()
 lm_res_top_features = lm_res_top_features.sort('coef (abs)', ascending=False)[['Metabolites', 'ion', 'Kinases/Phosphatases', 'feature', 'coef', 'coef (abs)', 'cor', 'pval', 'fdr']]
 lm_res_top_features.to_csv('%s/tables/metabolites_top_kinases_interactions_lm.csv' % wd, index=False)
 
+# lm_res_top_features = read_csv('%s/tables/metabolites_top_kinases_interactions_lm.csv' % wd)
+
 t_matrix = pivot_table(lm_res_top_features, index='Metabolites', columns='Kinases/Phosphatases', values='coef')
+
+# '%.2f, %.2e' % pearsonr(t_matrix['RIM15'], t_matrix['TPK1'])
 
 cmap = sns.diverging_palette(220, 10, n=9, as_cmap=True)
 sns.set(context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})

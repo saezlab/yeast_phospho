@@ -16,7 +16,7 @@ from sklearn.metrics.regression import r2_score
 from scipy.stats.distributions import hypergeom
 from sklearn.cross_validation import ShuffleSplit
 from pandas import DataFrame, Series, read_csv, concat, pivot_table
-from yeast_phospho.utilities import get_metabolites_name, get_proteins_name
+from yeast_phospho.utilities import get_metabolites_name, get_proteins_name, get_kinases_targets
 
 
 # -- General vars
@@ -74,6 +74,14 @@ conditions = ['Pheromone', 'NaCl', 'N_downshift', 'N_upshift', 'Rapamycin']
 
 ys = concat([metabolomics_dyn_ng.ix[ions], metabolomics_dyn_comb.ix[ions]], axis=1)
 xs = concat([k_activity_dyn_ng_gsea.ix[kinases], k_activity_dyn_comb_ng.ix[kinases]], axis=1)
+
+# x = xs.ix['YJL164C'].T
+# y = ys.ix['114.0600', x.index]
+#
+# '%.2f, %.2e' % pearsonr(x, y)
+
+# '%.2f, %.2e' % pearsonr(xs.ix['YFL033C'], xs.ix['YJR066W'])
+
 
 # -- Predict experiments
 # condition, ion = 'N_downshift', '237.0300'
