@@ -186,7 +186,9 @@ lm_f_res['Kinases/Phosphatases'] = [acc_name[c] for c in lm_f_res['feature']]
 lm_f_res['Metabolites'] = [met_name[c] for c in lm_f_res['ion']]
 
 lm_f_res.sort('coef_abs', ascending=False).to_csv('%s/tables/metabolites_kinases_interactions.csv' % wd, index=False)
+# lm_f_res = read_csv('%s/tables/metabolites_kinases_interactions.csv' % wd)
 print lm_f_res.sort('coef_abs', ascending=False)
+
 
 # Important features ROC
 source_pal = {'string': '#e74c3c', 'biogrid': '#34495e', 'targets': '#2ecc71'}
