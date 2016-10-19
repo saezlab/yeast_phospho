@@ -36,7 +36,7 @@ plot_df = plot_df[[i in m_to_show for i in plot_df['metabolite']]]
 plot_df['condition'] = ['pheromone' if i == 'alpha' else i for i in plot_df['condition']]
 
 sns.set(style='ticks', context='paper', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3})
-g = sns.FacetGrid(plot_df, col='metabolite', col_wrap=4, sharey=False, legend_out=True, aspect=1., size=1.5)
+g = sns.FacetGrid(plot_df, col='metabolite', col_wrap=2, sharey=False, legend_out=True, aspect=1., size=1.5)
 g.map_dataframe(sns.tsplot, time='time', unit='replicate', condition='condition', value='fc', estimator=nanmedian, color=palette, err_kws={'lw': 0}, lw=0.3)
 g.map(plt.axhline, ls='-', lw=.3, c='gray')
 g.set_titles('{col_name}')
