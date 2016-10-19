@@ -1,6 +1,6 @@
 # Systematic analysis of transcriptional and post-transcriptional regulation of metabolism in yeast
 
-[Gonçalves et al.](http://biorxiv.org/content/early/2016/06/23/057398)
+bioRxiv: [Gonçalves et al.](http://biorxiv.org/content/early/2016/06/23/057398)
 
 Cells react to extracellular perturbations with complex and intertwined responses. Systematic identification of the regulatory mechanisms that control these responses is still a challenge and requires tailored analyses integrating different types of molecular data. 
 
