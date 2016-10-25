@@ -170,6 +170,13 @@ def count_percentage(df):
     return float(df.count().sum()) / np.prod(df.shape) * 100
 
 
+def randomise_matrix(matrix):
+    random_df = matrix.copy()
+    movers = ~np.isnan(random_df.values)
+    random_df.values[movers] = np.random.permutation(random_df.values[movers])
+    return random_df
+
+
 # ---- Similarity scores
 
 AA_PRIORS_YEAST = Series({
