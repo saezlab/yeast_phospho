@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from pandas import read_csv, DataFrame, Series
 from scipy.stats.stats import spearmanr, pearsonr, ttest_ind
 from yeast_phospho.utilities import get_metabolites_name
+from yeast_phospho.utilities import randomise_matrix
 
 
 # -- Imports
@@ -26,7 +27,7 @@ print 'assoc', assoc.shape
 met_name = get_metabolites_name()
 met_name = {'%.4f' % float(k): met_name[k] for k in met_name if len(met_name[k].split('; ')) == 1}
 
-metabolomics = read_csv('./tables/metabolomics_steady_state_no_growth.tab', sep='\t', index_col=0)
+metabolomics = read_csv('./tables/metabolomics_steady_state.tab', sep='\t', index_col=0)
 metabolomics = metabolomics[metabolomics.std(1) > .4]
 metabolomics.index = ['%.2f' % i for i in metabolomics.index]
 
@@ -36,15 +37,27 @@ print 'metabolomics', metabolomics.shape
 
 
 # --
+metabolomics_r = {i: randomise_matrix(metabolomics) for i in range(100)}
+
+
+# --
 val_df = []
 for ion, feature, coef, type in assoc[['ion', 'feature', 'coef', 'type']].values:
     if ion in metabolomics.index and feature in metabolomics.columns:
-        metabolite_zscore = metabolomics.ix[ion, feature]
-        coef_discrete = 'Negative' if coef < 0 else 'Positive'
+        val_df.append({
+            'feature': feature, 'ion': ion, 'coef': coef,
+            'coef_binary': 'Negative' if coef < 0 else 'Positive',
+            'zscore': metabolomics.ix[ion, feature], 'zscore_abs': abs(metabolomics.ix[ion, feature]),
+            'type': type, 'random': 'No'
+        })
 
-        res = {'feature': feature, 'ion': ion, 'coef': coef, 'coef_binary': coef_discrete, 'zscore': metabolite_zscore, 'type': type}
-        val_df.append(res)
-        print res
+        for i in metabolomics_r:
+            val_df.append({
+                'feature': feature, 'ion': ion, 'coef': coef,
+                'coef_binary': 'Negative' if coef < 0 else 'Positive',
+                'zscore': metabolomics_r[i].ix[ion, feature], 'zscore_abs': abs(metabolomics_r[i].ix[ion, feature]),
+                'type': type, 'random': 'Yes'
+            })
 
 
 val_df = DataFrame(val_df)
@@ -53,26 +66,40 @@ print val_df
 
 
 # Plot
-plot_df = val_df[val_df['coef'].abs() > .1]
+plot_df = val_df[val_df['coef'].abs() != 0]
 print plot_df
 
 t, pval = ttest_ind(
-    plot_df.loc[(plot_df['coef_binary'] == 'Negative'), 'zscore'],
-    plot_df.loc[(plot_df['coef_binary'] == 'Positive'), 'zscore']
+    plot_df.loc[plot_df['random'] == 'Yes', 'zscore_abs'],
+    plot_df.loc[plot_df['random'] == 'No', 'zscore_abs']
 )
 print t, pval
 
 # Plot
 sns.set(style='ticks', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3, 'lines.linewidth': .75})
-sns.boxplot('coef_binary', 'zscore', data=plot_df, color='#808080', sym='')
-sns.stripplot('coef_binary', 'zscore', data=plot_df, color='#808080', edgecolor='white', linewidth=.3, jitter=.2)
+sns.boxplot('random', 'zscore_abs', data=plot_df, color='#808080', fliersize=2)
+# sns.stripplot('random', 'zscore_abs', data=plot_df, color='#808080', edgecolor='white', linewidth=.3, jitter=.2, size=2)
 plt.axhline(0, ls='-', lw=.1, c='gray')
 sns.despine()
-plt.xlabel('Association')
-plt.ylabel('Metabolite (zscore)')
+plt.xlabel('Randomisation')
+plt.ylabel('Metabolite (abs(zscore))')
 plt.title('Feature knockdown\n(p-value %.2e)' % pval)
 plt.gcf().set_size_inches(1.5, 3)
 plt.legend(loc=4)
 plt.savefig('./reports/associations_metabolomics_cor_boxplots_internal.pdf', bbox_inches='tight')
+plt.close('all')
+print '[INFO] Plot done'
+
+
+sns.set(style='ticks', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3, 'lines.linewidth': .75})
+sns.boxplot('coef_binary', 'zscore', 'random', plot_df, fliersize=2)
+plt.axhline(0, ls='-', lw=.1, c='gray')
+sns.despine()
+plt.xlabel('Randomisation')
+plt.ylabel('Metabolite (zscore)')
+plt.title('Feature knockdown')
+plt.gcf().set_size_inches(1.5, 3)
+plt.legend(loc=4)
+plt.savefig('./reports/associations_metabolomics_cor_boxplots_internal_types.pdf', bbox_inches='tight')
 plt.close('all')
 print '[INFO] Plot done'
