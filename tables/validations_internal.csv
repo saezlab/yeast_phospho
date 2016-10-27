@@ -1,0 +1,8 @@
+coef,coef_binary,feature,ion,type,zscore
+-0.094252284,Negative,YIL095W,606.07,Kinase/Phosphatase,-0.127735350917
+-0.047954715,Negative,YJL164C,606.07,Kinase/Phosphatase,0.970603566652
+-0.034744104,Negative,YBL088C,606.07,Kinase/Phosphatase,0.451639070648
+-0.017909004,Negative,YOR061W,606.07,Kinase/Phosphatase,0.311601416099
+-0.009999039,Negative,YIL035C,606.07,Kinase/Phosphatase,0.685978464894
+-0.008145928,Negative,YFL033C,606.07,Kinase/Phosphatase,-0.54188462609
+0.004278354,Positive,YJR066W,606.07,Kinase/Phosphatase,-0.0717693595063

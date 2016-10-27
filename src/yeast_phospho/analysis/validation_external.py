@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # Copyright (C) 2016  Emanuel Goncalves
-from mtkirc.utils import gkn
 
 import numpy as np
 import seaborn as sns
@@ -51,6 +50,7 @@ for metabolite, feature, coef, type in assoc[['Metabolites', 'feature', 'coef', 
 
 
 val_df = DataFrame(val_df)
+val_df.to_csv('./tables/validations_external.csv', index=False)
 print val_df
 
 # Plot
@@ -74,7 +74,7 @@ plt.ylabel('Metabolite (zscore)')
 plt.title('Feature knockdown\n(p-value %.2e)' % pval)
 plt.gcf().set_size_inches(1.5, 3)
 plt.legend(loc=4)
-plt.savefig('./reports/associations_metabolomics_cor_boxplots.pdf', bbox_inches='tight')
+plt.savefig('./reports/associations_metabolomics_cor_boxplots_external.pdf', bbox_inches='tight')
 plt.close('all')
 print '[INFO] Plot done'
 
