@@ -25,10 +25,10 @@ print 'assoc', assoc.shape
 
 # -- Metabolomics
 met_name = get_metabolites_name()
-met_name = {'%.4f' % float(k): met_name[k] for k in met_name if len(met_name[k].split('; ')) == 1}
+met_name = {'%.2f' % float(k): met_name[k] for k in met_name if len(met_name[k].split('; ')) == 1}
 
 metabolomics = read_csv('./tables/metabolomics_steady_state.tab', sep='\t', index_col=0)
-metabolomics = metabolomics[metabolomics.std(1) > .4]
+# metabolomics = metabolomics[metabolomics.std(1) > .4]
 metabolomics.index = ['%.2f' % i for i in metabolomics.index]
 
 dup = Series(dict(zip(*(np.unique(metabolomics.index, return_counts=True))))).sort_values()
@@ -66,19 +66,20 @@ print val_df
 
 
 # Plot
-plot_df = val_df[val_df['coef'].abs() != 0]
-print plot_df
+plot_df = val_df[val_df['coef'].abs() > .1]
+print plot_df[plot_df['random'] == 'No'].sort('zscore_abs')
 
 t, pval = ttest_ind(
-    plot_df.loc[plot_df['random'] == 'Yes', 'zscore_abs'],
-    plot_df.loc[plot_df['random'] == 'No', 'zscore_abs']
+    plot_df.loc[(plot_df['random'] == 'Yes') & (plot_df['coef_binary'] == 'Negative'), 'zscore_abs'],
+    plot_df.loc[(plot_df['random'] == 'No') & (plot_df['coef_binary'] == 'Negative'), 'zscore_abs'],
+    equal_var=False
 )
 print t, pval
 
 # Plot
 sns.set(style='ticks', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3, 'lines.linewidth': .75})
 sns.boxplot('random', 'zscore_abs', data=plot_df, color='#808080', fliersize=2)
-# sns.stripplot('random', 'zscore_abs', data=plot_df, color='#808080', edgecolor='white', linewidth=.3, jitter=.2, size=2)
+sns.stripplot('random', 'zscore_abs', data=plot_df, color='#808080', edgecolor='white', linewidth=.3, jitter=.2, size=2)
 plt.axhline(0, ls='-', lw=.1, c='gray')
 sns.despine()
 plt.xlabel('Randomisation')
@@ -91,15 +92,16 @@ plt.close('all')
 print '[INFO] Plot done'
 
 
-sns.set(style='ticks', font_scale=.75, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3, 'lines.linewidth': .75})
-sns.boxplot('coef_binary', 'zscore', 'random', plot_df, fliersize=2)
+sns.set(style='ticks', font_scale=.5, rc={'axes.linewidth': .3, 'xtick.major.width': .3, 'ytick.major.width': .3, 'lines.linewidth': .75})
+sns.boxplot('coef_binary', 'zscore', 'random', plot_df[plot_df['coef_binary'] == 'Negative'], fliersize=2, color='#808080', hue_order=['Yes', 'No'], linewidth=.3)
+# sns.stripplot('coef_binary', 'zscore', 'random', data=plot_df, edgecolor='white', linewidth=.3, jitter=.2, size=2)
 plt.axhline(0, ls='-', lw=.1, c='gray')
 sns.despine()
-plt.xlabel('Randomisation')
+plt.xlabel('Association')
 plt.ylabel('Metabolite (zscore)')
-plt.title('Feature knockdown')
-plt.gcf().set_size_inches(1.5, 3)
-plt.legend(loc=4)
+plt.title('Feature knockdown\n(p-value %.2e)' % pval)
+plt.gcf().set_size_inches(1, 3)
+plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), title='Randomised')
 plt.savefig('./reports/associations_metabolomics_cor_boxplots_internal_types.pdf', bbox_inches='tight')
 plt.close('all')
 print '[INFO] Plot done'

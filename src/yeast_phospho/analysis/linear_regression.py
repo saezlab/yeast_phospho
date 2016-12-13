@@ -5,8 +5,9 @@ import matplotlib.pyplot as plt
 from yeast_phospho import wd
 from sklearn.linear_model import ElasticNet
 from sklearn.cross_validation import LeaveOneOut
-from pandas import DataFrame, read_csv
+from pandas import DataFrame, read_csv, Series
 from yeast_phospho.utilities import pearson
+from matplotlib_venn import venn3, venn3_circles, venn2, venn2_circles
 
 
 # -- Import
@@ -66,6 +67,52 @@ k_activity_dyn_comb_ng = k_activity_dyn_comb_ng[(k_activity_dyn_comb_ng.count(1)
 metabolomics_dyn_comb = read_csv('%s/tables/metabolomics_dynamic_combination.csv' % wd, index_col=0)[k_activity_dyn_comb_ng.columns]
 metabolomics_dyn_comb = metabolomics_dyn_comb[metabolomics_dyn_comb.std(1) > .4]
 metabolomics_dyn_comb.index = ['%.4f' % i for i in metabolomics_dyn_comb.index]
+
+
+# -- Venn diagrams
+pal = Series({
+    'Genetic perturbations': '#CC2229',
+    'Nitrogen metabolism': '#3498db',
+    'NaCl + Pheromone': '#6FB353'
+})
+
+# Metabolomics
+m_features = {
+    'Genetic perturbations': {'%.2f' % i for i in read_csv('%s/tables/metabolomics_steady_state.tab' % wd, sep='\t', index_col=0).index},
+    'Nitrogen metabolism': {'%.2f' % float(i) for i in read_csv('%s/tables/metabolomics_dynamic_no_growth.tab' % wd, sep='\t', index_col=0).index},
+    'NaCl + Pheromone': {'%.2f' % float(i) for i in read_csv('%s/tables/metabolomics_dynamic_combination.csv' % wd, index_col=0)[k_activity_dyn_comb_ng.columns].index}
+}
+
+venn3(m_features.values(), set_labels=m_features.keys(), set_colors=pal.ix[m_features.keys()])
+venn3_circles(m_features.values(), linestyle='solid', color='white')
+plt.savefig('./reports/features_overlap_metabolomics.pdf', bbox_inches='tight')
+plt.close('all')
+print '[INFO] Done'
+
+# Kinases/phosphatases
+kp_features = {
+    'Genetic perturbations': set(k_activity.index),
+    'Nitrogen metabolism': set(k_activity_dyn.index),
+    'NaCl + Pheromone': set(k_activity_dyn_comb_ng.index)
+}
+
+venn3(kp_features.values(), set_labels=kp_features.keys(), set_colors=pal.ix[kp_features.keys()])
+venn3_circles(kp_features.values(), linestyle='solid', color='white')
+plt.savefig('./reports/features_overlap_kinases_phosphatases.pdf', bbox_inches='tight')
+plt.close('all')
+print '[INFO] Done'
+
+# Transcription-factors
+tf_features = {
+    'Genetic perturbations': set(tf_activity.index),
+    'Nitrogen metabolism': set(tf_activity_dyn.index)
+}
+
+venn2(tf_features.values(), set_labels=tf_features.keys(), set_colors=pal.ix[tf_features.keys()])
+venn2_circles(tf_features.values(), linestyle='solid', color='white')
+plt.savefig('./reports/features_overlap_transcription_factors.pdf', bbox_inches='tight')
+plt.close('all')
+print '[INFO] Done'
 
 
 # -- Build linear regression models
